@@ -22,29 +22,36 @@ Repo, build, and a mod that loads.
 The core proof: one UI showing the contents of several containers at once.
 
 - [x] A placeable **Storage Terminal** object with an object entity and container
+- [x] A placeable **Storage Unit** the player cannot open — a terminal is the only
+      way to reach its contents
 - [ ] Terminal container aggregates the contents of a set of linked containers
-- [ ] Aggregated grid shows combined stack counts (60 iron across 3 chests reads
+- [ ] Aggregated grid shows combined stack counts (60 iron across 3 units reads
       as one entry of 60)
-- [ ] Withdraw an item — pulled from whichever container holds it
-- [ ] Deposit an item — routed into a container with space
-- [ ] Contents stay correct when a linked chest is edited directly while the
+- [ ] Withdraw an item — pulled from whichever unit holds it
+- [ ] Deposit an item — routed into a unit with space
+- [ ] Contents stay correct when a linked unit is edited directly while the
       terminal is open
 
-**Done when:** in singleplayer, two chests with different contents can be viewed
-and modified through one terminal, and no items are duplicated or lost.
+**Done when:** in singleplayer, two storage units with different contents can be
+viewed and modified through one terminal, and no items are duplicated or lost.
 
 ## Phase 2 — Network membership and persistence
 
-- [ ] Add or remove a container from the network from the container's own UI
+- [ ] Units join a network by topology rather than by a per-container button —
+      adjacency, extended by a connector object for range
 - [ ] Membership survives save/load and level changes
-- [ ] Removing a terminal or a linked container degrades gracefully rather than
+- [ ] Removing a terminal or a linked unit degrades gracefully rather than
       orphaning items
-- [ ] A container can belong to only one network
-- [ ] Sensible bound on how far away a container may be
+- [ ] A unit can belong to only one network
+- [ ] Sensible bound on how far a network may reach
 
-Necesse already has an equivalent interaction for settlement storage ("Add
-Inventory to Settlement Storage"), so this follows that idiom rather than
-Magic Storage's adjacency/connector building.
+Superseding the earlier plan to reuse Necesse's "Add Inventory to Settlement
+Storage" gesture: a Storage Unit has no UI of its own to host that button, since
+the terminal is the only way to interact with it. This follows Magic Storage's
+adjacency-plus-connector model instead. See the correction in `MOD_BRIEF.md`.
+
+**Open:** whether ordinary chests may also join, via the button idiom in their own
+UI. Additive if so, and not a Phase 1 dependency.
 
 **Done when:** a network survives a full game restart, and breaking it in the
 obvious ways loses nothing.

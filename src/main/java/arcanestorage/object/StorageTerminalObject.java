@@ -5,6 +5,8 @@ import java.awt.Color;
 import arcanestorage.ArcaneStorage;
 import arcanestorage.container.StorageTerminalContainer;
 import arcanestorage.objectentity.StorageTerminalObjectEntity;
+import necesse.engine.localization.Localization;
+import necesse.engine.network.server.ServerClient;
 import necesse.entity.mobs.PlayerMob;
 import necesse.entity.objectEntity.ObjectEntity;
 import necesse.level.gameObject.container.StorageBoxInventoryObject;
@@ -40,6 +42,22 @@ public class StorageTerminalObject extends StorageBoxInventoryObject {
    @Override
    public void interact(Level level, int x, int y, PlayerMob player) {
       if (level.isServer()) {
+         // TEMPORARY (Phase 1 step 2): report the linked unit count so membership is
+         // observable before the aggregated view exists. Remove once the terminal's grid
+         // shows unit contents directly.
+         ObjectEntity entity = level.entityManager.getObjectEntity(x, y);
+         ServerClient client = player.getServerClient();
+         if (entity instanceof StorageTerminalObjectEntity && client != null) {
+            client.sendChatMessage(
+               Localization.translate(
+                  "ui",
+                  "arcanestorage_terminallinked",
+                  "count",
+                  String.valueOf(((StorageTerminalObjectEntity)entity).getLinkedUnits().size())
+               )
+            );
+         }
+
          StorageTerminalContainer.openAndSendContainer(ArcaneStorage.TERMINAL_CONTAINER, player.getServerClient(), level, x, y);
       }
    }

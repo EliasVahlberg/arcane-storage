@@ -3,6 +3,7 @@ package arcanestorage;
 import arcanestorage.container.StorageTerminalContainer;
 import arcanestorage.container.StorageTerminalContainerForm;
 import arcanestorage.object.StorageTerminalObject;
+import arcanestorage.object.StorageUnitObject;
 import arcanestorage.objectentity.StorageTerminalObjectEntity;
 import necesse.engine.modLoader.annotations.ModEntry;
 import necesse.engine.registries.ContainerRegistry;
@@ -27,6 +28,9 @@ public class ArcaneStorage {
    /** Registry string ID of the terminal object; also its texture and locale key. */
    public static final String TERMINAL_STRING_ID = "arcanestorageterminal";
 
+   /** Registry string ID of the storage unit object; also its texture and locale key. */
+   public static final String UNIT_STRING_ID = "arcanestorageunit";
+
    /**
     * Container IDs are assigned sequentially by {@code ContainerRegistry}, which takes no
     * string ID — every container registers under the literal name "container". They are
@@ -37,6 +41,7 @@ public class ArcaneStorage {
 
    public void init() {
       ObjectRegistry.registerObject(TERMINAL_STRING_ID, new StorageTerminalObject(), 10.0F, true);
+      ObjectRegistry.registerObject(UNIT_STRING_ID, new StorageUnitObject(), 10.0F, true);
 
       TERMINAL_CONTAINER = ContainerRegistry.registerOEContainer(
          (client, uniqueSeed, objectEntity, content) -> new StorageTerminalContainerForm<>(
@@ -54,10 +59,13 @@ public class ArcaneStorage {
    }
 
    public void postInit() {
-      // Placeholder cost so the terminal can be obtained in a fresh world for testing.
+      // Placeholder costs so both objects can be obtained in a fresh world for testing.
       // Progression and balance are Phase 6.
       Recipes.registerModRecipe(
          new Recipe(TERMINAL_STRING_ID, 1, RecipeTechRegistry.NONE, new Ingredient[]{new Ingredient("anylog", 8)})
+      );
+      Recipes.registerModRecipe(
+         new Recipe(UNIT_STRING_ID, 1, RecipeTechRegistry.NONE, new Ingredient[]{new Ingredient("anylog", 8)})
       );
    }
 }
