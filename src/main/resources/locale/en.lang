@@ -1,9 +1,6 @@
 [object]
 arcanestorageterminal=Storage Terminal
 
-[objecttooltip]
-arcanestorageterminal=View and craft from every connected container
-
 [ui]
 arcanestorage_search=Search
 arcanestorage_depositall=Deposit All

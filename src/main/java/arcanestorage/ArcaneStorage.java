@@ -1,34 +1,63 @@
 package arcanestorage;
 
+import arcanestorage.container.StorageTerminalContainer;
+import arcanestorage.container.StorageTerminalContainerForm;
+import arcanestorage.object.StorageTerminalObject;
+import arcanestorage.objectentity.StorageTerminalObjectEntity;
 import necesse.engine.modLoader.annotations.ModEntry;
+import necesse.engine.registries.ContainerRegistry;
+import necesse.engine.registries.ObjectRegistry;
+import necesse.engine.registries.RecipeTechRegistry;
+import necesse.inventory.recipe.Ingredient;
+import necesse.inventory.recipe.Recipe;
+import necesse.inventory.recipe.Recipes;
 
 /**
  * Arcane Storage — unified, searchable storage and crafting for Necesse.
  *
- * <p>Registration happens in {@link #init()} in the order the engine expects:
- * tiles, objects, items, containers, then packets. Recipes are registered in
- * {@link #postInit()} because they must resolve against every mod's items,
- * including ones loaded after this mod.
- *
- * <p>{@link #initResources()} is <b>client-only</b> — a dedicated server never
- * calls it, so nothing that affects game state may live there.
+ * <p>{@link #initResources()} is <b>client-only</b> — a dedicated server never calls it,
+ * so nothing that affects game state may live there.
  */
 @ModEntry
 public class ArcaneStorage {
 
-    /** Mod ID, matching {@code project.ext.modID} in build.gradle. */
-    public static final String MOD_ID = "elias.arcanestorage";
+   /** Mod ID, matching {@code project.ext.modID} in build.gradle. */
+   public static final String MOD_ID = "elias.arcanestorage";
 
-    public void init() {
-        // Registration goes here. See docs/MOD_BRIEF.md in the workspace for
-        // the intended build order.
-    }
+   /** Registry string ID of the terminal object; also its texture and locale key. */
+   public static final String TERMINAL_STRING_ID = "arcanestorageterminal";
 
-    public void initResources() {
-        // Client-only. Textures and sounds not auto-loaded from resources/.
-    }
+   /**
+    * Container IDs are assigned sequentially by {@code ContainerRegistry}, which takes no
+    * string ID — every container registers under the literal name "container". They are
+    * never written to disk, only sent in packets, so this is safe as long as client and
+    * server load the same mods in the same order.
+    */
+   public static int TERMINAL_CONTAINER = -1;
 
-    public void postInit() {
-        // Recipes, loot tables, chat commands.
-    }
+   public void init() {
+      ObjectRegistry.registerObject(TERMINAL_STRING_ID, new StorageTerminalObject(), 10.0F, true);
+
+      TERMINAL_CONTAINER = ContainerRegistry.registerOEContainer(
+         (client, uniqueSeed, objectEntity, content) -> new StorageTerminalContainerForm<>(
+            client, new StorageTerminalContainer(client.getClient(), uniqueSeed, (StorageTerminalObjectEntity)objectEntity)
+         ),
+         (client, uniqueSeed, objectEntity, content, serverObject) -> new StorageTerminalContainer(
+            client, uniqueSeed, (StorageTerminalObjectEntity)objectEntity
+         )
+      );
+   }
+
+   public void initResources() {
+      // Client-only. objects/arcanestorageterminal.png is loaded automatically by
+      // InventoryObject.loadTextures, so there is nothing to load by hand yet.
+   }
+
+   public void postInit() {
+      // Placeholder cost so the terminal can be obtained in a fresh world for testing.
+      // Progression and balance are Phase 6.
+      Recipes.registerModRecipe(
+         new Recipe(TERMINAL_STRING_ID, 1, RecipeTechRegistry.NONE, new Ingredient[]{new Ingredient("anylog", 8)})
+      );
+   }
 }
