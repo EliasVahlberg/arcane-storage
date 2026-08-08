@@ -75,8 +75,10 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
 
                @Override
                public void onItemClicked(InventoryItem item, InputEvent event) {
-                  // Step 4. Withdrawing has to be a server-validated custom action, not a
-                  // client-side inventory edit, so there is deliberately nothing here yet.
+                  // One click withdraws up to a stack. The server clamps this anyway and
+                  // searches for matching items itself, so it does not trust either value.
+                  container.withdrawAction.runAndSend(item, Math.min(item.getAmount(), item.item.getStackSize()));
+                  event.use();
                }
             }
          );

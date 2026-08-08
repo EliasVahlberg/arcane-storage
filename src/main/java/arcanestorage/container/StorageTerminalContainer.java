@@ -7,12 +7,15 @@ import arcanestorage.objectentity.StorageTerminalObjectEntity;
 import arcanestorage.objectentity.StorageUnitObjectEntity;
 import necesse.engine.network.NetworkClient;
 import necesse.engine.network.Packet;
+import necesse.engine.network.PacketReader;
 import necesse.engine.network.PacketWriter;
 import necesse.engine.network.packet.PacketOpenContainer;
 import necesse.engine.network.server.ServerClient;
 import necesse.engine.registries.ContainerRegistry;
 import necesse.inventory.InventoryItem;
 import necesse.inventory.container.Container;
+import necesse.inventory.container.ContainerActionResult;
+import necesse.inventory.container.customAction.ContainerCustomAction;
 import necesse.inventory.container.slots.ContainerSlot;
 import necesse.inventory.container.slots.OEInventoryContainerSlot;
 import necesse.level.maps.Level;
@@ -46,6 +49,9 @@ public class StorageTerminalContainer extends Container {
 
    public final StorageTerminalObjectEntity terminal;
 
+   /** Client-requested withdrawal, validated and executed server-side. */
+   public final StorageTerminalContainer.WithdrawAction withdrawAction;
+
    /**
     * The units backing {@link #NETWORK_START}..{@link #NETWORK_END}, in the same order the
     * slots were registered. Captured once here so the server resolves a slot index to the
@@ -75,9 +81,12 @@ public class StorageTerminalContainer extends Container {
       }
 
       // Shift-click between the player's inventory and the network, handled by the engine.
+      // Registers both directions, which is also what makes withdrawal below possible.
       if (this.NETWORK_START != -1) {
          this.addInventoryQuickTransfer(this.NETWORK_START, this.NETWORK_END);
       }
+
+      this.withdrawAction = this.registerAction(new StorageTerminalContainer.WithdrawAction());
    }
 
    /** True when no units are linked. The grid is then simply empty. */
@@ -186,5 +195,69 @@ public class StorageTerminalContainer extends Container {
 
    public static void openAndSendContainer(int containerID, ServerClient client, Level level, int tileX, int tileY) {
       openAndSendContainer(containerID, client, level, tileX, tileY, null);
+   }
+
+   /**
+    * Withdraws an item from the network into the player's inventory.
+    *
+    * <p>Modelled on {@code ShopContainer.BuyItemAction}. Two properties matter for
+    * correctness:
+    *
+    * <ul>
+    *   <li><b>The client sends an item, not a slot index.</b> An aggregated entry has no
+    *       single slot — 60 iron may be spread over three units — so the server searches
+    *       its own slots for matches instead of trusting a position. A bogus item simply
+    *       matches nothing and the action is a no-op.
+    *   <li><b>Every move goes through {@code transferFromAmount}</b>, the engine's own
+    *       transfer primitive, which handles stacking and partial moves and reports how
+    *       much actually moved. Nothing here adds or subtracts item amounts by hand, which
+    *       is where duplication bugs come from.
+    * </ul>
+    *
+    * <p>Note {@code runAndSendAction} also executes locally, so this runs on the client as
+    * optimistic prediction and on the server as the authority, which is the engine's
+    * intended pattern — the server's slot sync corrects any divergence.
+    */
+   public class WithdrawAction extends ContainerCustomAction {
+
+      public void runAndSend(InventoryItem item, int amount) {
+         Packet content = new Packet();
+         PacketWriter writer = new PacketWriter(content);
+         item.addPacketContent(writer);
+         writer.putNextInt(amount);
+         this.runAndSendAction(content);
+      }
+
+      @Override
+      public void executePacket(PacketReader reader) {
+         InventoryItem wanted = InventoryItem.fromContentPacket(reader);
+         int requested = reader.getNextInt();
+         if (wanted == null || StorageTerminalContainer.this.isNetworkEmpty()) {
+            return;
+         }
+
+         // Never trust the requested amount: one click yields at most one stack.
+         int remaining = Math.min(Math.max(requested, 0), wanted.item.getStackSize());
+         Level level = StorageTerminalContainer.this.terminal.getLevel();
+
+         for (int index = StorageTerminalContainer.this.NETWORK_START;
+              index <= StorageTerminalContainer.this.NETWORK_END && remaining > 0;
+              index++) {
+            ContainerSlot slot = StorageTerminalContainer.this.getSlot(index);
+            InventoryItem held = slot == null ? null : slot.getItem();
+            if (held == null || !held.equals(level, wanted, true, false, AGGREGATE_PURPOSE)) {
+               continue;
+            }
+
+            ContainerActionResult result = StorageTerminalContainer.this.transferFromAmount(index, slot, remaining);
+            if (result.value <= 0) {
+               // The player's inventory is full, or this slot refused. Either way, stop
+               // rather than spinning over the remaining slots.
+               break;
+            }
+
+            remaining -= result.value;
+         }
+      }
    }
 }

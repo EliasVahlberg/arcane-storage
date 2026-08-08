@@ -5,7 +5,6 @@ arcanestorageunit=Storage Unit
 [ui]
 arcanestorage_unittip=Access with a Storage Terminal
 arcanestorage_unitstatus=Storage Unit: <used>/<total> slots used
-arcanestorage_terminallinked=Linked storage units: <count>
 arcanestorage_search=Search
 arcanestorage_depositall=Deposit All
 arcanestorage_quickstack=Quick Stack
