@@ -220,11 +220,17 @@ public class StorageTerminalContainer extends Container {
     */
    public class WithdrawAction extends ContainerCustomAction {
 
-      public void runAndSend(InventoryItem item, int amount) {
+      /**
+       * @param toCursor true to pick the items up onto the cursor, as a left click on any
+       *                 inventory slot would; false to transfer them straight into the
+       *                 player's inventory, as a shift-click would.
+       */
+      public void runAndSend(InventoryItem item, int amount, boolean toCursor) {
          Packet content = new Packet();
          PacketWriter writer = new PacketWriter(content);
          item.addPacketContent(writer);
          writer.putNextInt(amount);
+         writer.putNextBoolean(toCursor);
          this.runAndSendAction(content);
       }
 
@@ -232,6 +238,7 @@ public class StorageTerminalContainer extends Container {
       public void executePacket(PacketReader reader) {
          InventoryItem wanted = InventoryItem.fromContentPacket(reader);
          int requested = reader.getNextInt();
+         boolean toCursor = reader.getNextBoolean();
          if (wanted == null || StorageTerminalContainer.this.isNetworkEmpty()) {
             return;
          }
@@ -239,6 +246,7 @@ public class StorageTerminalContainer extends Container {
          // Never trust the requested amount: one click yields at most one stack.
          int remaining = Math.min(Math.max(requested, 0), wanted.item.getStackSize());
          Level level = StorageTerminalContainer.this.terminal.getLevel();
+         ContainerSlot cursor = StorageTerminalContainer.this.getClientDraggingSlot();
 
          for (int index = StorageTerminalContainer.this.NETWORK_START;
               index <= StorageTerminalContainer.this.NETWORK_END && remaining > 0;
@@ -249,14 +257,27 @@ public class StorageTerminalContainer extends Container {
                continue;
             }
 
-            ContainerActionResult result = StorageTerminalContainer.this.transferFromAmount(index, slot, remaining);
-            if (result.value <= 0) {
-               // The player's inventory is full, or this slot refused. Either way, stop
-               // rather than spinning over the remaining slots.
-               break;
-            }
+            if (toCursor) {
+               // combineSlots caps at the cursor's remaining stack space by itself, and
+               // fails without moving anything if the cursor holds something else — so a
+               // click with an unrelated item held is a no-op rather than a swap.
+               int before = cursor.getItemAmount();
+               if (!cursor.combineSlots(level, StorageTerminalContainer.this.client.playerMob, slot, remaining, true, false, AGGREGATE_PURPOSE)
+                  .success) {
+                  break;
+               }
 
-            remaining -= result.value;
+               remaining -= cursor.getItemAmount() - before;
+            } else {
+               ContainerActionResult result = StorageTerminalContainer.this.transferFromAmount(index, slot, remaining);
+               if (result.value <= 0) {
+                  // The player's inventory is full, or this slot refused. Either way, stop
+                  // rather than spinning over the remaining slots.
+                  break;
+               }
+
+               remaining -= result.value;
+            }
          }
       }
    }

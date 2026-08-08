@@ -3,9 +3,10 @@ package arcanestorage.container;
 import java.awt.Rectangle;
 import java.util.List;
 
+import necesse.engine.gameLoop.tickManager.TickManager;
+import necesse.engine.input.Control;
 import necesse.engine.input.InputEvent;
 import necesse.engine.network.client.Client;
-import necesse.engine.gameLoop.tickManager.TickManager;
 import necesse.engine.window.GameWindow;
 import necesse.entity.mobs.PlayerMob;
 import necesse.gfx.forms.ContainerComponent;
@@ -75,9 +76,11 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
 
                @Override
                public void onItemClicked(InventoryItem item, InputEvent event) {
-                  // One click withdraws up to a stack. The server clamps this anyway and
-                  // searches for matching items itself, so it does not trust either value.
-                  container.withdrawAction.runAndSend(item, Math.min(item.getAmount(), item.item.getStackSize()));
+                  // Follow normal inventory conventions: plain click picks up onto the
+                  // cursor, INV_QUICK_MOVE (shift by default) transfers into the inventory.
+                  boolean quickMove = Control.INV_QUICK_MOVE.isDown();
+                  container.withdrawAction
+                     .runAndSend(item, Math.min(item.getAmount(), item.item.getStackSize()), !quickMove);
                   event.use();
                }
             }
