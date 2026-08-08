@@ -19,8 +19,12 @@ import necesse.level.maps.Level;
  */
 public class StorageTerminalObject extends StorageBoxInventoryObject {
 
-   /** Matches the vanilla storagebox, which is 40. */
-   public static final int SLOTS = 40;
+   /**
+    * The terminal stores nothing itself. All capacity is in the linked Storage Units, and
+    * the terminal is purely a window onto them — so breaking one drops no items, and
+    * "the network" is unambiguously the set of units.
+    */
+   public static final int SLOTS = 0;
 
    public StorageTerminalObject() {
       super(ArcaneStorage.TERMINAL_STRING_ID, SLOTS, new Color(126, 88, 176), "objects", "furniture");
