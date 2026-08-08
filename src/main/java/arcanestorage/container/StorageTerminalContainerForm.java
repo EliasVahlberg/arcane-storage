@@ -67,7 +67,7 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
 
       this.itemList = this.mainForm
          .addComponent(
-            new FormItemList(PADDING, flow.next(ROWS * CELL_SIZE), COLUMNS * CELL_SIZE, ROWS * CELL_SIZE, FormItemList.UpdateMode.CONCURRENT_CONTINUOUS) {
+            new FormItemList(PADDING, flow.next(ROWS * CELL_SIZE), COLUMNS * CELL_SIZE, ROWS * CELL_SIZE, FormItemList.UpdateMode.WAIT_FULl) {
                @Override
                public void addAllItems(List<InventoryItem> list) {
                   list.addAll(container.getAggregatedItems());
@@ -84,22 +84,40 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
       flow.next(PADDING);
       this.mainForm.setHeight(flow.next());
       this.makeCurrent(this.mainForm);
+
+      // Must happen before the form can receive input, not lazily in draw().
+      // FormItemList.reset() does not call super.reset(), so FormGeneralList.elements stays
+      // null from construction until the first updateList — and input events are handled
+      // earlier in the frame than any draw, so a click on the first frame would hit null.
+      this.refreshList();
    }
 
    /**
-    * Rebuilds the grid when the network's contents change. The slots behind the list are
-    * real and engine-synced, so a unit edited by anything else — another player, a broken
-    * unit, a settler — shows up here without any extra messaging.
+    * Rebuilds the grid from the network's current contents.
+    *
+    * <p>Driven by a content signature rather than run every frame, because rebuilding
+    * resets the player's scroll position. It cannot be driven by
+    * {@code populateIfNotAlready} alone either: that only refills when the list is empty,
+    * so an empty network would rebuild on every frame while a full one would never rebuild
+    * at all.
+    */
+   private void refreshList() {
+      this.shownSignature = signatureOf(this.getContainer().getAggregatedItems());
+      this.itemList.reset();
+      this.itemList.populateIfNotAlready();
+   }
+
+   /**
+    * Refreshes when the network's contents change. The slots behind the list are real and
+    * engine-synced, so a unit edited by anything else — another player, a settler, a unit
+    * being broken — shows up here without any extra messaging.
     */
    @Override
    public void draw(TickManager tickManager, PlayerMob perspective, Rectangle renderBox) {
-      long signature = signatureOf(this.getContainer().getAggregatedItems());
-      if (signature != this.shownSignature) {
-         this.shownSignature = signature;
-         this.itemList.reset();
+      if (signatureOf(this.getContainer().getAggregatedItems()) != this.shownSignature) {
+         this.refreshList();
       }
 
-      this.itemList.populateIfNotAlready();
       super.draw(tickManager, perspective, renderBox);
    }
 
