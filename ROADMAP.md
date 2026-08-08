@@ -17,23 +17,39 @@ Repo, build, and a mod that loads.
 
 **Done when:** the game launches with the mod present and no errors in the log.
 
-## Phase 1 — Aggregated view
+## Phase 1 — Aggregated view ✅
 
 The core proof: one UI showing the contents of several containers at once.
 
 - [x] A placeable **Storage Terminal** object with an object entity and container
 - [x] A placeable **Storage Unit** the player cannot open — a terminal is the only
       way to reach its contents
-- [ ] Terminal container aggregates the contents of a set of linked containers
-- [ ] Aggregated grid shows combined stack counts (60 iron across 3 units reads
+- [x] Terminal container aggregates the contents of a set of linked containers
+- [x] Aggregated grid shows combined stack counts (60 iron across 3 units reads
       as one entry of 60)
-- [ ] Withdraw an item — pulled from whichever unit holds it
-- [ ] Deposit an item — routed into a unit with space
-- [ ] Contents stay correct when a linked unit is edited directly while the
+- [x] Withdraw an item — pulled from whichever unit holds it
+- [x] Deposit an item — routed into a unit with space
+- [x] Contents stay correct when a linked unit is edited directly while the
       terminal is open
 
 **Done when:** in singleplayer, two storage units with different contents can be
 viewed and modified through one terminal, and no items are duplicated or lost.
+
+**Verified in game, Aug 2026.** Withdrawal was tested against exact counts —
+partial stacks gathered across two units, a full player inventory refusing the
+transfer, non-stackables, and repeated clicking — with nothing duplicated or
+lost. Click conventions match the rest of the game: plain click fills the cursor,
+`INV_QUICK_MOVE` transfers to the inventory.
+
+Two honest caveats, neither covered by the criteria above:
+
+- **Deposit preference is the engine's, not ours.** Step 4's original wording
+  wanted deposit to prefer units already holding the item. Deposit routes through
+  `addInventoryQuickTransfer`, so whatever preference exists is
+  `transferFromSlots`' own stacking order. It has not been isolated and tested,
+  and no code here implements it.
+- **Membership is still adjacency scaffolding** — orthogonal neighbours,
+  recomputed per open. Phase 2 owns real topology.
 
 ## Phase 2 — Network membership and persistence
 
