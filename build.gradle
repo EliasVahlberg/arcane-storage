@@ -202,3 +202,25 @@ def getDefaultGamePath() {
         case OS.LINUX, OS.UNKNOWN -> homeDir + "/.local/share/Steam/steamapps/common/Necesse"
     }
 }
+
+// =================================================
+// ========== Arcane Storage additions =============
+// =================================================
+// Appended at the very end on purpose. Everything above is upstream ExampleMod, so
+// keeping additions at the tail is the most merge-friendly place for them.
+//
+// Tests cover only game-independent logic — network traversal, and later the aggregation
+// rules — since anything touching Level or ObjectEntity needs a running game and belongs
+// in manual QA instead.
+
+dependencies {
+    testImplementation 'junit:junit:4.13.2'
+}
+
+test {
+    useJUnit()
+    testLogging {
+        events "passed", "failed"
+        exceptionFormat "full"
+    }
+}

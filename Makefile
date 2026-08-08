@@ -20,7 +20,7 @@ SHELL := /bin/bash
 GRADLE := ./gradlew --console=plain
 LOGDIR := build/logs
 
-.PHONY: help build run dev server appid textures clean stop tasks doctor
+.PHONY: help build test run dev server appid textures clean stop tasks doctor
 
 help: ## Show available targets
 	@grep -hE '^[a-z-]+:.*##' $(MAKEFILE_LIST) \
@@ -30,6 +30,10 @@ build: ## Compile the mod and produce build/jar/<name>.jar
 	@mkdir -p $(LOGDIR)
 	@time $(GRADLE) buildModJar < /dev/null 2>&1 | tee $(LOGDIR)/build.log
 	@ls -la build/jar/
+
+test: ## Run the unit tests (game-independent logic only; no game or Steam needed)
+	@mkdir -p $(LOGDIR)
+	$(GRADLE) test < /dev/null 2>&1 | tee $(LOGDIR)/test.log
 
 run: ## Launch the game with the in-development mod (needs Steam running)
 	@mkdir -p $(LOGDIR)

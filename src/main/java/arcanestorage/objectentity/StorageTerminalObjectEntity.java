@@ -3,6 +3,7 @@ package arcanestorage.objectentity;
 import java.util.ArrayList;
 import java.util.List;
 
+import arcanestorage.network.UnitNetwork;
 import necesse.entity.objectEntity.InventoryObjectEntity;
 import necesse.entity.objectEntity.ObjectEntity;
 import necesse.level.maps.Level;
@@ -26,8 +27,18 @@ public class StorageTerminalObjectEntity extends InventoryObjectEntity {
    /** Must never change between versions: a mismatch makes the save data load as invalid. */
    public static final String TYPE = "arcanestorageterminal";
 
-   /** Orthogonal neighbours only, in a fixed order so the linked list is deterministic. */
-   private static final int[][] NEIGHBOURS = {{0, -1}, {1, 0}, {0, 1}, {-1, 0}};
+   /**
+    * Ceiling on how many units one network may contain, and so on the container's slot
+    * count — 40 slots each, so 64 units is 2560 slots.
+    *
+    * <p>A first guess, to be revised by measurement rather than argument. It bounds the
+    * unit <i>count</i>, not the distance walked, so a very long thin chain can still reach
+    * further than the client has level data loaded. That is tolerable: the two sides
+    * disagreeing about membership shows stale contents until the terminal is reopened, and
+    * cannot move items wrongly, because no network slot index is ever sent by the client —
+    * withdrawal sends an item and the server re-resolves it against its own units.
+    */
+   public static final int MAX_UNITS = 64;
 
    public StorageTerminalObjectEntity(Level level, int x, int y, int slots) {
       super(level, x, y, slots);
@@ -37,33 +48,33 @@ public class StorageTerminalObjectEntity extends InventoryObjectEntity {
    /**
     * The linked Storage Units, discovered fresh on each call.
     *
-    * <p><b>Scaffolding for Phase 1.</b> Membership is currently "a Storage Unit is directly
-    * adjacent", which needs no persistence, no packets and no UI. Real membership —
-    * whether that is adjacency with connectors, an explicit link action, or a range
-    * bound — is Phase 2.
+    * <p>Membership is connectivity: any unit reachable from this terminal through
+    * orthogonally touching units. Units conduct, so a chain or block of them all belongs to
+    * one network, but a terminal never bridges two groups. See {@link UnitNetwork} for the
+    * traversal and the reasoning behind its guarantees.
     *
-    * <p>Order is fixed by {@link #NEIGHBOURS} rather than by iteration over a map, because
-    * withdraw and deposit must resolve to the same inventory on the server as the client's
-    * slot index implies. A non-deterministic order here would be an item-duplication bug.
+    * <p>Still no persistence: the network is recomputed each time rather than stored, so
+    * there is nothing to keep in sync with the world. That is why breaking a unit needs no
+    * cleanup. Persisted membership only becomes necessary if linking stops being a pure
+    * function of layout.
     *
     * <p>Only this mod's own units qualify. Vanilla chests are deliberately not scanned:
     * silently absorbing a nearby chest would be surprising, and a unit is distinguishable
     * precisely because the player cannot open it.
     */
    public List<StorageUnitObjectEntity> getLinkedUnits() {
-      List<StorageUnitObjectEntity> units = new ArrayList<>(NEIGHBOURS.length);
-      Level level = this.getLevel();
+      final Level level = this.getLevel();
       if (level == null) {
-         return units;
+         return new ArrayList<>();
       }
 
-      for (int[] offset : NEIGHBOURS) {
-         ObjectEntity neighbour = level.entityManager.getObjectEntity(this.tileX + offset[0], this.tileY + offset[1]);
-         if (neighbour instanceof StorageUnitObjectEntity && !neighbour.removed()) {
-            units.add((StorageUnitObjectEntity)neighbour);
+      return UnitNetwork.discover(this.tileX, this.tileY, (x, y) -> {
+         ObjectEntity candidate = level.entityManager.getObjectEntity(x, y);
+         if (candidate instanceof StorageUnitObjectEntity && !candidate.removed()) {
+            return (StorageUnitObjectEntity)candidate;
          }
-      }
 
-      return units;
+         return null;
+      }, MAX_UNITS);
    }
 }
