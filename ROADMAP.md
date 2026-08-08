@@ -89,8 +89,9 @@ Two honest caveats, neither covered by the criteria above:
 
 ## Phase 2 — Network membership and persistence
 
-- [ ] Units join a network by topology — adjacency, extended by a connector
-      object for range
+- [x] Units join a network by topology — units connected to units, not just to the
+      terminal *(code complete, **awaiting in-game QA** — see below)*
+- [ ] Extended by a connector object for range
 - [ ] Membership survives save/load and level changes
 - [ ] Removing a terminal or a linked unit degrades gracefully rather than
       orphaning items
@@ -98,13 +99,40 @@ Two honest caveats, neither covered by the criteria above:
 - [ ] A sensible bound on how far a network may reach
 - [ ] Several terminals may access one network
 
+### ⚠ Pending QA — run this first next session
+
+Connectivity-based linking is committed and unit-tested but **has never been run
+in the game**. 11 tests cover the traversal (`make test`, needs no game), so what
+is unverified is specifically the parts that touch `Level` and `ObjectEntity`.
+
+1. A chain of 5+ units running away from the terminal, only the first touching it.
+   All should aggregate — a different item in each makes it readable.
+2. Break a middle unit, reopen: far units drop out, near ones stay, nothing lost.
+3. **An L-shape or a solid block**, so more than one path exists to some unit.
+   Counts must be exact — a doubled stack means the visited set is failing in the
+   real game, which is the duplication path and stops everything else.
+4. A diagonally-touching unit — must be excluded.
+5. A unit one tile away with a gap — must be excluded.
+6. Two terminals on one chain: same contents, and a withdrawal at one is reflected
+   at the other.
+
+Also still open from Phase 1 QA: the per-unit `slots used` readout appeared not to
+change when a second non-stackable item entered the network. Most likely the item
+landed in the *other* unit and the readout is per-unit by design — clicking both
+units and comparing against the terminal's total distinguishes that from a real
+bug.
+
 A Storage Unit has no UI of its own to host a membership button, because a
 terminal is the only way to interact with it. Membership is therefore placement:
-put a unit next to the network and it joins. That is arguably *more* discoverable
+put a unit against the network and it joins. That is arguably *more* discoverable
 than a button, which matters for the discoverability requirement above.
 
-Multiple terminals may already work, since each terminal resolves its own
-neighbours independently — verify before building anything for it.
+Membership is a pure function of layout, recomputed each time a terminal opens, so
+nothing is persisted and breaking a unit needs no cleanup. Persistence only
+becomes necessary if linking stops being derivable from the world.
+
+Multiple terminals may already work, since each terminal resolves its own network
+independently — verify before building anything for it.
 
 **Ordinary chests do not join this way.** They join later through an import bus
 (Phase 5), which keeps settlers using chests they already understand while the
