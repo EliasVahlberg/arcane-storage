@@ -62,3 +62,9 @@ doctor: ## Verify the toolchain assumptions on this machine
 		&& echo "Necesse.jar : found" || echo "Necesse.jar : MISSING"
 	@echo "Local mods  : $$HOME/.config/Necesse/mods"
 	@pgrep -x steam >/dev/null && echo "Steam       : running" || echo "Steam       : NOT running (runClient will fail)"
+	@# A headless JDK has no libawt_xawt.so, which forces GraphicsEnvironment.isHeadless()
+	@# true and makes every Swing window throw. The game client is GLFW so it survives,
+	@# but runServer's ServerJFrame and all error/notice dialogs do not.
+	@test -f "$$(grep -oP '(?<=^org.gradle.java.home=).*' gradle.properties)/lib/libawt_xawt.so" \
+		&& echo "AWT         : headful" \
+		|| echo "AWT         : HEADLESS JVM (runServer cannot work; error dialogs throw instead of showing)"
