@@ -21,7 +21,7 @@ Repo, build, and a mod that loads.
 
 The core proof: one UI showing the contents of several containers at once.
 
-- [ ] A placeable **Storage Terminal** object with an object entity and container
+- [x] A placeable **Storage Terminal** object with an object entity and container
 - [ ] Terminal container aggregates the contents of a set of linked containers
 - [ ] Aggregated grid shows combined stack counts (60 iron across 3 chests reads
       as one entry of 60)
