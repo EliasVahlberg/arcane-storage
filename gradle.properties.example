@@ -1,0 +1,27 @@
+# Machine-specific build settings for this workstation.
+#
+# 1) Gradle JVM must be Java 17, not the system default.
+#    The game bundles and runs JRE 17.0.19, and the build targets language
+#    level 8. This system's default `java` is 25, which will not accept
+#    source/target 1.8.
+org.gradle.java.home=/path/to/jdk-17
+
+# 2) Necesse install directory.
+#    Upstream's Linux autodetect returns ~/.local/share/Steam/steamapps/common/Necesse,
+#    which does not exist here. Steam is installed from the Debian/Ubuntu package,
+#    which uses ~/.steam/debian-installation/ instead.
+necesseGameDir=/path/to/steamapps/common/Necesse
+
+# ---------------------------------------------------------------------------
+# Performance. Defaults gave the daemon only -Xmx512m/-Xms256m.
+# https://docs.gradle.org/current/userguide/performance.html
+# ---------------------------------------------------------------------------
+org.gradle.jvmargs=-Xmx2g -Xms512m -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8
+org.gradle.parallel=true
+org.gradle.caching=true
+
+# Configuration cache is deliberately NOT enabled. buildModJar's doFirst block
+# calls fileTree(...) at execution time, which is project access during the
+# execution phase and a configuration-cache violation. Enabling it fails the
+# build rather than speeding it up. Revisit only if that doFirst is rewritten.
+# org.gradle.configuration-cache=true

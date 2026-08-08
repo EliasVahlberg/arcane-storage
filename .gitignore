@@ -1,0 +1,71 @@
+# ---------------------------------------------------------------------------
+# This repository is intended to become PUBLIC.
+#
+# Everything below is either machine-specific, generated, or material that is
+# not ours to publish. The rules in the "must never be committed" section are
+# not cleanliness preferences — they exist because this repo is developed inside
+# a larger private workspace that contains the decompiled game source and
+# agent-facing notes. Do not relax them.
+# ---------------------------------------------------------------------------
+
+# === MUST NEVER BE COMMITTED ===============================================
+
+# Decompiled Necesse source. The game's source was never publicly released;
+# it is proprietary and redistributing it is not ours to do.
+reference/
+necesse-src/
+**/necesse-src/
+*.class
+
+# Wiki dumps and derived data. Scraped third-party content — not ours.
+wiki-pages/
+wiki-raw/
+wiki-json/
+wiki-pages.jsonl
+grep/
+
+# Agent configuration and agent-facing context. Development tooling, not
+# part of the mod, and not useful or appropriate for the public repo.
+.kiro/
+docs/WORKFLOW.md
+docs/MODDING_API.md
+docs/GAME_SYSTEMS.md
+docs/STORAGE_AND_INVENTORY.md
+docs/MOD_BRIEF.md
+docs/ASSETS.md
+
+# Secrets. Nothing here should ever exist in this repo, but be explicit.
+.secrets/
+*.cookies
+*.env
+!*.env.example
+
+# Raw game assets extracted from the installation (res.data and friends).
+# Derived sprites we ship live in src/main/resources/ and are committed;
+# bulk extractions of the game's own art are not.
+game-assets/
+res.data
+extracted-res/
+
+# === MACHINE-SPECIFIC ======================================================
+
+# Contains absolute paths to this machine's Necesse install and JDK.
+# Copy gradle.properties.example and edit it locally.
+gradle.properties
+
+# === GENERATED / BUILD =====================================================
+build/
+.gradle/
+out/
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+steam_appid.txt
+latest-crash.log
+latest-log.txt
+
+# === EDITORS / OS ==========================================================
+.idea/
+*.iml
+.vscode/
+.DS_Store
+*~

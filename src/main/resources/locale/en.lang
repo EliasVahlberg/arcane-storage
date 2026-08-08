@@ -1,0 +1,16 @@
+[object]
+arcanestorageterminal=Storage Terminal
+
+[objecttooltip]
+arcanestorageterminal=View and craft from every connected container
+
+[ui]
+arcanestorage_search=Search
+arcanestorage_depositall=Deposit All
+arcanestorage_quickstack=Quick Stack
+arcanestorage_restock=Restock
+arcanestorage_addcontainer=Add Container to Storage Network
+arcanestorage_removecontainer=Remove from Storage Network
+arcanestorage_sortby=Sort by
+arcanestorage_tab_storage=Storage
+arcanestorage_tab_crafting=Crafting
