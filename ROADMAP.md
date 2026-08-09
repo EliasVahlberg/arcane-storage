@@ -107,7 +107,11 @@ Two honest caveats, neither covered by the criteria above:
 - [x] Extended by a connector object for range — the **Storage Conduit** conducts a
       network onward without holding anything, so layout no longer fights capacity
       *(server logic harness-verified; client rendering compiled but not yet run)*
-- [ ] Membership survives save/load and level changes
+- [x] Membership survives save/load and level changes — verified across a real server
+      restart: unit contents, conduit-linked networks, multi-path counting, and a
+      network 40 tiles from spawn in regions the spawn area never touches. Free by
+      design: membership is recomputed from layout, so there is no membership to
+      persist, only the objects themselves
 - [x] Removing a terminal or a linked unit degrades gracefully rather than
       orphaning items *(verified in game: breaking a unit closes an open terminal
       immediately, with no stale entries — and the harness covers orphaning
@@ -165,6 +169,25 @@ unit mid-chain orphans what lies beyond; two terminals on one chain see the same
 `tools/capture_server.sh` starts a server with a stocked network at spawn and logs every
 inbound packet (`-Darcanestorage.packetlog`), which is how the packet vocabulary above was
 established.
+
+### Persistence needs two boots, and one gotcha
+
+`make persistence` writes state in one boot and verifies it in a second after a restart, with
+`--keep` reusing the saved world. All four cases are bundled into that single restart, since
+the restart is the expensive part. The write phase also runs last inside `make scenarios`, so
+the whole suite plus persistence costs exactly two boots.
+
+**Reads do not load regions.** Regions load on demand, and the object layer resolves a tile
+through `RegionBoundsExecutor` with `loadIfNotLoaded = false` — so an unloaded region reads as
+empty rather than as itself. Normally only a player causes regions to load, and the harness has
+no player. A freshly generated world hides this entirely because generation leaves every region
+in memory; it appears only after a restart, where a scenario sees an empty world and looks
+exactly like a persistence bug. The command now loads the regions a subcommand addresses before
+touching them.
+
+Consequence worth knowing: `expect total` scans **loaded** regions, so in a fresh boot it means
+"everything in the areas the scenario has touched". Assert per-network numbers first, then
+totals.
 
 ### ⚠ Pending QA — still needs a session
 

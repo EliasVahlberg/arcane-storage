@@ -1,0 +1,61 @@
+# Persistence, phase 1 of 2: build state that must survive a restart.
+#
+# Runs LAST in the main suite boot, so nothing resets its objects afterwards, and the server's
+# shutdown save writes it to disk. tests/scenarios/persistence/verify.txt then reopens the same
+# world in a second boot and asserts every number below is unchanged.
+#
+# All four cases are bundled here deliberately: a restart is the expensive part, so one restart
+# should cover everything that needs one.
+#
+# The assertions here are not the point -- they only prove the state was built correctly, so a
+# failure in verify.txt can be attributed to the reload rather than to bad setup.
+
+arcanestorage reset
+arcanestorage clear 25
+
+# --- Case 1: a plain chain with contents (0,0) ---
+# Object entities and their inventories.
+arcanestorage place terminal 0 0
+arcanestorage place unit 1 0
+arcanestorage place unit 2 0
+arcanestorage fill 1 0 ironbar 25
+arcanestorage fill 2 0 ironbar 25
+arcanestorage expect units 0 0 2
+arcanestorage expect item 0 0 ironbar 50
+
+# --- Case 2: a conduit-linked network (0,6) ---
+# A conduit has no object entity, so this tests the object layer rather than entity save data.
+# If conduits did not persist, the terminal would come back seeing nothing.
+arcanestorage place terminal 0 6
+arcanestorage place conduit 1 6
+arcanestorage place conduit 2 6
+arcanestorage place unit 3 6
+arcanestorage fill 3 6 stone 20
+arcanestorage expect units 0 6 1
+arcanestorage expect item 0 6 stone 20
+
+# --- Case 3: a multi-path block (0,10) ---
+# The visited set is a correctness requirement, not an optimisation: two paths reach one unit,
+# and registering it twice would double-count its contents. Worth re-checking after a reload,
+# because slot registration happens fresh when the terminal is next opened.
+arcanestorage place terminal 0 10
+arcanestorage place unit 1 10
+arcanestorage place unit 2 10
+arcanestorage place unit 2 11
+arcanestorage place unit 1 11
+arcanestorage fill 1 10 ironbar 10
+arcanestorage expect units 0 10 4
+arcanestorage expect item 0 10 ironbar 10
+
+# --- Case 4: far from spawn, in another region (-40,-40) ---
+# Regions are 16 tiles square and load on demand, so this sits in regions the spawn area never
+# touches. It is the case most likely to expose a save that only covers what was recently used.
+arcanestorage place terminal -40 -40
+arcanestorage place unit -39 -40
+arcanestorage fill -39 -40 stone 5
+arcanestorage expect units -40 -40 1
+arcanestorage expect item -40 -40 stone 5
+
+# Level-wide totals, so verify.txt can catch an item appearing or vanishing anywhere.
+arcanestorage expect total ironbar 60
+arcanestorage expect total stone 25

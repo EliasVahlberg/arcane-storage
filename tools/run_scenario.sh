@@ -5,8 +5,13 @@
 # lines starting with # are ignored. Because every line is just a console command, any
 # prefix of a scenario can be pasted into an interactive server to debug a failure.
 #
-# Usage: tools/run_scenario.sh <scenario-file> [more-scenario-files...]
+# Usage: tools/run_scenario.sh [--keep] <scenario-file> [more-scenario-files...]
 #        HARNESS_WORLD=<name> tools/run_scenario.sh ...
+#
+# --keep reuses the existing world instead of starting fresh. That is what makes persistence
+# testable: one boot writes state and saves on shutdown, the next boot reopens the same world
+# and asserts the state survived. Only persistence scenarios should use it -- every other
+# scenario wants a known starting world.
 #
 # All scenarios share ONE server boot, because booting is most of the wall clock: a
 # scenario's own work is a fraction of a second, while JVM start, mod load, world load and
@@ -20,8 +25,14 @@
 # print.
 set -uo pipefail
 
+KEEP_WORLD=0
+if [[ "${1:-}" == "--keep" ]]; then
+   KEEP_WORLD=1
+   shift
+fi
+
 if [[ $# -lt 1 ]]; then
-   echo "usage: $0 <scenario-file> [more-scenario-files...]" >&2
+   echo "usage: $0 [--keep] <scenario-file> [more-scenario-files...]" >&2
    exit 2
 fi
 
@@ -62,7 +73,13 @@ fi
 # earlier run would still be there. Only ever deletes a world whose name marks it as
 # harness-owned, so a world used for manual testing can never be destroyed by a typo.
 WORLD_FILE="$HOME/.config/Necesse/saves/worlds/$WORLD.zip"
-if [[ "$WORLD" == arcane_harness* ]]; then
+if [[ "$KEEP_WORLD" -eq 1 ]]; then
+   if [[ ! -f "$WORLD_FILE" ]]; then
+      echo "FAIL  --keep needs an existing world at $WORLD_FILE; run the writing phase first" >&2
+      exit 1
+   fi
+   echo "note: reusing world '$WORLD' as saved by the previous run."
+elif [[ "$WORLD" == arcane_harness* ]]; then
    rm -f "$WORLD_FILE"
 else
    echo "note: world '$WORLD' is not harness-owned (name must start with arcane_harness)," >&2

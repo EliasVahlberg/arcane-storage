@@ -36,6 +36,7 @@ import necesse.inventory.container.ContainerAction;
 import necesse.inventory.container.ContainerActionResult;
 import necesse.inventory.container.slots.ContainerSlot;
 import necesse.level.maps.Level;
+import necesse.level.maps.regionSystem.RegionManager;
 
 /**
  * Test-harness command, driven by scenario files through a headless server.
@@ -110,6 +111,16 @@ public class ArcaneStorageCommand extends ChatCommand {
       // each subcommand atomic with respect to the tick, so an assertion cannot observe a
       // half-applied change. A player-issued command arrives as a packet on the server
       // thread and is already safe; the lock is reentrant, so holding it costs nothing there.
+      // Regions load on demand, and reads do NOT trigger a load: the object layer resolves a
+      // tile through RegionBoundsExecutor with loadIfNotLoaded=false, so an unloaded region
+      // reads as empty rather than as itself. On a freshly generated world every region is
+      // already in memory, which hides this completely -- it only appears after a restart,
+      // where a scenario would see an empty world and report a persistence bug that is not
+      // there. Loading the addressed region first is what makes reads mean what they say.
+      //
+      // Only a player normally causes regions to load, and the harness has no player.
+      this.ensureRegionLoaded(level, spawn, args);
+
       if (sub.equals("run")) {
          // Each line locks itself, so a long scenario never holds the tick hostage for its
          // whole duration. ThreadFreezeMonitor reports a freeze after 15 seconds.
@@ -257,7 +268,7 @@ public class ArcaneStorageCommand extends ChatCommand {
 
       StorageTerminalObjectEntity terminal = this.terminalAt(level, x, y);
       if (terminal == null) {
-         logs.add("FAIL no terminal at " + args.get(1) + "," + args.get(2));
+         logs.add("FAIL no terminal at " + args.get(1) + "," + args.get(2) + " (tile " + x + "," + y + ")");
          return false;
       }
 
@@ -303,7 +314,7 @@ public class ArcaneStorageCommand extends ChatCommand {
       int y = spawn.y + Integer.parseInt(args.get(3));
       StorageTerminalObjectEntity terminal = this.terminalAt(level, x, y);
       if (terminal == null) {
-         logs.add("FAIL no terminal at " + args.get(2) + "," + args.get(3));
+         logs.add("FAIL no terminal at " + args.get(2) + "," + args.get(3) + " (tile " + x + "," + y + ")");
          return false;
       }
 
@@ -394,7 +405,7 @@ public class ArcaneStorageCommand extends ChatCommand {
       int x = spawn.x + Integer.parseInt(args.get(1));
       int y = spawn.y + Integer.parseInt(args.get(2));
       if (this.terminalAt(level, x, y) == null) {
-         logs.add("FAIL no terminal at " + args.get(1) + "," + args.get(2));
+         logs.add("FAIL no terminal at " + args.get(1) + "," + args.get(2) + " (tile " + x + "," + y + ")");
          return false;
       }
 
@@ -627,6 +638,57 @@ public class ArcaneStorageCommand extends ChatCommand {
 
       logs.add("ran scenario " + args.get(1));
       return true;
+   }
+
+   /**
+    * Loads the regions a subcommand is about to touch.
+    *
+    * <p>Every scenario coordinate is an offset from spawn, and every subcommand that names a
+    * tile is covered by scanning the arguments for numbers rather than by teaching this method
+    * each subcommand's argument order — a scenario that addresses a tile always passes it as a
+    * pair of integers.
+    *
+    * <p>{@code clear} is the exception: it takes a radius rather than a coordinate, so its box
+    * is loaded from spawn outward. That box is bounded by the same radius limit the subcommand
+    * enforces.
+    */
+   private void ensureRegionLoaded(Level level, Point spawn, ArrayList<String> args) {
+      if ("clear".equals(args.get(0).toLowerCase()) && args.size() > 1) {
+         try {
+            int radius = Math.min(200, Math.abs(Integer.parseInt(args.get(1))));
+            loadRegionsIn(level, spawn.x - radius, spawn.y - radius, spawn.x + radius, spawn.y + radius);
+         } catch (NumberFormatException ignored) {
+            // Bad input is reported by the subcommand itself.
+         }
+
+         return;
+      }
+
+      ArrayList<Integer> offsets = new ArrayList<>();
+      for (int i = 1; i < args.size(); i++) {
+         try {
+            offsets.add(Integer.parseInt(args.get(i)));
+         } catch (NumberFormatException ignored) {
+            // Item IDs, action names and similar are not coordinates.
+         }
+      }
+
+      // Coordinates always arrive as a pair, so load a region around each pair found.
+      for (int i = 0; i + 1 < offsets.size(); i += 2) {
+         int x = spawn.x + offsets.get(i);
+         int y = spawn.y + offsets.get(i + 1);
+         loadRegionsIn(level, x, y, x, y);
+      }
+   }
+
+   /** Loads every region overlapping a tile box, inclusive. */
+   private static void loadRegionsIn(Level level, int fromX, int fromY, int toX, int toY) {
+      int bits = RegionManager.REGION_SIZE_BITS;
+      for (int regionY = fromY >> bits; regionY <= toY >> bits; regionY++) {
+         for (int regionX = fromX >> bits; regionX <= toX >> bits; regionX++) {
+            level.regionManager.getRegion(regionX, regionY, true);
+         }
+      }
    }
 
    /**

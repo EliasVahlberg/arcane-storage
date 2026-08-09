@@ -20,7 +20,7 @@ SHELL := /bin/bash
 GRADLE := ./gradlew --console=plain
 LOGDIR := build/logs
 
-.PHONY: help build test scenario scenarios run dev server appid textures clean stop tasks doctor
+.PHONY: persistence help build test scenario scenarios run dev server appid textures clean stop tasks doctor
 
 help: ## Show available targets
 	@grep -hE '^[a-z-]+:.*##' $(MAKEFILE_LIST) \
@@ -40,9 +40,17 @@ scenario: ## Run one scenario against a headless server: make scenario FILE=test
 	@$(MAKE) --no-print-directory build > /dev/null
 	@tools/run_scenario.sh "$(FILE)"
 
-scenarios: ## Run every scenario in one server boot; non-zero exit if any assertion fails
+scenarios: ## Run every scenario, plus persistence across a restart; non-zero exit on any failure
 	@$(MAKE) --no-print-directory build > /dev/null
-	@tools/run_scenario.sh tests/scenarios/*.txt
+	@# The persistence write phase runs last in this boot so nothing resets its objects, and
+	@# the shutdown save puts it on disk for the second boot to verify.
+	@tools/run_scenario.sh tests/scenarios/*.txt tests/scenarios/persistence/write.txt
+	@tools/run_scenario.sh --keep tests/scenarios/persistence/verify.txt
+
+persistence: ## Just the persistence pair: one boot writes, a second verifies after a restart
+	@$(MAKE) --no-print-directory build > /dev/null
+	@tools/run_scenario.sh tests/scenarios/persistence/write.txt
+	@tools/run_scenario.sh --keep tests/scenarios/persistence/verify.txt
 
 run: ## Launch the game with the in-development mod (needs Steam running). PACKETLOG=1 logs inbound packets
 	@mkdir -p $(LOGDIR)
