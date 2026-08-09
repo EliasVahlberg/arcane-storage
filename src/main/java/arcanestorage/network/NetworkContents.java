@@ -66,9 +66,64 @@ public final class NetworkContents {
       return aggregated;
    }
 
-   /** The total amount of one item across the units, by string ID. */
-   public static int totalOf(List<StorageUnitObjectEntity> units, String itemStringID) {
+   /**
+    * Slots holding something, across every unit.
+    *
+    * <p>Counted in slots rather than in items because that is what actually runs out: a unit
+    * with 40 slots holds 40 stacks whatever their size, so a network can be simultaneously
+    * "nearly empty" by item count and completely full. Reporting stacks would tell the player
+    * the comfortable number rather than the one that will stop a deposit.
+    */
+   public static int usedSlots(List<StorageUnitObjectEntity> units) {
+      int used = 0;
+
+      for (StorageUnitObjectEntity unit : units) {
+         used += unit.inventory.getUsedSlots();
+      }
+
+      return used;
+   }
+
+   /** Slots in total, across every unit. Zero for a network with no units. */
+   public static int totalSlots(List<StorageUnitObjectEntity> units) {
       int total = 0;
+
+      for (StorageUnitObjectEntity unit : units) {
+         total += unit.inventory.getSize();
+      }
+
+      return total;
+   }
+
+   /**
+    * Whether an item could be deposited somewhere in the network.
+    *
+    * <p>A free slot is not the only way in: an existing stack with room takes an item without
+    * consuming a slot, so a network with every slot occupied can still accept more of what it
+    * already holds. Answering this by slot count alone would refuse deposits that would in fact
+    * succeed.
+    */
+   public static boolean canFit(Level level, List<StorageUnitObjectEntity> units, InventoryItem item, String purpose) {
+      for (StorageUnitObjectEntity unit : units) {
+         Inventory inventory = unit.inventory;
+
+         for (int slot = 0; slot < inventory.getSize(); slot++) {
+            InventoryItem existing = inventory.getItem(slot);
+            if (existing == null) {
+               return true;
+            }
+
+            if (existing.getAmount() < existing.item.getStackSize() && existing.equals(level, item, true, false, purpose)) {
+               return true;
+            }
+         }
+      }
+
+      return false;
+   }
+
+   /** The total amount of one item across the units, by string ID. */
+   public static int totalOf(List<StorageUnitObjectEntity> units, String itemStringID) {      int total = 0;
 
       for (StorageUnitObjectEntity unit : units) {
          Inventory inventory = unit.inventory;

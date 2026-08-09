@@ -13,9 +13,13 @@ import necesse.engine.network.PacketWriter;
 import necesse.engine.network.packet.PacketOpenContainer;
 import necesse.engine.network.server.ServerClient;
 import necesse.engine.registries.ContainerRegistry;
+import necesse.entity.mobs.PlayerMob;
+import necesse.inventory.InventoryRange;
+import necesse.inventory.Inventory;
 import necesse.inventory.InventoryItem;
 import necesse.inventory.container.Container;
 import necesse.inventory.container.ContainerActionResult;
+import necesse.inventory.container.ContainerAction;
 import necesse.inventory.container.customAction.ContainerCustomAction;
 import necesse.inventory.container.slots.ContainerSlot;
 import necesse.inventory.container.slots.OEInventoryContainerSlot;
@@ -51,7 +55,11 @@ public class StorageTerminalContainer extends Container {
    public final StorageTerminalObjectEntity terminal;
 
    /** Client-requested withdrawal, validated and executed server-side. */
+   /** Purpose recorded on deposits, kept distinct from aggregation reads. */
+   public static final String DEPOSIT_PURPOSE = "arcanestoragedeposit";
+
    public final StorageTerminalContainer.WithdrawAction withdrawAction;
+   public final StorageTerminalContainer.DepositAllAction depositAllAction;
 
    /**
     * The units backing {@link #NETWORK_START}..{@link #NETWORK_END}, in the same order the
@@ -88,6 +96,7 @@ public class StorageTerminalContainer extends Container {
       }
 
       this.withdrawAction = this.registerAction(new StorageTerminalContainer.WithdrawAction());
+      this.depositAllAction = this.registerAction(new StorageTerminalContainer.DepositAllAction());
    }
 
    /** True when no units are linked. The grid is then simply empty. */
@@ -117,6 +126,112 @@ public class StorageTerminalContainer extends Container {
     * through the same method with no player connected, and a second copy here would let
     * the tested path drift away from the one the UI actually shows.
     */
+   /** Slots holding something, across the whole network. */
+   public int getUsedSlots() {
+      return NetworkContents.usedSlots(this.linkedUnits);
+   }
+
+   /** Slots in total, across the whole network. Zero when no units are linked. */
+   public int getTotalSlots() {
+      return NetworkContents.totalSlots(this.linkedUnits);
+   }
+
+   /** Whether the network could take this item, in a free slot or on top of a matching stack. */
+   public boolean canFit(InventoryItem item) {
+      return NetworkContents.canFit(this.terminal.getLevel(), this.linkedUnits, item, AGGREGATE_PURPOSE);
+   }
+
+   /**
+    * The network's unit inventories, as transfer targets.
+    *
+    * <p>Handing these to the engine's own {@code quickStackToInventories} and
+    * {@code restockFromInventories} is the whole implementation of network quick-stack and
+    * restock. Those methods take arbitrary targets, so the only thing that was missing was
+    * somebody to pass the network in — no transfer logic is reimplemented here, which matters
+    * because hand-rolled item movement is where duplication bugs come from.
+    */
+   private ArrayList<InventoryRange> networkTargets() {
+      ArrayList<InventoryRange> targets = new ArrayList<>();
+
+      for (StorageUnitObjectEntity unit : this.linkedUnits) {
+         targets.add(new InventoryRange(unit.inventory));
+      }
+
+      return targets;
+   }
+
+   /**
+    * Redirects quick-stack and restock at the network instead of at nearby containers.
+    *
+    * <p>Vanilla resolves both by proximity — {@code getNearbyInventories} within 192 units —
+    * which is wrong inside a terminal twice over: it would miss units the network reaches
+    * beyond that radius, and it would scoop up ordinary chests that are not network members.
+    * Inside a terminal these two buttons should mean "my network", however far it stretches.
+    *
+    * <p>Everything else, including the six click conventions, falls through to the engine.
+    */
+   @Override
+   public ContainerActionResult applyContainerAction(int slotIndex, ContainerAction action) {
+      if (slotIndex == QUICK_STACK_SLOT) {
+         this.quickStackToInventories(this.networkTargets(), this.client.playerMob.getInv().main);
+         return new ContainerActionResult(1);
+      }
+
+      if (slotIndex == RESTOCK_SLOT) {
+         this.restockFromInventories(this.networkTargets(), this.client.playerMob.getInv().main);
+         return new ContainerActionResult(1);
+      }
+
+      return super.applyContainerAction(slotIndex, action);
+   }
+
+   /**
+    * Moves everything the player is carrying into the network, and reports how many items moved.
+    *
+    * <p>Distinct from quick-stack, which only tops up items the network already holds:
+    * {@code quickStackToInventories} skips a target unless it already contains that item. That
+    * is the right behaviour for a button called quick-stack and the wrong behaviour for
+    * "empty my bag after a mining trip", which is the actual returning-player action.
+    *
+    * <p>Locked slots are left alone, so the hotbar a player has deliberately pinned survives
+    * the click. Anything that will not fit stays with the player rather than being destroyed.
+    */
+   public int depositAll() {
+      Level level = this.terminal.getLevel();
+      PlayerMob player = this.client.playerMob;
+      Inventory inventory = player.getInv().main;
+      ArrayList<InventoryRange> targets = this.networkTargets();
+      int moved = 0;
+
+      for (int slot = 0; slot < inventory.getSize(); slot++) {
+         if (inventory.isSlotClear(slot) || inventory.isItemLocked(slot)) {
+            continue;
+         }
+
+         for (InventoryRange target : targets) {
+            InventoryItem item = inventory.getItem(slot);
+            if (item == null) {
+               break;
+            }
+
+            int before = item.getAmount();
+            target.inventory.addItem(level, player, item, target.startSlot, target.endSlot, DEPOSIT_PURPOSE, null);
+            int after = inventory.getAmount(slot);
+            if (after != before) {
+               inventory.markDirty(slot);
+               moved += before - after;
+            }
+
+            if (after <= 0) {
+               inventory.clearSlot(slot);
+               break;
+            }
+         }
+      }
+
+      return moved;
+   }
+
    public List<InventoryItem> getAggregatedItems() {
       if (this.isNetworkEmpty()) {
          return new ArrayList<>();
@@ -232,6 +347,25 @@ public class StorageTerminalContainer extends Container {
     * optimistic prediction and on the server as the authority, which is the engine's
     * intended pattern — the server's slot sync corrects any divergence.
     */
+   /**
+    * Deposit everything the player carries.
+    *
+    * <p>Carries no payload: the server decides what the player has and where it goes, so
+    * there is nothing for a client to misreport. Contrast {@link WithdrawAction}, which must
+    * name an item because the player is choosing one.
+    */
+   public class DepositAllAction extends ContainerCustomAction {
+
+      public void runAndSend() {
+         this.runAndSendAction(new Packet());
+      }
+
+      @Override
+      public void executePacket(PacketReader reader) {
+         StorageTerminalContainer.this.depositAll();
+      }
+   }
+
    public class WithdrawAction extends ContainerCustomAction {
 
       /**

@@ -32,6 +32,7 @@ import necesse.entity.objectEntity.ObjectEntity;
 import necesse.inventory.Inventory;
 import necesse.inventory.InventorySlot;
 import necesse.inventory.InventoryItem;
+import necesse.inventory.container.Container;
 import necesse.inventory.container.ContainerAction;
 import necesse.inventory.container.ContainerActionResult;
 import necesse.inventory.container.slots.ContainerSlot;
@@ -66,7 +67,8 @@ public class ArcaneStorageCommand extends ChatCommand {
 
    @Override
    public String getUsage() {
-      return "<place|fill|clear|reset|break|report|expect|give|open|close|withdraw|deposit|click|run|echo> ...";
+      return "<place|fill|clear|reset|break|report|expect|give|open|close|withdraw|deposit"
+         + "|depositall|quickstack|restock|click|run|echo> ...";
    }
 
    @Override
@@ -165,6 +167,12 @@ public class ArcaneStorageCommand extends ChatCommand {
                return this.withdraw(serverClient, args, logs);
             case "deposit":
                return this.deposit(serverClient, args, logs);
+            case "depositall":
+               return this.depositAll(serverClient, logs);
+            case "quickstack":
+               return this.quickStack(serverClient, logs);
+            case "restock":
+               return this.restock(serverClient, logs);
             case "click":
                return this.click(serverClient, args, logs);
             case "run":
@@ -339,7 +347,33 @@ public class ArcaneStorageCommand extends ChatCommand {
          return this.check(logs, actual == wanted, "item " + itemID + " = " + wanted, "expected " + wanted + ", found " + actual);
       }
 
-      logs.add("FAIL expect takes 'units', 'item' or 'total', got '" + kind + "'");
+      if ("capacity".equals(kind)) {
+         int wantedUsed = Integer.parseInt(args.get(4));
+         int wantedTotal = Integer.parseInt(args.get(5));
+         int used = NetworkContents.usedSlots(units);
+         int total = NetworkContents.totalSlots(units);
+         return this.check(
+            logs,
+            used == wantedUsed && total == wantedTotal,
+            "capacity = " + wantedUsed + "/" + wantedTotal + " slots",
+            "expected " + wantedUsed + "/" + wantedTotal + ", found " + used + "/" + total
+         );
+      }
+
+      if ("fits".equals(kind)) {
+         String itemID = args.get(4);
+         boolean wanted = Boolean.parseBoolean(args.get(5));
+         boolean fits = NetworkContents
+            .canFit(level, units, new InventoryItem(itemID), StorageTerminalContainer.AGGREGATE_PURPOSE);
+         return this.check(
+            logs,
+            fits == wanted,
+            "fits " + itemID + " = " + wanted,
+            "expected " + wanted + ", found " + fits
+         );
+      }
+
+      logs.add("FAIL expect takes 'units', 'item', 'capacity', 'fits', 'total' or 'held', got '" + kind + "'");
       return false;
    }
 
@@ -637,6 +671,50 @@ public class ArcaneStorageCommand extends ChatCommand {
       }
 
       logs.add("ran scenario " + args.get(1));
+      return true;
+   }
+
+   /**
+    * Deposits everything the player carries, the way the interface button does.
+    *
+    * <p>Reports the count so a scenario can assert conservation: what left the player must
+    * equal what arrived in the network.
+    */
+   private boolean depositAll(ServerClient serverClient, CommandLog logs) {
+      StorageTerminalContainer container = this.requireTerminalContainer(serverClient, logs, "depositall");
+      if (container == null) {
+         return false;
+      }
+
+      int moved = container.depositAll();
+      logs.add("PASS depositall moved " + moved + " item(s)");
+      return true;
+   }
+
+   /**
+    * Quick-stacks into the network: tops up what the network already holds and moves nothing
+    * else. Asserting the difference from depositall is the point of testing it separately.
+    */
+   private boolean quickStack(ServerClient serverClient, CommandLog logs) {
+      StorageTerminalContainer container = this.requireTerminalContainer(serverClient, logs, "quickstack");
+      if (container == null) {
+         return false;
+      }
+
+      container.applyContainerAction(Container.QUICK_STACK_SLOT, ContainerAction.LEFT_CLICK);
+      logs.add("PASS quickstack applied");
+      return true;
+   }
+
+   /** Restocks the player's stacks from the network. */
+   private boolean restock(ServerClient serverClient, CommandLog logs) {
+      StorageTerminalContainer container = this.requireTerminalContainer(serverClient, logs, "restock");
+      if (container == null) {
+         return false;
+      }
+
+      container.applyContainerAction(Container.RESTOCK_SLOT, ContainerAction.LEFT_CLICK);
+      logs.add("PASS restock applied");
       return true;
    }
 

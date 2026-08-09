@@ -225,12 +225,26 @@ second-most-cited reason players install a storage mod at all, and an aggregated
 view without it just reproduces the paginated-browser problem that existing
 Necesse storage mods already have.
 
-- [ ] **Search** the aggregated view by item name, filtering live as you type
-- [ ] **Capacity feedback** — how full the network is, and a visible failure when
-      a deposit cannot fit, rather than items silently vanishing
-- [ ] **Deposit-all** and **quick-stack** from the interface, against the whole
-      network
-- [ ] **Category filters** over the pooled list
+- [x] **Search** the aggregated view by item name, filtering live as you type
+      *(code complete, awaiting in-game QA)* — uses the engine's own
+      `ItemSearchTester`, so the syntax matches the crafting station and creative
+      menu: `|` separates alternatives and `@` also searches tooltips. Purely
+      client-side, since the client already holds every slot, so typing costs no
+      packets
+- [x] **Capacity feedback** — the footer reports slots used out of slots
+      available, counted in slots because slots are what run out. Accounting is
+      harness-verified (`tests/scenarios/capacity.txt`); the readout itself awaits
+      in-game QA. The deposit half was **verified in game** (Aug 2026): a deposit
+      that cannot fit fails visibly and leaves the items with the player
+- [x] **Deposit-all** and **quick-stack** from the interface, against the whole
+      network *(code complete, awaiting in-game QA — `session/transfers.txt`)*.
+      Quick-stack and restock reuse the engine's `quickStackToInventories` and
+      `restockFromInventories` with the network's units as targets, so no transfer
+      logic is reimplemented. Both are redirected away from vanilla's
+      proximity search, which would miss distant units and scoop up non-member chests
+- [ ] **Category filters** over the pooled list — partly delivered already, since
+      `Item.matchesSearch` walks the category tree, so "sword" or "food" filters by
+      category today. What is missing is picking a category without typing its name
 - [ ] **Sort** by semantic group, name, and quantity
 - [ ] Usable with a large network without stutter
 

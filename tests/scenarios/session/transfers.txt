@@ -1,0 +1,59 @@
+# Deposit-all, quick-stack and restock against the whole network.
+#
+# Session-only: every transfer here needs a real player, because a Container is built from the
+# player's inventory and cannot exist with nobody connected. Run it in game from chat:
+#
+#   /arcanestorage run session/transfers
+#
+# The distinction being tested is the one players get wrong about other storage mods:
+# quick-stack tops up only what the network already holds, while deposit-all moves everything.
+# If those two behaved the same, one of the buttons would be a lie.
+
+arcanestorage reset
+arcanestorage clear 20
+
+# Precondition, asserted rather than assumed: carry none of the test items, or every count
+# below would be measuring the contents of your own pockets.
+arcanestorage expect held ironbar 0
+arcanestorage expect held stone 0
+
+arcanestorage place terminal 0 0
+arcanestorage place unit 1 0
+
+# The network knows iron but has never seen stone.
+arcanestorage fill 1 0 ironbar 10
+
+# --- Quick-stack moves only what the network already holds ---
+arcanestorage give ironbar 20
+arcanestorage give stone 30
+arcanestorage open 0 0
+arcanestorage quickstack
+
+# Iron went in because the network already had iron; stone stayed with the player because it
+# had nowhere to stack onto.
+arcanestorage expect item 0 0 ironbar 30
+arcanestorage expect held ironbar 0
+arcanestorage expect held stone 30
+
+# --- Deposit-all moves everything, including items the network has never seen ---
+arcanestorage depositall
+arcanestorage expect item 0 0 stone 30
+arcanestorage expect held stone 0
+
+# --- Restock tops up a partial stack the player is already carrying ---
+# Restock refills stacks you hold rather than handing you new ones, so it needs a partial stack
+# to aim at: with an empty inventory it would correctly do nothing and prove nothing.
+arcanestorage give ironbar 5
+arcanestorage restock
+
+# The network held 30 and the player asked for a stack's worth, so all 30 move.
+arcanestorage expect item 0 0 ironbar 0
+arcanestorage expect held ironbar 35
+arcanestorage close
+
+# Conservation across the whole exercise. 'total' counts the network only, so iron now reads 0
+# with all 35 on the player: 30 deposited plus the 5 just given, nothing created or destroyed by
+# any of the three transfers.
+arcanestorage expect total ironbar 0
+arcanestorage expect total stone 30
+arcanestorage expect held stone 0

@@ -42,6 +42,31 @@ invisible to the harness. It is also the quickest to check by eye.
       swaps in while the terminal is open and reverts when closed.
 - [ ] **All three objects show correct names and icons** in the crafting menu and inventory.
 
+## Phase 3 interface — new, none of it exercised yet
+
+The whole of Phase 3 so far is client-side or player-coupled, so the harness reaches only the
+numbers behind it. `tests/scenarios/capacity.txt` covers the capacity accounting headlessly;
+everything below needs eyes or a player.
+
+- [ ] **Search filters as you type.** Type part of an item name and confirm the grid narrows
+      live. Then try the engine's syntax, which we inherit rather than invent: `iron|stone`
+      matches either, and `@` before a term searches tooltips too. Category names work as
+      queries as well — "sword", "food" — because `Item.matchesSearch` walks the category tree.
+- [ ] **Search does not break withdrawal.** Filter, then click an item and confirm the right
+      one arrives. A withdrawal names an item and an amount rather than a slot index, and the
+      server re-resolves it, so a filtered view should not be able to misdirect a click — worth
+      confirming once because it is the failure this design is supposed to make impossible.
+- [ ] **Capacity readout is correct and updates.** Compare "N / M slots used" against what you
+      know is stored, then deposit and withdraw and confirm it moves.
+- [ ] **Deposit all** empties your inventory into the network, leaving locked slots alone.
+- [ ] **Quick-stack tops up only what the network already holds**, and deposit-all moves
+      everything. If those two behave the same, one of the buttons is lying.
+- [ ] **Restock** refills partial stacks you are carrying from the network.
+- [ ] **The scripted version of all three**: `/arcanestorage run session/transfers`. Asserts the
+      quick-stack versus deposit-all distinction and conservation across every transfer.
+- [ ] **The layout survives a small window.** The header now holds a title and a search box, and
+      the footer a capacity label and three controls, so there is more to collide than before.
+
 ## Container lifecycle
 
 The parts most likely to lose or duplicate items, which is the one failure class that cannot be
@@ -60,11 +85,11 @@ recovered from a save.
       `isValid` every tick, and our implementation checks every linked unit, so the mechanism
       exists — but it has only been exercised for a *destroyed* unit, not for a concurrent
       withdrawal.
-- [ ] **Withdraw a partial stack, and more than one stack.** `WithdrawAction` clamps a single
-      request to one stack size, so asking for more than that should yield exactly one stack
-      rather than failing or over-delivering.
-- [ ] **Deposit into a full network** should fail visibly and leave the items with the player,
-      not silently consume them.
+- [ ] **Withdraw more than one stack of a *stackable* item** — ask for more `ironbar` than one
+      stack holds. The unstackable case passed (Aug 2026), but it cannot exercise the clamp:
+      with a maximum stack of 1 the clamp is satisfied by definition, so what was verified is
+      that many single-item stacks transfer correctly, not that a request larger than a stack is
+      cut down to one.
 
 ## Readouts and judgement calls
 
@@ -90,6 +115,13 @@ recovered from a save.
 
 Move items here with a date once verified, rather than deleting them, so a regression has
 something to point back at.
+
+- [x] **Depositing into a full network** fails visibly and leaves the items with the player.
+      *(Aug 2026.)* The failure class this rules out is the worst one available — silently
+      consuming items on a deposit that could not fit.
+
+- [x] **Withdrawing more than one stack of an unstackable item.** *(Aug 2026.)* See the open
+      stackable case above for what this does and does not cover.
 
 - [x] **Breaking a unit while the terminal is open** closes it immediately, with no stale
       entries in the grid and no odd stacks. *(Aug 2026.)* This was a real bug: the container's
