@@ -10,6 +10,12 @@ every connected container as one searchable inventory, and lets you craft
 directly from all of it.
 
 > **Status: early development.** Not yet released, not yet on the Workshop.
+>
+> **On the art:** the sprites and the banner are generated with a local AI image
+> pipeline and then checked by hand against a fixed nine-colour palette. They are
+> original work rather than edits of Necesse's own art. Said plainly here because
+> people reasonably want to know.
+>
 > See [ROADMAP.md](ROADMAP.md) for what is planned and what works,
 > [QA_BACKLOG.md](QA_BACKLOG.md) for checks that need a live session, and
 > [SPRITES.md](SPRITES.md) for the art the mod needs.
@@ -49,6 +55,17 @@ make dev            # launch without Steam
 make server         # launch a local dedicated server with the mod
 make doctor         # check that the JDK and game install are found
 ```
+
+### Tests
+
+```bash
+make test           # unit tests over the network traversal
+make scenarios      # every scenario against a real headless server, plus a save/load restart
+```
+
+Scenarios are data files under `tests/scenarios/`, driven through a chat command, so a test
+is a list of actions rather than Java. Ones under `session/` need a live player and are run
+from chat in game: `/arcanestorage run session/roundtrip`.
 
 `make help` lists everything. The Makefile wraps Gradle so that output streams
 live and builds cannot silently hang; run it in preference to `./gradlew`

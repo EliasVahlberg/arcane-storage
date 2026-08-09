@@ -52,7 +52,7 @@ the mod's own parts so an Arcane Storage network reads as one system on a screen
 vanilla furniture.
 
 `[unverified]` The suggestions below are stylistic opinion, not measured against extracted
-game art. The house policy (see the workspace `docs/ASSETS.md`) is to derive from Necesse's
+game art. The house policy is to derive from Necesse's
 own sprites where possible rather than draw from scratch, precisely so that fit is
 guaranteed rather than judged.
 
@@ -112,8 +112,7 @@ tests say so rather than the game quietly drawing nonsense.
 
 ### Where the junction art should read from
 
-The corners and tees in the splash banner
-(`art-submissions/logo/splash/arcane_storage_splash_v1.png`) are the target look: a bend that
+The corners and tees in the banner at the top of the README are the target look: a bend that
 keeps the channel's width through the turn, with the bright core following the bend rather than
 breaking at it. Tees should read as one continuous run with a branch joining it, not as three
 stubs meeting.

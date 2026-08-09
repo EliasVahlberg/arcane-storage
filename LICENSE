@@ -24,8 +24,15 @@ SOFTWARE.
 
 NOTE ON ART ASSETS
 
-This license covers the source code and any original art authored for this
-project. Art assets under src/main/resources/ that are derived from Necesse's
-own sprites remain the property of Fair Games Studio and are not covered by the
-grant above. Necesse is a game by Fair Games Studio; this project is an
-unofficial mod and is not affiliated with or endorsed by them.
+This license covers the source code and the original art authored for this
+project. The sprites currently under src/main/resources/ are original work
+generated with an AI image pipeline and then hand-checked against a fixed
+palette; they are not derived from Necesse's own art, and the MIT grant above
+covers them.
+
+Should any asset derived from Necesse's sprites be added later, that asset
+remains the property of Fair Games Studio and is not covered by the grant
+above. Such assets will be identified here.
+
+Necesse is a game by Fair Games Studio. This project is an unofficial mod and
+is not affiliated with or endorsed by them.

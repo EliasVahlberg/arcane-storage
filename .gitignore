@@ -69,3 +69,9 @@ latest-log.txt
 .vscode/
 .DS_Store
 *~
+
+# Eclipse/Buildship files, written by the language server. Machine-specific -- they carry
+# absolute paths and a local java.home -- so they are noise in a shared repo.
+.project
+.classpath
+.settings/
