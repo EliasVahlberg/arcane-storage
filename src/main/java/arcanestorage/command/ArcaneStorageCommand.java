@@ -12,6 +12,7 @@ import java.util.List;
 import arcanestorage.ArcaneStorage;
 import arcanestorage.container.StorageTerminalContainer;
 import arcanestorage.network.NetworkContents;
+import arcanestorage.object.StorageConduitObject;
 import arcanestorage.network.UnitNetwork;
 import arcanestorage.objectentity.StorageTerminalObjectEntity;
 import arcanestorage.objectentity.StorageUnitObjectEntity;
@@ -320,6 +321,20 @@ public class ArcaneStorageCommand extends ChatCommand {
 
       int x = spawn.x + Integer.parseInt(args.get(2));
       int y = spawn.y + Integer.parseInt(args.get(3));
+
+      // A conduit has no object entity, so its assertion works from the tile and must come
+      // before the terminal lookup below.
+      if ("mask".equals(kind)) {
+         int wanted = Integer.parseInt(args.get(4));
+         int mask = StorageConduitObject.connectionMask(level, x, y);
+         return this.check(
+            logs,
+            mask == wanted,
+            "mask at " + args.get(2) + "," + args.get(3) + " = " + wanted,
+            "expected " + wanted + ", found " + mask
+         );
+      }
+
       StorageTerminalObjectEntity terminal = this.terminalAt(level, x, y);
       if (terminal == null) {
          logs.add("FAIL no terminal at " + args.get(2) + "," + args.get(3) + " (tile " + x + "," + y + ")");
@@ -373,7 +388,7 @@ public class ArcaneStorageCommand extends ChatCommand {
          );
       }
 
-      logs.add("FAIL expect takes 'units', 'item', 'capacity', 'fits', 'total' or 'held', got '" + kind + "'");
+      logs.add("FAIL expect takes 'units', 'item', 'capacity', 'fits', 'mask', 'total' or 'held', got '" + kind + "'");
       return false;
    }
 

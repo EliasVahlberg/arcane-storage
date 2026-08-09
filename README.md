@@ -1,5 +1,7 @@
 # Arcane Storage
 
+![Arcane Storage](src/main/resources/preview.png)
+
 A storage and crafting interface mod for [Necesse](https://necessegame.com).
 
 Necesse gives you plenty of chests. It does not give you a way to see what is

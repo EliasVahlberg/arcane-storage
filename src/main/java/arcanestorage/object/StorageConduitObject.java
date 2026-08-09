@@ -2,10 +2,13 @@ package arcanestorage.object;
 
 import java.awt.Color;
 import java.awt.Rectangle;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import arcanestorage.ArcaneStorage;
 import necesse.engine.localization.Localization;
+import necesse.engine.registries.ObjectRegistry;
 import necesse.engine.gameLoop.tickManager.TickManager;
 import necesse.entity.mobs.PlayerMob;
 import necesse.gfx.camera.GameCamera;
@@ -34,6 +37,65 @@ import necesse.level.maps.light.GameLight;
  * conduit must not have.
  */
 public class StorageConduitObject extends FurnitureObject {
+
+   /**
+    * Which neighbours a conduit is joined to, as a 4-bit mask.
+    *
+    * <p>Bit order is north, east, south, west — the same order as
+    * {@link arcanestorage.network.UnitNetwork#NEIGHBOURS}, deliberately, so the picture a player
+    * sees and the walk the network performs cannot disagree about what "adjacent" means.
+    *
+    * <p>Used directly as a frame index, which is why the sheet needs 16 frames: every
+    * combination is a distinct shape — stubs, straights, four elbows, four tees and a cross.
+    */
+   public static int connectionMask(Level level, int tileX, int tileY) {
+      int mask = 0;
+
+      for (int i = 0; i < NEIGHBOUR_ORDER.length; i++) {
+         int[] offset = NEIGHBOUR_ORDER[i];
+         if (carriesNetwork(level, tileX + offset[0], tileY + offset[1])) {
+            mask |= 1 << i;
+         }
+      }
+
+      return mask;
+   }
+
+   /**
+    * Whether a tile is something the network flows through: a conduit, a unit, or a terminal.
+    *
+    * <p>Joining to units and terminals as well as to other conduits means the drawn shape
+    * reports actual connectivity rather than merely "another pipe is next to me". A pipe that
+    * visibly fails to meet a unit is then a real signal that the unit is not on the network,
+    * which is the sort of mistake that is otherwise invisible until the terminal comes up short.
+    */
+   private static boolean carriesNetwork(Level level, int tileX, int tileY) {
+      int objectID = level.getObjectID(tileX, tileY);
+      if (objectID == 0) {
+         return false;
+      }
+
+      return objectID == objectID(ArcaneStorage.CONDUIT_STRING_ID)
+         || objectID == objectID(ArcaneStorage.UNIT_STRING_ID)
+         || objectID == objectID(ArcaneStorage.TERMINAL_STRING_ID);
+   }
+
+   /**
+    * Object IDs are assigned at registration, so they cannot be constants — but they never
+    * change afterwards, and this runs for four neighbours of every visible conduit every frame,
+    * so it is worth not going through the registry each time.
+    */
+   private static int objectID(String stringID) {
+      return OBJECT_IDS.computeIfAbsent(stringID, ObjectRegistry::getObjectID);
+   }
+
+   private static final Map<String, Integer> OBJECT_IDS = new HashMap<>();
+
+   /** North, east, south, west. Matches the network walk's order, and the frame numbering. */
+   private static final int[][] NEIGHBOUR_ORDER = {{0, -1}, {1, 0}, {0, 1}, {-1, 0}};
+
+   /** Frames needed before auto-connecting shapes can be drawn: one per neighbour combination. */
+   private static final int AUTO_CONNECT_FRAMES = 16;
 
    private final String textureName;
 
@@ -100,24 +162,47 @@ public class StorageConduitObject extends FurnitureObject {
    public void drawPreview(Level level, int tileX, int tileY, int rotation, float alpha, PlayerMob player, GameCamera camera) {
       int drawX = camera.getTileDrawX(tileX);
       int drawY = camera.getTileDrawY(tileY);
+      // Preview the shape it will actually take once placed, rather than a fixed frame, so a
+      // player laying a run can see it turn a corner before committing to the tile.
+      int frames = this.frameCount();
+      int frame = frames >= AUTO_CONNECT_FRAMES ? connectionMask(level, tileX, tileY) : rotation % frames;
       this.texture
          .initDraw()
-         .sprite(rotation % this.frameCount(), 0, 32, this.texture.getHeight())
+         .sprite(frame, 0, 32, this.texture.getHeight())
          .alpha(alpha)
          .draw(drawX, drawY - this.texture.getHeight() + 32);
    }
 
    /**
     * Frames are laid out horizontally at 32px each, so the texture's width decides how many
-    * facings exist. Deriving the count instead of hardcoding it — vanilla furniture assumes
-    * {@code rotation % 4} — means a single-frame placeholder works today and adding facings
-    * later is purely an art change.
+    * there are. Deriving the count rather than hardcoding it — vanilla furniture assumes
+    * {@code rotation % 4}, and {@code InventoryObject} derives it exactly this way — means the
+    * art decides the behaviour with no code change.
     */
    private int frameCount() {
       return Math.max(1, this.texture.getWidth() / 32);
    }
 
+   /**
+    * Picks the frame for a placed conduit.
+    *
+    * <p>With a full 16-frame sheet the frame is the neighbour mask, so a conduit draws the shape
+    * its surroundings call for: elbows where a run turns, tees where one branches, a cross where
+    * two runs meet. Placement rotation is then irrelevant, which is the right outcome — a player
+    * laying pipe should not have to face the correct way, and a run should not break when
+    * something is added beside it later.
+    *
+    * <p>With fewer frames it falls back to rotation, so the earlier 4-frame vertical/horizontal
+    * sheet still renders correctly rather than showing frame 0 everywhere.
+    *
+    * <p>Purely cosmetic either way: the network walk is unchanged and does not consult this.
+    */
    private int spriteFrame(Level level, int tileX, int tileY) {
-      return level.getObjectRotation(tileX, tileY) % this.frameCount();
+      int frames = this.frameCount();
+      if (frames >= AUTO_CONNECT_FRAMES) {
+         return connectionMask(level, tileX, tileY);
+      }
+
+      return level.getObjectRotation(tileX, tileY) % frames;
    }
 }

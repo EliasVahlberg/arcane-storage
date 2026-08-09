@@ -36,10 +36,12 @@ Real sprites are now installed, so all four of these are live rather than waitin
       inventory icons. None of this draw code has ever executed.
 - [ ] **The terminal stands two tiles tall** and its foot sits on its own tile rather than
       floating, since the sprite is 32×64 and bottom-anchored.
-- [ ] **Conduit rotation follows the way you face.** Place conduits facing up/down and then
-      left/right: the sprite should switch between a vertical and a horizontal channel, and a
-      run of them should join without visible seams. Rotation comes from `playerDir`, and frame
-      count is derived from texture width, so this is behaviour no code change enabled.
+- [ ] **Conduits draw the shape their neighbours call for.** With the current four-frame sheet
+      only straights exist, so a run that turns still shows two straights meeting — that is
+      expected until the 16-frame sheet requested in SPRITES.md arrives. What to check now is
+      that straight runs join with no visible seam, and that the sprite switches axis as you
+      face up/down versus left/right. The mask convention behind the eventual elbows and tees is
+      already asserted headlessly in `tests/scenarios/conduits.txt`.
 - [ ] **The terminal screen lights up while open** and goes dark when closed
       (`arcanestorageterminal_open.png`, swapped by `isInUse()`).
 - [ ] **A run of units reads as one wall**, with the intended notches where four corners meet

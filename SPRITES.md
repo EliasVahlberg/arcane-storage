@@ -56,6 +56,92 @@ game art. The house policy (see the workspace `docs/ASSETS.md`) is to derive fro
 own sprites where possible rather than draw from scratch, precisely so that fit is
 guaranteed rather than judged.
 
+## REQUEST: conduit connection shapes — a 16-frame sheet
+
+**Status: needed. The code is already in place and falls back gracefully, so this is a
+drop-in replacement.** The installed 128×32 four-frame sheet renders straights only, so a run
+that turns a corner shows two straights meeting at right angles instead of an elbow.
+
+### The file
+
+`objects/arcanestorageconduit.png`, **512×32** — sixteen 32×32 frames in a horizontal row,
+replacing the current 128×32.
+
+### Frame order is not a choice — it is an index
+
+The frame number **is** the neighbour bitmask, computed at draw time from what is actually
+adjacent. Bits are `north = 1`, `east = 2`, `south = 4`, `west = 8`, matching the order the
+network walk uses. A bit set means the pipe must reach that edge of the tile.
+
+| Frame | Bits | Reaches | Shape |
+|---|---|---|---|
+| 0 | — | nothing | isolated stub: a short capped nub, centred |
+| 1 | N | up | end cap pointing up |
+| 2 | E | right | end cap pointing right |
+| 3 | N+E | up, right | elbow, up-to-right |
+| 4 | S | down | end cap pointing down |
+| 5 | N+S | up, down | vertical straight |
+| 6 | E+S | right, down | elbow, right-to-down |
+| 7 | N+E+S | up, right, down | tee, opening east |
+| 8 | W | left | end cap pointing left |
+| 9 | N+W | up, left | elbow, up-to-left |
+| 10 | E+W | left, right | horizontal straight |
+| 11 | N+E+W | up, right, left | tee, opening north |
+| 12 | S+W | down, left | elbow, down-to-left |
+| 13 | N+S+W | up, down, left | tee, opening west |
+| 14 | E+S+W | right, down, left | tee, opening south |
+| 15 | all four | all | four-way cross |
+
+Frames 5 and 10 are the existing vertical and horizontal tiles and can be reused unchanged.
+**Every frame must be in its numbered position**, including the ones that feel redundant —
+there is no remapping layer, and a misplaced frame draws the wrong shape everywhere.
+
+The harness asserts this convention against real placed objects
+(`tests/scenarios/conduits.txt`), so if the numbering here and the code ever diverge, the
+tests say so rather than the game quietly drawing nonsense.
+
+### Requirements carried over from the current sheet
+
+- The channel is ~12 px across, low visual weight, and **reaches the exact tile edge** on every
+  side a bit is set for, so runs join with no gap. The existing tiles already do this.
+- **No permanent end caps on through-edges.** The earlier horizontal tile's black caps produced
+  a 2 px bar at every 32 px join; that fix must survive. Caps now belong *only* to frames 1, 2,
+  4, 8 and the stub at 0, where the pipe genuinely ends.
+- Same nine-colour ramp, containing `#604a8c` exactly.
+- Hard alpha, no partial transparency.
+
+### Where the junction art should read from
+
+The corners and tees in the splash banner
+(`art-submissions/logo/splash/arcane_storage_splash_v1.png`) are the target look: a bend that
+keeps the channel's width through the turn, with the bright core following the bend rather than
+breaking at it. Tees should read as one continuous run with a branch joining it, not as three
+stubs meeting.
+
+## DECIDED: tier naming — four tiers, vanilla's ladder
+
+This was flagged as blocking. It is settled, and the submitted tier art already matches, so no
+files need renaming.
+
+Necesse's stations upgrade through exactly four steps, so ours do too: **base → Demonic →
+Tungsten → Fallen**. A fifth tier would have to invent a material step the game does not have.
+
+| Tier | Unit string ID | Terminal string ID |
+|---|---|---|
+| 1 | `arcanestorageunit` | `arcanestorageterminal` |
+| 2 | `arcanestoragedemonicunit` | `arcanestoragedemonicterminal` |
+| 3 | `arcanestoragetungstenunit` | `arcanestoragetungstenterminal` |
+| 4 | `arcanestoragefallenunit` | `arcanestoragefallenterminal` |
+
+Base tier carries no prefix, so the string IDs already shipped stay valid and the existing
+world data keeps working.
+
+Display names follow the same pattern as vanilla's own stations: "Demonic Storage Unit".
+
+**Icon sizing needs no new request.** `FormInputSize.SIZE_32` takes the delivered 32×32
+category icons as they are, and rows may differ in size, so the category row can be `SIZE_32`
+while the existing search, sort, quick-stack and restock buttons stay `SIZE_24`.
+
 ## Priority 1 — DELIVERED and installed (Aug 2026)
 
 The terminal, unit and conduit sprites plus their item icons are in
