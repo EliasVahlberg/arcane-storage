@@ -5,11 +5,21 @@ There are only six conduit shapes -- stub, cap, straight, elbow, tee, cross -- b
 states, because a cap has four orientations, an elbow four, a tee four and a straight two.
 The other ten frames are rotations, so they are generated rather than drawn.
 
-Rotating here rather than at draw time is deliberate. The engine can rotate a sprite, but
-rotated textures show dark edges (which is why the build has a preAntialiasTextures task),
-vanilla objects use frames rather than runtime rotation, and any directional shading would
-rotate with the sprite and end up lit from the wrong side. Rotating once, offline, at exact
-90 degree steps on a square tile is lossless and costs nothing at runtime.
+Rotating here rather than at draw time is deliberate: rotated textures show dark edges (which
+is why the build has a preAntialiasTextures task), vanilla objects use frames rather than
+runtime rotation, and rotating once, offline, at exact 90 degree steps on a square tile is
+lossless and costs nothing at runtime.
+
+An earlier version of this docstring also claimed offline rotation avoids directional shading
+ending up lit from the wrong side. That was wrong, and the correction is worth keeping because
+it is a real constraint on the art rather than on this script: a 90 degree rotation moves a
+highlight regardless of when it happens. What actually makes every orientation correct is that
+the authored cross-section is *symmetric about the channel axis* -- core, darker rings, then a
+1px outline, mirrored -- and the junction node is four-fold symmetric. A symmetric profile is
+identical under rotation, so no orientation can be lit wrongly.
+
+So: if anyone adds a directional highlight to the six tiles, these rotations break, and the
+selftest below will not catch it -- it checks which edges are reached, not how they are shaded.
 
 Frame index IS the neighbour bitmask the game computes: north 1, east 2, south 4, west 8.
 

@@ -9,47 +9,58 @@ relied on. Anything not verified is marked `[unverified]`.
 
 ## OUTSTANDING REQUEST — August 2026
 
-Everything else previously requested has been delivered. **Two items, one blocking.**
+**One item, not blocking.** The conduit shapes below are delivered and installed.
 
-### 1. Conduit connection shapes — six 32×32 tiles `[blocking]`
+### 1. Conduit connection shapes — DELIVERED, August 2026
 
-Filenames, all 32×32, drawn in exactly these orientations:
+Installed as `objects/arcanestorageconduit.png`, 512×32, sixteen frames. The object switches to
+bitmask rendering on its own: `frameCount()` reads the sheet width and uses the neighbour mask as
+the frame index at sixteen frames or more, falling back to rotation below that, so this replaced
+the four-frame sheet with no code change.
 
-| File | Draw the channel reaching | Notes |
-|---|---|---|
-| `stub.png` | no edge | a short capped nub, centred — an isolated conduit |
-| `cap.png` | **north** only | the pipe ends here; capped at the centre end |
-| `straight.png` | **north and south** | this is the existing vertical tile, reusable as-is |
-| `elbow.png` | **north and east** | the bend keeps the channel's full width through the turn |
-| `tee.png` | **north, east and south** | one continuous run with a branch joining it |
-| `cross.png` | all four | |
+Verified independently of the submission's own report, by measuring the installed file:
 
-Do **not** draw the other ten orientations. They are generated:
+- Sixteen frames, hard alpha only, exactly the nine palette colours, `#604a8c` present.
+- Every frame reaches exactly the edges its bitmask claims, 12 px wide, and **zero** pixels on
+  edges it does not claim — so no through-edge carries a cap and the 2 px bar at 32 px joins
+  cannot return.
+- A vertical run's bottom row is pixel-identical to its top row, and a horizontal run's right
+  column to its left column, so runs are seamless by measurement rather than by eye.
+
+Two things about how it was made are worth keeping:
+
+**The tiles are drawn procedurally from centre-line segments**, not generated then repaired. Each
+shape is a set of segments; the channel is every pixel within 5.5 px of that path. The awkward
+requirements then hold by construction — a segment crossing the boundary fills the edge exactly
+12 px wide, and only a segment *ending inside* the tile gets a cap, so a through-edge cannot
+accidentally acquire one.
+
+**A claim in `tools/build_conduit_sheet.py` was wrong and is now corrected.** It said offline
+rotation avoids directional shading being lit from the wrong side. It does not — a 90° rotation
+moves a highlight whenever it happens. What makes every orientation correct is that the authored
+cross-section is symmetric about the channel axis and the junction node is four-fold symmetric.
+**So if anyone adds a directional highlight to these tiles, the rotations break, and the selftest
+will not catch it:** it checks which edges are reached, not how they are shaded.
+
+The source art now lives in the repo, which it did not before: `art/conduit-tiles/` holds the six
+tiles and the icon, and `art/make_conduit_tiles.py` regenerates them. Previously the committed
+`tools/build_conduit_sheet.py` had uncommitted inputs, so a clone could not rebuild the sheet.
 
 ```bash
-tools/build_conduit_sheet.py <dir with the six> src/main/resources/objects/arcanestorageconduit.png
+art/make_conduit_tiles.py art/conduit-tiles          # the six tiles + the inventory icon
+tools/build_conduit_sheet.py art/conduit-tiles \
+    src/main/resources/objects/arcanestorageconduit.png
 ```
 
-Rules carried over from the delivered sheet, all still binding:
+The inventory icon is generated from the same profile rather than drawn, so it cannot drift from
+the world art. It is a loose length of pipe — both ends stopping short of the edge, so both are
+capped — with the junction gem at the centre. The previous icon was left over from the plain
+four-frame sheet and no longer resembled the object it places.
 
-- The channel is ~12 px across, low visual weight, and **reaches the exact tile edge** on every
-  side it is drawn for, so runs join seamlessly. The existing tiles already satisfy this.
-- **Caps only where the pipe truly ends** — `stub` and `cap`. The earlier horizontal tile had
-  black caps on its through-edges, which produced a visible 2 px bar at every 32 px join. That
-  fix must not regress.
-- Same nine-colour ramp, **no off-palette pixels**. Measured from every sprite already shipped,
-  darkest to lightest — these are the only nine values in use:
+**Awaiting in-game QA:** everything above is measured on the files, and the shapes have only been
+checked in a rendered preview of a 15×8 network. Nothing has been seen in the game.
 
-  `#000000` `#1a1420` `#2e2247` `#46356b` `#604a8c` `#7a5fa8` `#9d86c9` `#c7b0e8` `#e8dcff`
-
-  `#604a8c` is the object's map colour and must appear. Hard alpha only: every pixel is either
-  fully opaque or fully transparent, with no partial values anywhere.
-- Keep the bright core continuous through bends and junctions. A tee should read as a run with a
-  branch, not as three stubs meeting.
-
-The corners and tees in `assets/banner.png` are the intended look.
-
-### 2. Storage Unit lighting — one 32×32 revision `[not blocking]`
+### 2. Storage Unit lighting — one 32×32 revision `[not blocking]` — still outstanding
 
 `objects/arcanestorageunit.png` is currently lit flat rather than from above, so a wall of units
 reads as bevelled metal next to vanilla's top-lit furniture. The submission flagged this itself.
