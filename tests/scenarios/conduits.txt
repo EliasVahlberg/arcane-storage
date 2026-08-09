@@ -6,39 +6,39 @@
 
 # Scenarios share one server boot, so start from no storage objects anywhere on the
 # level -- clear only covers a radius, and expect total scans everything.
-arcanestorage reset
+harness reset
 
-arcanestorage clear 20
+harness clear 20
 
 # --- A run of conduits joins units the terminal could never reach alone (0,0) ---
-arcanestorage place terminal 0 0
-arcanestorage place conduit 1 0
-arcanestorage place conduit 2 0
-arcanestorage place conduit 3 0
-arcanestorage place unit 4 0
-arcanestorage place unit 5 0
-arcanestorage fill 4 0 ironbar 30
-arcanestorage fill 5 0 ironbar 30
+harness place terminal 0 0
+harness place conduit 1 0
+harness place conduit 2 0
+harness place conduit 3 0
+harness place unit 4 0
+harness place unit 5 0
+harness fill 4 0 ironbar 30
+harness fill 5 0 ironbar 30
 
 # Two units, not five objects: a conduit must never contribute capacity.
-arcanestorage expect units 0 0 2
-arcanestorage expect total ironbar 60
+harness expect units 0 0 2
+harness expect total ironbar 60
 
 # --- A conduit conducts, it does not bridge (0,6) ---
 # One empty tile at 2,6 still severs the network, exactly as it does between units.
-arcanestorage place terminal 0 6
-arcanestorage place conduit 1 6
-arcanestorage place conduit 3 6
-arcanestorage place unit 4 6
-arcanestorage expect units 0 6 0
+harness place terminal 0 6
+harness place conduit 1 6
+harness place conduit 3 6
+harness place unit 4 6
+harness expect units 0 6 0
 
 # --- A conduit branches, which is the reason it exists (0,10) ---
 # Routing around a base means one conduit feeding units in different directions.
-arcanestorage place terminal 1 10
-arcanestorage place conduit 1 11
-arcanestorage place unit 0 11
-arcanestorage place unit 2 11
-arcanestorage expect units 1 10 2
+harness place terminal 1 10
+harness place conduit 1 11
+harness place unit 0 11
+harness place unit 2 11
+harness expect units 1 10 2
 
 # --- Connection shapes: the frame a conduit draws is its neighbour mask (0,20) ---
 #
@@ -50,38 +50,38 @@ arcanestorage expect units 1 10 2
 #
 # Units and terminals count as connections too, so a pipe visibly meeting a unit means the
 # unit really is on the network.
-arcanestorage place terminal 0 20
-arcanestorage place conduit 1 20
-arcanestorage place conduit 2 20
-arcanestorage place conduit 2 21
-arcanestorage place unit 3 21
+harness place terminal 0 20
+harness place conduit 1 20
+harness place conduit 2 20
+harness place conduit 2 21
+harness place unit 3 21
 
 # 1,20 has the terminal west and a conduit east: horizontal straight.
-arcanestorage expect mask 1 20 10
+harness expect mask 1 20 10
 
 # 2,20 has a conduit west and a conduit south: an elbow.
-arcanestorage expect mask 2 20 12
+harness expect mask 2 20 12
 
 # 2,21 has a conduit north and a unit east: the other elbow.
-arcanestorage expect mask 2 21 3
+harness expect mask 2 21 3
 
 # An isolated conduit connects to nothing, and draws the stub frame rather than a straight.
-arcanestorage place conduit 6 20
-arcanestorage expect mask 6 20 0
+harness place conduit 6 20
+harness expect mask 6 20 0
 
 # Adding a neighbour changes the shape with no rotation involved, which is the whole point:
 # a run must not break when something is placed beside it later.
-arcanestorage place conduit 6 21
-arcanestorage expect mask 6 20 4
-arcanestorage expect mask 6 21 1
+harness place conduit 6 21
+harness expect mask 6 20 4
+harness expect mask 6 21 1
 
 # --- Breaking a conduit orphans everything beyond it (0,14) ---
 
 # The same degradation as breaking a unit mid-chain, and the reason isValid checks the
 # network every tick rather than trusting what it found when the terminal was opened.
-arcanestorage place terminal 0 14
-arcanestorage place conduit 1 14
-arcanestorage place unit 2 14
-arcanestorage expect units 0 14 1
-arcanestorage break 1 14
-arcanestorage expect units 0 14 0
+harness place terminal 0 14
+harness place conduit 1 14
+harness place unit 2 14
+harness expect units 0 14 1
+harness break 1 14
+harness expect units 0 14 0

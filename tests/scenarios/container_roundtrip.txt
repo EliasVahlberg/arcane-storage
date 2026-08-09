@@ -10,39 +10,39 @@
 # deliberately: a connected player keeps regions loaded, and the persistence scenarios exist to
 # catch exactly the bug that hides behind loaded regions.
 #
-arcanestorage player spawn
+harness player spawn
 
 # Scenarios share one server boot, so start from no storage objects anywhere on the
 # level -- clear only covers a radius, and expect total scans everything.
-arcanestorage reset
+harness reset
 
-arcanestorage clear 12
+harness clear 12
 
-arcanestorage place terminal 4 0
-arcanestorage place unit 5 0
-arcanestorage place unit 5 1
-arcanestorage fill 5 0 ironbar 40
-arcanestorage fill 5 1 ironbar 40
+harness place terminal 4 0
+harness place unit 5 0
+harness place unit 5 1
+harness fill 5 0 ironbar 40
+harness fill 5 1 ironbar 40
 
-arcanestorage expect units 4 0 2
-arcanestorage expect total ironbar 80
-arcanestorage expect held ironbar 0
+harness expect units 4 0 2
+harness expect total ironbar 80
+harness expect held ironbar 0
 
-arcanestorage open 4 0
+harness open 4 0
 
 # Withdraw is a move, so the network must lose exactly what the player gains.
-arcanestorage withdraw ironbar 10
-arcanestorage expect held ironbar 10
-arcanestorage expect item 4 0 ironbar 70
-arcanestorage expect total ironbar 70
+harness withdraw ironbar 10
+harness expect held ironbar 10
+harness expect item 4 0 ironbar 70
+harness expect total ironbar 70
 
 # And back again. The totals returning to their starting values is the conservation check:
 # an off-by-one that creates or destroys an item fails here even if the grid looks right.
-arcanestorage deposit ironbar 10
-arcanestorage expect held ironbar 0
-arcanestorage expect item 4 0 ironbar 80
-arcanestorage expect total ironbar 80
+harness deposit ironbar 10
+harness expect held ironbar 0
+harness expect item 4 0 ironbar 80
+harness expect total ironbar 80
 
-arcanestorage close
+harness close
 
-arcanestorage player despawn
+harness player despawn

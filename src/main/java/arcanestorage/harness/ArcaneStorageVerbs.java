@@ -1,6 +1,9 @@
 package arcanestorage.harness;
 
+import java.awt.Point;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 import arcanestorage.ArcaneStorage;
 import arcanestorage.container.StorageTerminalContainer;
@@ -8,7 +11,15 @@ import arcanestorage.network.NetworkContents;
 import arcanestorage.object.StorageConduitObject;
 import arcanestorage.objectentity.StorageTerminalObjectEntity;
 import arcanestorage.objectentity.StorageUnitObjectEntity;
+import necesse.engine.network.Packet;
+import necesse.engine.network.PacketReader;
+import necesse.engine.network.PacketWriter;
+import necesse.engine.registries.ItemRegistry;
+import necesse.engine.registries.ObjectRegistry;
 import necesse.entity.objectEntity.ObjectEntity;
+import necesse.inventory.container.ContainerAction;
+import necesse.inventory.container.slots.ContainerSlot;
+import necesse.inventory.item.Item;
 import necesse.inventory.InventoryItem;
 import necesse.level.maps.Level;
 import necesseheadlessharness.Harness;
@@ -58,6 +69,13 @@ public final class ArcaneStorageVerbs {
       Harness.registerObjectAlias("unit", ArcaneStorage.UNIT_STRING_ID);
       Harness.registerObjectAlias("conduit", ArcaneStorage.CONDUIT_STRING_ID);
 
+      Harness.registerVerb(new ReportVerb());
+      Harness.registerVerb(new ResetVerb());
+      Harness.registerVerb(new WithdrawVerb());
+      Harness.registerVerb(new DepositVerb());
+      Harness.registerVerb(new DepositAllVerb());
+      Harness.registerVerb(new BenchVerb());
+
       Harness.registerExpectation(new UnitsExpectation());
       Harness.registerExpectation(new NetworkItemExpectation());
       Harness.registerExpectation(new CapacityExpectation());
@@ -85,6 +103,321 @@ public final class ArcaneStorageVerbs {
    static boolean noTerminal(TestContext context) {
       context.fail("no terminal at " + context.arg(2) + "," + context.arg(3));
       return false;
+   }
+
+   /**
+    * Requires an open terminal, which several verbs below do because they exercise the container
+    * rather than the network directly. Going through the container is the point: it is what a
+    * player's click actually touches.
+    */
+   static StorageTerminalContainer requireTerminalContainer(TestContext context, String verb) {
+      if (!(context.client.getContainer() instanceof StorageTerminalContainer)) {
+         context.fail("'" + verb + "' needs an open terminal; run 'open <dx> <dy>' first");
+         return null;
+      }
+
+      return (StorageTerminalContainer)context.client.getContainer();
+   }
+
+   /** {@code report <dx> <dy>} -- dumps what a terminal's network can see. Diagnostic, not an assertion. */
+   private static final class ReportVerb implements TestVerb {
+      public String name() {
+         return "report";
+      }
+
+      public String usage() {
+         return "report <dx> <dy>";
+      }
+
+      public int coordinateArgIndex() {
+         return 1;
+      }
+
+      public boolean run(TestContext context) {
+         StorageTerminalObjectEntity terminal = terminalAt(context, 1);
+         if (terminal == null) {
+            context.fail("no terminal at " + context.arg(1) + "," + context.arg(2));
+            return false;
+         }
+
+         List<StorageUnitObjectEntity> units = terminal.getLinkedUnits();
+         context.info("network at " + context.arg(1) + "," + context.arg(2) + ": " + units.size() + " units");
+
+         for (InventoryItem item : NetworkContents.aggregate(
+               context.level, units, StorageTerminalContainer.AGGREGATE_PURPOSE)) {
+            context.info("  " + item.item.getStringID() + " x" + item.getAmount());
+         }
+
+         return true;
+      }
+   }
+
+   /**
+    * {@code reset} -- removes every storage object on the level.
+    *
+    * <p>Scenarios share one server boot, so isolation is each scenario's own responsibility. The
+    * harness's {@code clear} covers a radius, which is not the same as covering the level, and
+    * {@code expect total} scans everything -- so a unit left in an unexpected place by an earlier
+    * scenario would show up as a failure here. This removes them wherever they are.
+    */
+   private static final class ResetVerb implements TestVerb {
+      public String name() {
+         return "reset";
+      }
+
+      public String usage() {
+         return "reset";
+      }
+
+      public int coordinateArgIndex() {
+         return -1;
+      }
+
+      public boolean run(TestContext context) {
+         ArrayList<Point> ours = new ArrayList<>();
+
+         for (ObjectEntity entity : context.level.entityManager.objectEntities) {
+            if (!entity.removed()
+                  && (entity instanceof StorageUnitObjectEntity || entity instanceof StorageTerminalObjectEntity)) {
+               ours.add(new Point(entity.tileX, entity.tileY));
+            }
+         }
+
+         for (Point tile : ours) {
+            context.level.setObject(tile.x, tile.y, 0);
+         }
+
+         context.info("reset removed " + ours.size() + " storage objects from the level");
+         return true;
+      }
+   }
+
+   /** {@code withdraw <item> <n> [cursor]} -- through the container's own action and packet encoding. */
+   private static final class WithdrawVerb implements TestVerb {
+      public String name() {
+         return "withdraw";
+      }
+
+      public String usage() {
+         return "withdraw <itemStringID> <amount> [cursor]";
+      }
+
+      public int coordinateArgIndex() {
+         return -1;
+      }
+
+      public boolean needsPlayer() {
+         return true;
+      }
+
+      public boolean run(TestContext context) {
+         StorageTerminalContainer container = requireTerminalContainer(context, "withdraw");
+         if (container == null) {
+            return false;
+         }
+
+         String itemID = context.arg(1);
+         int amount = context.intArg(2);
+         boolean toCursor = context.argCount() > 3 && "cursor".equalsIgnoreCase(context.arg(3));
+
+         // Encoded exactly as WithdrawAction.runAndSend does, and handed to the same executePacket,
+         // so the packet encoding is exercised rather than bypassed. A withdrawal that works only
+         // when called in-process is not a working withdrawal.
+         Packet content = new Packet();
+         PacketWriter writer = new PacketWriter(content);
+         new InventoryItem(itemID, 1).addPacketContent(writer);
+         writer.putNextInt(amount);
+         writer.putNextBoolean(toCursor);
+         container.withdrawAction.executePacket(new PacketReader(content));
+         container.markFullDirty();
+
+         context.info("withdrew up to " + amount + " " + itemID
+               + (toCursor ? " to the cursor" : " to the inventory"));
+         return true;
+      }
+   }
+
+   /**
+    * {@code deposit <item> <n>} -- shift-clicks the item out of the player's own inventory.
+    *
+    * <p>Player slots are the indices below {@code NETWORK_START}: {@code Container} assigns them in
+    * its own constructor, before this container adds any unit slots.
+    */
+   private static final class DepositVerb implements TestVerb {
+      public String name() {
+         return "deposit";
+      }
+
+      public String usage() {
+         return "deposit <itemStringID> <amount>";
+      }
+
+      public int coordinateArgIndex() {
+         return -1;
+      }
+
+      public boolean needsPlayer() {
+         return true;
+      }
+
+      public boolean run(TestContext context) {
+         StorageTerminalContainer container = requireTerminalContainer(context, "deposit");
+         if (container == null) {
+            return false;
+         }
+
+         String itemID = context.arg(1);
+         int amount = context.intArg(2);
+         int moved = 0;
+
+         for (int slot = 0; slot < container.NETWORK_START && moved < amount; slot++) {
+            ContainerSlot containerSlot = container.getSlot(slot);
+            InventoryItem item = containerSlot == null ? null : containerSlot.getItem();
+            if (item == null || !item.item.getStringID().equals(itemID)) {
+               continue;
+            }
+
+            moved += container.applyContainerAction(slot, ContainerAction.QUICK_MOVE).value;
+         }
+
+         return context.check(moved == amount, "deposited " + amount + " " + itemID,
+               "only moved " + moved + "; the network may be full or the inventory short");
+      }
+   }
+
+   /** {@code depositall} -- the button that moves everything the network will accept. */
+   private static final class DepositAllVerb implements TestVerb {
+      public String name() {
+         return "depositall";
+      }
+
+      public String usage() {
+         return "depositall";
+      }
+
+      public int coordinateArgIndex() {
+         return -1;
+      }
+
+      public boolean needsPlayer() {
+         return true;
+      }
+
+      public boolean run(TestContext context) {
+         StorageTerminalContainer container = requireTerminalContainer(context, "depositall");
+         if (container == null) {
+            return false;
+         }
+
+         context.info("depositall moved " + container.depositAll() + " item(s)");
+         return true;
+      }
+   }
+
+   /**
+    * {@code bench <dx> <dy> <units> [iterations]} -- times the work the interface redoes on every
+    * redraw, and fails if it does not fit in a frame.
+    *
+    * <p>Exists because "usable with a large network" was a claim backed by reasoning rather than
+    * measurement. Two costs were removed on the strength of reading the code, and reading the code
+    * cannot tell you whether what remains fits in a frame.
+    */
+   private static final class BenchVerb implements TestVerb {
+      /** A frame has 16.67ms for everything, so the interface's own share must be a small part of it. */
+      private static final double BUDGET_MS = 2.0;
+
+      public String name() {
+         return "bench";
+      }
+
+      public String usage() {
+         return "bench <dx> <dy> <units> [iterations]";
+      }
+
+      public int coordinateArgIndex() {
+         return 1;
+      }
+
+      public boolean run(TestContext context) {
+         int x = context.tileX(context.intArg(1));
+         int y = context.tileY(context.intArg(2));
+         int wantedUnits = context.intArg(3);
+         int iterations = context.argCount() > 4 ? context.intArg(4) : 200;
+
+         StorageTerminalObjectEntity terminal = terminalAt(context, 1);
+         if (terminal == null) {
+            context.fail("bench: no terminal at " + context.arg(1) + "," + context.arg(2));
+            return false;
+         }
+
+         // Stackable, non-placeable items only: an object item would build scenery instead of
+         // filling a slot, and unstackable items cap every slot at 1 and understate the load.
+         List<String> pool = new ArrayList<>();
+         for (Item item : ItemRegistry.getItems()) {
+            if (item != null && item.getStringID() != null && item.getStackSize() > 1) {
+               pool.add(item.getStringID());
+            }
+         }
+
+         if (pool.isEmpty()) {
+            context.fail("bench: no stackable items in the registry");
+            return false;
+         }
+
+         int unitObjectID = ObjectRegistry.getObjectID(ArcaneStorage.UNIT_STRING_ID);
+         int placed = 0;
+         int distinct = 0;
+
+         for (int i = 0; placed < wantedUnits; i++) {
+            // A solid rectangle beside the terminal, so every unit links by adjacency alone and the
+            // walk has the widest possible frontier -- the worst case for discovery too.
+            int unitX = x + 1 + i % 8;
+            int unitY = y + i / 8;
+
+            context.level.setObject(unitX, unitY, unitObjectID);
+            ObjectEntity entity = context.level.entityManager.getObjectEntity(unitX, unitY);
+            if (!(entity instanceof StorageUnitObjectEntity)) {
+               continue;
+            }
+
+            StorageUnitObjectEntity unit = (StorageUnitObjectEntity)entity;
+            for (int slot = 0; slot < unit.inventory.getSize(); slot++) {
+               // Distinct items are what aggregation scales on: a network holding one item type in
+               // every slot is cheap no matter how large it is.
+               unit.inventory.setItem(slot, new InventoryItem(pool.get(distinct++ % pool.size()), 1));
+            }
+
+            placed++;
+         }
+
+         // Membership is recomputed from layout on every call, so this measures discovery honestly
+         // rather than a cached result.
+         List<StorageUnitObjectEntity> units = terminal.getLinkedUnits();
+
+         // Warm up first: the first calls pay for classloading and JIT, and reporting that as the
+         // per-frame cost would overstate it by an order of magnitude.
+         for (int i = 0; i < 20; i++) {
+            NetworkContents.aggregate(context.level, units, StorageTerminalContainer.AGGREGATE_PURPOSE);
+         }
+
+         long start = System.nanoTime();
+         int lastSize = 0;
+         for (int i = 0; i < iterations; i++) {
+            lastSize = NetworkContents.aggregate(
+                  context.level, units, StorageTerminalContainer.AGGREGATE_PURPOSE).size();
+         }
+         double perCall = (System.nanoTime() - start) / (double)iterations / 1_000_000.0;
+
+         context.info("BENCH units=" + units.size()
+               + " slots=" + NetworkContents.totalSlots(units)
+               + " distinct=" + lastSize
+               + " aggregate=" + String.format(Locale.ROOT, "%.3f", perCall) + "ms"
+               + " (" + String.format(Locale.ROOT, "%.1f", perCall / 16.67 * 100.0) + "% of a 60fps frame)");
+
+         return context.check(perCall <= BUDGET_MS, "bench: aggregation within budget",
+               "aggregation costs " + String.format(Locale.ROOT, "%.3f", perCall)
+                  + "ms, over the " + BUDGET_MS + "ms budget -- this needs caching rather than tuning");
+      }
    }
 
    /** {@code expect units <dx> <dy> <n>} -- how many units the terminal's walk reaches. */

@@ -15,23 +15,23 @@
 # Strip whatever world generation put here, so the layout below is the only thing present.
 # Scenarios share one server boot, so start from no storage objects anywhere on the
 # level -- clear only covers a radius, and expect total scans everything.
-arcanestorage reset
+harness reset
 
-arcanestorage clear 12
+harness clear 12
 
-arcanestorage place terminal 0 0
-arcanestorage place unit 1 0
-arcanestorage place unit 2 0
-arcanestorage place unit 1 1
-arcanestorage place unit 2 1
+harness place terminal 0 0
+harness place unit 1 0
+harness place unit 2 0
+harness place unit 1 1
+harness place unit 2 1
 
-arcanestorage fill 1 0 ironbar 15
-arcanestorage fill 2 0 ironbar 15
-arcanestorage fill 1 1 ironbar 15
-arcanestorage fill 2 1 ironbar 15
+harness fill 1 0 ironbar 15
+harness fill 2 0 ironbar 15
+harness fill 1 1 ironbar 15
+harness fill 2 1 ironbar 15
 
-arcanestorage expect units 0 0 4
-arcanestorage expect item 0 0 ironbar 60
-arcanestorage expect total ironbar 60
+harness expect units 0 0 4
+harness expect item 0 0 ironbar 60
+harness expect total ironbar 60
 
-arcanestorage report 0 0
+harness report 0 0

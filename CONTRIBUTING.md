@@ -49,19 +49,34 @@ timeout happened to be wrapped around it — 400 seconds in one case — while r
 
 ### Scenarios are data, not Java
 
-A scenario is a list of chat commands under `tests/scenarios/`, run by
-`/arcanestorage run <name>` or by the harness:
+A scenario is a list of chat commands under `tests/scenarios/`, run by `/harness run <name>` in
+game or by the runner:
 
 ```
-arcanestorage place terminal 0 0
-arcanestorage place unit 1 0
-arcanestorage give 0 0 ironbar 100
-arcanestorage expect units 0 0 1
-arcanestorage expect item 0 0 ironbar 100
+harness place terminal 0 0
+harness place unit 1 0
+harness fill 1 0 ironbar 100
+harness expect units 0 0 1
+harness expect item 0 0 ironbar 100
 ```
 
-Verbs: `place fill clear reset break report expect give open close withdraw deposit depositall
-quickstack restock click run echo`. `expect` kinds: `units item capacity fits mask total held`.
+The command is `harness`, not `arcanestorage`, because the harness lives in its own mod:
+[necesse-headless-harness](https://github.com/EliasVahlberg/necesse-headless-harness). It has to
+be installed into `~/.config/Necesse/mods` (`make install` in its repo) rather than dev-loaded,
+because the game accepts exactly one dev mod and this one holds that slot.
+
+**Install it as a sibling checkout.** `tools/run_scenario.sh` here is a wrapper that supplies this
+mod's jar path, scenario directory and world name, then delegates; it looks for the harness at
+`../necesse-headless-harness` unless `HARNESS_DIR` says otherwise.
+
+Generic verbs come from the harness: `place fill clear break give open close click quickstack
+restock player run echo`, and `expect item total held`. This mod registers the rest —
+`report reset withdraw deposit depositall bench`, and `expect units capacity fits mask` — from
+`arcanestorage.harness.ArcaneStorageVerbs`, which is also where a new one goes. Note it
+deliberately *replaces* the harness's `expect item` and `expect total`: the generic versions read
+one tile's inventory and every inventory on the level, and here those must mean what the network
+can see.
+
 Coordinates are relative to world spawn, so scenarios are world-independent.
 
 Prefer adding a scenario over adding a unit test when the behaviour involves the level, objects,

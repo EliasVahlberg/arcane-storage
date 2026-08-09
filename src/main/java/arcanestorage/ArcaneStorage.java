@@ -1,13 +1,11 @@
 package arcanestorage;
 
-import arcanestorage.command.ArcaneStorageCommand;
 import arcanestorage.container.StorageTerminalContainer;
 import arcanestorage.container.StorageTerminalContainerForm;
 import arcanestorage.object.StorageTerminalObject;
 import arcanestorage.object.StorageConduitObject;
 import arcanestorage.object.StorageUnitObject;
 import arcanestorage.objectentity.StorageTerminalObjectEntity;
-import necesse.engine.commands.CommandsManager;
 import necesse.engine.modLoader.annotations.ModEntry;
 import necesse.engine.registries.ContainerRegistry;
 import necesse.engine.registries.ObjectRegistry;
@@ -89,9 +87,9 @@ public class ArcaneStorage {
 
       // Drives the scenario harness. Registered unconditionally: it needs owner permission,
       // and being present in a normal game is harmless.
-      CommandsManager.registerServerCommand(new ArcaneStorageCommand());
-
-      // Adds this mod's assertions to the harness's command, when the harness is installed. Guarded
+      // Adds this mod's verbs and assertions to the harness's command, when the harness is
+      // installed. There is no command of our own any more: every verb was either generic enough to
+      // belong to the harness or specific enough to register into it. Guarded
       // inside that class, since the harness is an optional dependency and referencing an absent type
       // is a NoClassDefFoundError rather than something catchable at the call site.
       arcanestorage.harness.ArcaneStorageVerbs.registerIfPresent();

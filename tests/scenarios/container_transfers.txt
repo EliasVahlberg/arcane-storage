@@ -10,55 +10,55 @@
 # deliberately: a connected player keeps regions loaded, and the persistence scenarios exist to
 # catch exactly the bug that hides behind loaded regions.
 #
-arcanestorage player spawn
+harness player spawn
 
-arcanestorage reset
-arcanestorage clear 20
+harness reset
+harness clear 20
 
 # Precondition, asserted rather than assumed: carry none of the test items, or every count
 # below would be measuring the contents of your own pockets.
-arcanestorage expect held ironbar 0
-arcanestorage expect held stone 0
+harness expect held ironbar 0
+harness expect held stone 0
 
-arcanestorage place terminal 0 0
-arcanestorage place unit 1 0
+harness place terminal 0 0
+harness place unit 1 0
 
 # The network knows iron but has never seen stone.
-arcanestorage fill 1 0 ironbar 10
+harness fill 1 0 ironbar 10
 
 # --- Quick-stack moves only what the network already holds ---
-arcanestorage give ironbar 20
-arcanestorage give stone 30
-arcanestorage open 0 0
-arcanestorage quickstack
+harness give ironbar 20
+harness give stone 30
+harness open 0 0
+harness quickstack
 
 # Iron went in because the network already had iron; stone stayed with the player because it
 # had nowhere to stack onto.
-arcanestorage expect item 0 0 ironbar 30
-arcanestorage expect held ironbar 0
-arcanestorage expect held stone 30
+harness expect item 0 0 ironbar 30
+harness expect held ironbar 0
+harness expect held stone 30
 
 # --- Deposit-all moves everything, including items the network has never seen ---
-arcanestorage depositall
-arcanestorage expect item 0 0 stone 30
-arcanestorage expect held stone 0
+harness depositall
+harness expect item 0 0 stone 30
+harness expect held stone 0
 
 # --- Restock tops up a partial stack the player is already carrying ---
 # Restock refills stacks you hold rather than handing you new ones, so it needs a partial stack
 # to aim at: with an empty inventory it would correctly do nothing and prove nothing.
-arcanestorage give ironbar 5
-arcanestorage restock
+harness give ironbar 5
+harness restock
 
 # The network held 30 and the player asked for a stack's worth, so all 30 move.
-arcanestorage expect item 0 0 ironbar 0
-arcanestorage expect held ironbar 35
-arcanestorage close
+harness expect item 0 0 ironbar 0
+harness expect held ironbar 35
+harness close
 
 # Conservation across the whole exercise. 'total' counts the network only, so iron now reads 0
 # with all 35 on the player: 30 deposited plus the 5 just given, nothing created or destroyed by
 # any of the three transfers.
-arcanestorage expect total ironbar 0
-arcanestorage expect total stone 30
-arcanestorage expect held stone 0
+harness expect total ironbar 0
+harness expect total stone 30
+harness expect held stone 0
 
-arcanestorage player despawn
+harness player despawn

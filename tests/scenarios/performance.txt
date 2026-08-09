@@ -8,15 +8,15 @@
 # reasoning rather than numbers. Two costs had been removed by reading the code, and reading
 # the code cannot tell you whether what remains fits in a frame.
 
-arcanestorage reset
-arcanestorage place terminal 0 0
+harness reset
+harness place terminal 0 0
 
 # 64 units, 200 timed aggregations after a warm-up. Fails if one aggregation exceeds 2ms, on
 # the grounds that a frame has 16.67ms for everything and the item list is one part of one
 # panel. Beyond that line the fix is caching invalidated by inventory changes, not tuning.
-arcanestorage bench 0 0 64 200
+harness bench 0 0 64 200
 
 # The same network read through the assertions the other scenarios use, so a regression in
 # aggregation shows up as a wrong number here and not only as a slow one.
-arcanestorage expect units 0 0 64
-arcanestorage expect capacity 0 0 2560 2560
+harness expect units 0 0 64
+harness expect capacity 0 0 2560 2560

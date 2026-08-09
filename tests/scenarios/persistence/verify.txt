@@ -13,22 +13,22 @@
 # zeros rather than passing quietly.
 
 # Case 1: a plain chain, with its contents.
-arcanestorage expect units 0 0 2
-arcanestorage expect item 0 0 ironbar 50
+harness expect units 0 0 2
+harness expect item 0 0 ironbar 50
 
 # Case 2: the conduits came back, so the terminal still reaches the unit behind them.
-arcanestorage expect units 0 6 1
-arcanestorage expect item 0 6 stone 20
+harness expect units 0 6 1
+harness expect item 0 6 stone 20
 
 # Case 3: still four units and still 10 bars -- not 20, which is what a lost visited set
 # would report by registering the multi-path unit twice.
-arcanestorage expect units 0 10 4
-arcanestorage expect item 0 10 ironbar 10
+harness expect units 0 10 4
+harness expect item 0 10 ironbar 10
 
 # Case 4: a region the spawn area never touches.
-arcanestorage expect units -40 -40 1
-arcanestorage expect item -40 -40 stone 5
+harness expect units -40 -40 1
+harness expect item -40 -40 stone 5
 
 # Nothing appeared or vanished anywhere on the level.
-arcanestorage expect total ironbar 60
-arcanestorage expect total stone 25
+harness expect total ironbar 60
+harness expect total stone 25

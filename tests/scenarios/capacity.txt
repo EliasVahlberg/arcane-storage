@@ -4,36 +4,36 @@
 # numbers behind it can, and they are the part that could be wrong in a way nobody would notice
 # until a deposit silently failed.
 
-arcanestorage reset
-arcanestorage clear 20
+harness reset
+harness clear 20
 
 # A unit holds 40 slots.
-arcanestorage place terminal 0 0
-arcanestorage place unit 1 0
-arcanestorage expect capacity 0 0 0 40
+harness place terminal 0 0
+harness place unit 1 0
+harness expect capacity 0 0 0 40
 
 # Filling reports slots, not items: 30 iron bars occupy however many slots their stack size
 # needs, and 'fill' packs them by stack, so this asserts the accounting rather than a guess.
-arcanestorage fill 1 0 ironbar 30
-arcanestorage expect item 0 0 ironbar 30
+harness fill 1 0 ironbar 30
+harness expect item 0 0 ironbar 30
 
 # Capacity is the sum across units, so adding one doubles the total.
-arcanestorage place unit 2 0
-arcanestorage expect capacity 0 0 1 80
+harness place unit 2 0
+harness expect capacity 0 0 1 80
 
 # A conduit adds reach, never capacity -- the whole design claim, asserted as a number.
-arcanestorage place conduit 3 0
-arcanestorage place unit 4 0
-arcanestorage expect capacity 0 0 1 120
+harness place conduit 3 0
+harness place unit 4 0
+harness expect capacity 0 0 1 120
 
 # An empty network has no capacity at all, rather than some notional default.
-arcanestorage place terminal 0 6
-arcanestorage expect capacity 0 6 0 0
-arcanestorage expect fits 0 6 ironbar false
+harness place terminal 0 6
+harness expect capacity 0 6 0 0
+harness expect fits 0 6 ironbar false
 
 # A network with a free slot fits anything.
-arcanestorage expect fits 0 0 ironbar true
-arcanestorage expect fits 0 0 stone true
+harness expect fits 0 0 ironbar true
+harness expect fits 0 0 stone true
 
 # Every slot occupied, but the last stack has room. An existing stack with space takes an item
 # without consuming a slot, so this network is "full" by slot count and can still accept iron.
@@ -42,17 +42,17 @@ arcanestorage expect fits 0 0 stone true
 # 40 slots x 250 per stack = 10000 iron bars fills a unit exactly; 9999 leaves the last stack one
 # short. The 250 is iron bar's vanilla stack size, measured rather than looked up -- if it ever
 # changes, this scenario says so loudly instead of drifting.
-arcanestorage place terminal 0 10
-arcanestorage place unit 1 10
-arcanestorage fill 1 10 ironbar 9999
-arcanestorage expect capacity 0 10 40 40
-arcanestorage expect fits 0 10 stone false
-arcanestorage expect fits 0 10 ironbar true
+harness place terminal 0 10
+harness place unit 1 10
+harness fill 1 10 ironbar 9999
+harness expect capacity 0 10 40 40
+harness expect fits 0 10 stone false
+harness expect fits 0 10 ironbar true
 
 # Genuinely full: every slot occupied and every stack at maximum, so nothing fits at all.
-arcanestorage place terminal 0 14
-arcanestorage place unit 1 14
-arcanestorage fill 1 14 ironbar 10000
-arcanestorage expect capacity 0 14 40 40
-arcanestorage expect fits 0 14 ironbar false
-arcanestorage expect fits 0 14 stone false
+harness place terminal 0 14
+harness place unit 1 14
+harness fill 1 14 ironbar 10000
+harness expect capacity 0 14 40 40
+harness expect fits 0 14 ironbar false
+harness expect fits 0 14 stone false

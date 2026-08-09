@@ -10,53 +10,53 @@
 # Strip whatever world generation put here, so the layout below is the only thing present.
 # Scenarios share one server boot, so start from no storage objects anywhere on the
 # level -- clear only covers a radius, and expect total scans everything.
-arcanestorage reset
+harness reset
 
-arcanestorage clear 20
+harness clear 20
 
-arcanestorage place terminal 0 0
-arcanestorage place unit 1 0
-arcanestorage place unit 2 0
-arcanestorage place unit 3 0
-arcanestorage place unit 4 0
-arcanestorage place unit 5 0
-arcanestorage expect units 0 0 5
+harness place terminal 0 0
+harness place unit 1 0
+harness place unit 2 0
+harness place unit 3 0
+harness place unit 4 0
+harness place unit 5 0
+harness expect units 0 0 5
 
 # --- A diagonal neighbour is a separate network (0,4) ---
 # Connectivity is orthogonal, so the unit at 1,5 touches the terminal only diagonally and
 # must be excluded. The second unit is placed to the *west* on purpose: putting it at 1,4
 # would make it orthogonally adjacent to 1,5, which would then legitimately join through
 # it — correct behaviour, but it would stop this group testing the diagonal rule.
-arcanestorage place terminal 0 4
-arcanestorage place unit 1 5
-arcanestorage expect units 0 4 0
-arcanestorage place unit -1 4
-arcanestorage expect units 0 4 1
+harness place terminal 0 4
+harness place unit 1 5
+harness expect units 0 4 0
+harness place unit -1 4
+harness expect units 0 4 1
 
 # --- A one-tile gap is not bridged (0,8) ---
 #   T . U
-arcanestorage place terminal 0 8
-arcanestorage place unit 2 8
-arcanestorage expect units 0 8 0
+harness place terminal 0 8
+harness place unit 2 8
+harness expect units 0 8 0
 
 # --- Breaking a unit mid-chain orphans everything beyond it (0,12) ---
 #   T U U U   ->   T U . U
-arcanestorage place terminal 0 12
-arcanestorage place unit 1 12
-arcanestorage place unit 2 12
-arcanestorage place unit 3 12
-arcanestorage expect units 0 12 3
-arcanestorage break 2 12
-arcanestorage expect units 0 12 1
+harness place terminal 0 12
+harness place unit 1 12
+harness place unit 2 12
+harness place unit 3 12
+harness expect units 0 12 3
+harness break 2 12
+harness expect units 0 12 1
 
 # --- Two terminals on one chain see the same units (0,16 and 4,16) ---
 # Each terminal resolves its own network independently, so this is expected to work with
 # no extra code. Asserting it means a later change cannot break it unnoticed. Note the
 # terminals do not conduct: 4,16 reaches the chain because 3,16 is a unit beside it.
-arcanestorage place terminal 0 16
-arcanestorage place unit 1 16
-arcanestorage place unit 2 16
-arcanestorage place unit 3 16
-arcanestorage place terminal 4 16
-arcanestorage expect units 0 16 3
-arcanestorage expect units 4 16 3
+harness place terminal 0 16
+harness place unit 1 16
+harness place unit 2 16
+harness place unit 3 16
+harness place terminal 4 16
+harness expect units 0 16 3
+harness expect units 4 16 3
