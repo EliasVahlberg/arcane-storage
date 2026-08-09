@@ -231,3 +231,11 @@ test {
 tasks.named('runClient') {
     args '-hiddencheats'
 }
+
+// The dedicated server builds a Swing window (ServerJFrame, in Server.jar) before any mod
+// loads, so it cannot start on this machine's headless-only JDK 17 — every JFrame throws
+// regardless of DISPLAY. The game ships its own headful JRE, so run the server on that.
+// The build still uses the system JDK 17, since only the launched JVM needs AWT.
+tasks.named('runServer') {
+    executable = "${gameDirectory}/jre/bin/java"
+}
