@@ -23,6 +23,8 @@ import necesse.gfx.forms.components.FormInputSize;
 import necesse.gfx.forms.components.FormContentIconButton;
 import necesse.gfx.forms.components.FormDropdownSelectionButton;
 import necesse.gfx.forms.components.FormLabel;
+import java.awt.Color;
+import necesse.gfx.forms.components.FormProgressBarText;
 import necesse.gfx.forms.components.FormTextInput;
 import necesse.gfx.forms.components.lists.FormItemList;
 import necesse.gfx.forms.components.localComponents.FormLocalLabel;
@@ -90,10 +92,32 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
    }
 
    private static final int CELL_SIZE = 36;
-   private static final int COLUMNS = 10;
-   private static final int ROWS = 6;
+
+   /**
+    * Sized against the game's own item browser rather than against a chest.
+    *
+    * <p>The creative menu is 684x264 and is the widest interface Necesse ships -- which makes it
+    * the honest upper bound for how much room a form may take, and the right comparison for this
+    * one, because both exist to browse an item set far larger than a container's. Eighteen columns
+    * put the form within thirty pixels of that width. The previous ten columns were a chest's
+    * layout, and a chest holds forty stacks while a network holds up to 2560.
+    */
+   private static final int COLUMNS = 18;
+
+   private static final int ROWS = 8;
+
+   /**
+    * Height the grid loses to its own scroll buttons.
+    *
+    * <p>{@code FormGeneralGridList} draws a button strip and computes its scroll limit against
+    * {@code height - 32}, so a grid given exactly {@code ROWS * CELL_SIZE} shows one row fewer
+    * than it was asked for. The old six-row grid was really showing five, which is part of why
+    * the interface felt cramped: the shortfall was worse than the constants said.
+    */
+   private static final int GRID_SCROLL_BUTTONS = 32;
+
    private static final int PADDING = 4;
-   private static final int SEARCH_WIDTH = 160;
+   private static final int SEARCH_WIDTH = 220;
 
    /**
     * How deep the category menu goes before it stops offering submenus.
@@ -108,7 +132,8 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
    public final Form mainForm;
    public final FormItemList itemList;
    public final FormTextInput searchInput;
-   public final FormLabel capacityLabel;
+   public final FormProgressBarText capacityBar;
+   public final FormLabel summaryLabel;
    public FormContentIconButton sortButton;
 
    /** Picks a category to filter by. Built from the game's own tree, so mods appear in it too. */
@@ -212,9 +237,23 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
          this.refreshList();
       });
 
+      // Right-aligned on the category row, which is otherwise empty across most of an 18-column
+      // form. It answers a question the interface could not previously answer: search and category
+      // both hide things, and without a count there is no way to tell "the network has none" from
+      // "the filter removed them all". Set from inside addAllItems, so it counts the list that was
+      // actually built rather than re-deriving the filter and risking the two disagreeing.
+      this.summaryLabel = this.mainForm
+         .addComponent(new FormLabel("", new FontOptions(12), 1,
+               this.mainForm.getWidth() - PADDING, categoryY + 4));
+
       this.itemList = this.mainForm
          .addComponent(
-            new FormItemList(PADDING, flow.next(ROWS * CELL_SIZE), COLUMNS * CELL_SIZE, ROWS * CELL_SIZE, FormItemList.UpdateMode.WAIT_FULl) {
+            new FormItemList(
+                  PADDING,
+                  flow.next(ROWS * CELL_SIZE + GRID_SCROLL_BUTTONS),
+                  COLUMNS * CELL_SIZE,
+                  ROWS * CELL_SIZE + GRID_SCROLL_BUTTONS,
+                  FormItemList.UpdateMode.WAIT_FULl) {
                @Override
                public void addAllItems(List<InventoryItem> list) {
                   // Filtering here rather than in the container keeps search a pure view
@@ -234,6 +273,7 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
                   }
 
                   list.sort(StorageTerminalContainerForm.this.sortMode.comparator());
+                  StorageTerminalContainerForm.this.updateSummary(list);
                }
 
                @Override
@@ -329,11 +369,40 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
       depositAllButton.onClicked(event -> container.depositAllAction.runAndSend());
       depositAllButton.setCooldown(500);
 
-      // Capacity sits on the same row, in slots, because slots are what run out. A label rather
-      // than a bar: a bar needs art and reads as decorative, while "312 / 480 slots" is the
-      // number a player needs when deciding whether to place another unit.
-      this.capacityLabel = this.mainForm
-         .addComponent(new FormLabel("", new FontOptions(12), -1, PADDING, controlY + 6));
+      // Capacity sits on the same row, in slots, because slots are what run out.
+      //
+      // This was a plain label, on the reasoning that a bar would need art and read as decorative.
+      // That was wrong: FormProgressBarText is a vanilla component, needs no art, and draws the
+      // number inside the bar -- so it keeps "312 / 480", which is what a player deciding whether
+      // to place another unit needs, and adds the proportion at a glance.
+      //
+      // Its colours have to be inverted, though. The component calls full "complete" and paints it
+      // with successTextColor, which is correct for a crafting requirement and exactly backwards
+      // for storage: a full network is the bad outcome. See getTextColor below.
+      this.capacityBar = this.mainForm.addComponent(new FormProgressBarText(PADDING, controlY + 4, 1, 180) {
+         @Override
+         public String getText() {
+            return Localization.translate("ui", "arcanestorage_capacity",
+                  "used", String.valueOf(this.currentProgress), "total", String.valueOf(this.totalProgress));
+         }
+
+         @Override
+         public Color getTextColor() {
+            // Deliberately not the inherited comparison. Nearly full is the state worth noticing,
+            // and it is worth noticing before it is too late to act on, hence the 90% step.
+            if (this.totalProgress <= 0) {
+               return this.getInterfaceStyle().activeTextColor;
+            }
+
+            float used = (float) this.currentProgress / this.totalProgress;
+            if (used >= 1.0F) {
+               return this.getInterfaceStyle().errorTextColor;
+            }
+
+            return used >= 0.9F ? this.getInterfaceStyle().warningTextColor : this.getInterfaceStyle().activeTextColor;
+         }
+      });
+      this.capacityBar.setTooltip(new LocalMessage("ui", "arcanestorage_capacity_tip"));
       this.updateCapacityLabel();
 
       this.mainForm.setHeight(flow.next(PADDING));
@@ -436,20 +505,35 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
     * <p>Refreshed alongside the grid rather than every frame, since it changes for exactly the
     * same reasons the grid does.
     */
+   /**
+    * Reports what the grid is showing, and says so in terms of kinds and items.
+    *
+    * <p>Kinds and items are counted separately because they answer different questions -- how far
+    * the list scrolls, and how much material is in the network -- and a single number would be
+    * ambiguous between them. When a filter is hiding something the total is shown alongside, so an
+    * empty grid is legible: "0 of 37 kinds" is a filter, "0 kinds" is an empty network.
+    */
+   private void updateSummary(List<InventoryItem> shown) {
+      long items = 0L;
+      for (InventoryItem item : shown) {
+         items += item.getAmount();
+      }
+
+      int kinds = shown.size();
+      int available = this.aggregated == null ? kinds : this.aggregated.size();
+      this.summaryLabel.setText(kinds == available
+            ? Localization.translate("ui", "arcanestorage_summary",
+                  "kinds", String.valueOf(kinds), "items", String.valueOf(items))
+            : Localization.translate("ui", "arcanestorage_summary_filtered",
+                  "kinds", String.valueOf(kinds), "available", String.valueOf(available),
+                  "items", String.valueOf(items)));
+   }
+
    private void updateCapacityLabel() {
       T container = this.getContainer();
-      this.capacityLabel
-         .setText(
-            Localization
-               .translate(
-                  "ui",
-                  "arcanestorage_capacity",
-                  "used",
-                  String.valueOf(container.getUsedSlots()),
-                  "total",
-                  String.valueOf(container.getTotalSlots())
-               )
-         );
+      this.capacityBar.currentProgress = container.getUsedSlots();
+      // Guarded because the bar divides by this, and a terminal with no units linked reports zero.
+      this.capacityBar.totalProgress = Math.max(1, container.getTotalSlots());
    }
 
    /**

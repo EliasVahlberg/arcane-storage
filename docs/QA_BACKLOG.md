@@ -160,3 +160,38 @@ Worth a decision rather than silent abandonment:
   to `objects`.
 
 Nothing here blocks Phase 3. The dropdown is complete and needs no art.
+
+## Terminal size and footer — August 2026, awaiting first look
+
+The form went from 368x~300 to **656x412** and the grid from 10x6 to 18x8. Numbers are arithmetic
+from the constants, not observed: nothing about a container form can be checked headlessly.
+
+What to judge:
+
+1. Does it fit your screen at your UI scale, with the player inventory below it? This is the one
+   real risk of the change. Vanilla precedent says it should -- the settlement menubar is 800 wide
+   and vanilla container sub-forms reach 400 tall, and the creative menu is 684x264 -- but precedent
+   is not your monitor. Two constants, `COLUMNS` and `ROWS`, tune it.
+2. Eight rows should actually be visible. The old grid asked for six and showed five, because
+   `FormGeneralGridList` spends 32px on scroll buttons and computes its scroll limit against
+   `height - 32`; the grid is now given that extra 32px explicitly.
+3. The capacity bar, bottom left, should read "312 / 480 slots" inside the bar, fill
+   proportionally, and turn amber at 90% and red when full -- *not* green when full. The vanilla
+   component treats full as success, which is right for a crafting cost and backwards for storage,
+   so the colours are overridden.
+4. The summary, right of the category dropdown, should read "37 kinds, 1,842 items", and switch to
+   "12 of 37 kinds" while a search or category is hiding things -- so an empty grid is legible as a
+   filter rather than as an empty network.
+
+### Not done: collapsible category sections
+
+The creative menu's structure -- a scrolling box of per-category sections, each collapsible, items
+wrapping inside -- was considered and deliberately not copied, though it is the right reference for
+*size* and was the reason for this change.
+
+It suits the creative menu because that browses a fixed taxonomy of everything in the game, where
+sections are stable landmarks. A terminal's contents change constantly, so sections would appear,
+empty and vanish as items move, and the common task is "find what I have, sorted" rather than "walk
+the taxonomy". A flat grid with a category filter is also what Magic Storage settles on. Say the
+word if you want it tried; it would replace `FormItemList`, which is the flowing grid you said you
+liked.
