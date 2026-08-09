@@ -242,9 +242,31 @@ Necesse storage mods already have.
       `restockFromInventories` with the network's units as targets, so no transfer
       logic is reimplemented. Both are redirected away from vanilla's
       proximity search, which would miss distant units and scoop up non-member chests
-- [ ] **Category filters** over the pooled list — partly delivered already, since
-      `Item.matchesSearch` walks the category tree, so "sword" or "food" filters by
-      category today. What is missing is picking a category without typing its name
+- [x] **Category filters** over the pooled list *(code complete, awaiting in-game
+      QA)* — partly delivered already, since `Item.matchesSearch` walks the category
+      tree, so "sword" or "food" filtered by category before this. What was missing was
+      picking a category without typing its name, and that is now a dropdown above the
+      grid, built from the game's own tree at runtime.
+
+      **It is a dropdown and not the row of icon buttons this kind of UI usually has,
+      and that follows from using Necesse's taxonomy rather than Terraria's.** The
+      running game has exactly eight top-level categories — `mobs`, `tiles`,
+      `materials`, `consumable`, `objects`, `equipment`, `wiring`, `misc` — and 107 in
+      total (verified through the harness with `query categories`, not inferred). Any
+      fixed row of icons would have to invent buckets and then place real categories
+      into them wrongly; the six icons in `art-submissions/2026-08-09-tiers-and-ui/ui/`
+      are a Terraria set (all/tool/material/placeable/ammo/misc) with no icon for
+      `consumable`, which is 59 items including all food, and an icon for `ammo`, which
+      is a subcategory. Deriving the menu from the game instead costs no art, carries
+      the game's own names in every language, nests the way the creative menu nests, and
+      picks up any category a mod adds.
+
+      Membership is tested by walking an item's category chain upward, so choosing a
+      parent means "and everything beneath it" — the same rule `Item.matchesSearch`
+      applies, so the picker and the search box agree about what a category contains.
+      The comparison is by category **id**, not string ID, because the game reuses names
+      at different depths: `storagebox` is `misc < furniture < objects`, so a
+      string-ID comparison would put every chest under the top-level `misc`
 - [x] **Sort** by semantic group, name, and quantity *(code complete, awaiting
       in-game QA)* — one cycling button. Group order is the engine's own:
       `InventoryItem` is `Comparable` and `Inventory.sortItems` just calls

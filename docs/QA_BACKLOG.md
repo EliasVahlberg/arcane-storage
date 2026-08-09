@@ -143,3 +143,20 @@ something to point back at.
       saved. Now covered mechanically as far as the harness can reach it — orphaning beyond a
       broken unit or conduit is asserted in `tests/scenarios/topology.txt` and
       `tests/scenarios/conduits.txt`.
+
+## Category picker — the submitted icons went unused
+
+`art-submissions/2026-08-09-tiers-and-ui/ui/category_{all,ammo,material,misc,placeable,tool}.png`
+are not wired to anything, and the category filter shipped as a dropdown over the game's own
+category tree instead. Reasoning is in ROADMAP Phase 3: Necesse's eight top-level categories do not
+line up with those six buckets, most visibly that `consumable` (all food, 59 items) has no icon
+while `ammo`, a subcategory, has one.
+
+Worth a decision rather than silent abandonment:
+
+- Leave it as a dropdown, and drop the six icons.
+- Keep the dropdown and add a short row of icon shortcuts for the categories worth one click, drawn
+  against the real names — which would need `consumable` and `wiring` icons, and `placeable` renamed
+  to `objects`.
+
+Nothing here blocks Phase 3. The dropdown is complete and needs no art.

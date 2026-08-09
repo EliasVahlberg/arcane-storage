@@ -1,6 +1,7 @@
 package arcanestorage.container;
 
 import java.awt.Rectangle;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
@@ -20,6 +21,7 @@ import necesse.gfx.forms.Form;
 import necesse.gfx.forms.components.FormFlow;
 import necesse.gfx.forms.components.FormInputSize;
 import necesse.gfx.forms.components.FormContentIconButton;
+import necesse.gfx.forms.components.FormDropdownSelectionButton;
 import necesse.gfx.forms.components.FormLabel;
 import necesse.gfx.forms.components.FormTextInput;
 import necesse.gfx.forms.components.lists.FormItemList;
@@ -32,6 +34,7 @@ import necesse.gfx.gameFont.FontOptions;
 import necesse.inventory.InventoryItem;
 import necesse.inventory.container.Container;
 import necesse.inventory.container.ContainerAction;
+import necesse.inventory.item.ItemCategory;
 import necesse.inventory.item.ItemSearchTester;
 
 /**
@@ -92,11 +95,24 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
    private static final int PADDING = 4;
    private static final int SEARCH_WIDTH = 160;
 
+   /**
+    * How deep the category menu goes before it stops offering submenus.
+    *
+    * <p>The tree is deeper than it is useful: {@code objects > furniture > chairs} is a helpful
+    * distinction, and the levels below that mostly separate wood types, which the search box
+    * answers better than a menu can. Three levels keeps the menu navigable and still reaches
+    * every leaf through the "everything in here" entry at each level.
+    */
+   private static final int CATEGORY_MENU_DEPTH = 3;
+
    public final Form mainForm;
    public final FormItemList itemList;
    public final FormTextInput searchInput;
    public final FormLabel capacityLabel;
    public FormContentIconButton sortButton;
+
+   /** Picks a category to filter by. Built from the game's own tree, so mods appear in it too. */
+   public FormDropdownSelectionButton<ItemCategory> categoryButton;
 
    /**
     * The live search filter, rebuilt whenever the query changes.
@@ -110,6 +126,15 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
     * for "not searching".
     */
    private ItemSearchTester searchTester = ItemSearchTester.constructSearchTester("");
+
+   /**
+    * The chosen category, or {@code null} for every item.
+    *
+    * <p>Held as an {@link ItemCategory} rather than as a name because the filter is then a
+    * structural test — walk an item's category chain and look for this one — instead of a string
+    * comparison that would break in any language but English.
+    */
+   private ItemCategory categoryFilter;
 
    /**
     * The current ordering. Not persisted anywhere: it resets when the terminal is reopened,
@@ -166,6 +191,27 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
       this.searchInput.placeHolder = new LocalMessage("ui", "searchtip");
       this.searchInput.onChange(event -> this.setSearch(this.searchInput.getText()));
 
+      // The category picker gets its own row rather than a place on the crowded control row.
+      // It is a dropdown and not the row of icon buttons this kind of UI usually has, and that is
+      // a deliberate consequence of using Necesse's taxonomy instead of Terraria's: the game has
+      // eight top-level categories and over a hundred in total, so any fixed set of icon buttons
+      // would have to invent buckets and then decide, wrongly, which real category belongs in
+      // which. The dropdown carries the game's own names and its own nesting, gains any category a
+      // mod adds for free, and needs no art.
+      int categoryHeight = FormInputSize.SIZE_20.height;
+      int categoryY = flow.next(categoryHeight + PADDING);
+      this.categoryButton = this.mainForm
+         .addComponent(
+            new FormDropdownSelectionButton<>(PADDING, categoryY, FormInputSize.SIZE_20, ButtonColor.BASE, 150)
+         );
+      this.categoryButton.setSelected(null, new LocalMessage("ui", "arcanestorage_category_all"));
+      this.categoryButton.options.add(null, new LocalMessage("ui", "arcanestorage_category_all"));
+      addCategoryOptions(this.categoryButton.options, ItemCategory.masterCategory, 1);
+      this.categoryButton.onSelected(event -> {
+         this.categoryFilter = event.value;
+         this.refreshList();
+      });
+
       this.itemList = this.mainForm
          .addComponent(
             new FormItemList(PADDING, flow.next(ROWS * CELL_SIZE), COLUMNS * CELL_SIZE, ROWS * CELL_SIZE, FormItemList.UpdateMode.WAIT_FULl) {
@@ -181,7 +227,8 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
                   // click land on the wrong item.
                   GameBlackboard blackboard = new GameBlackboard();
                   for (InventoryItem item : StorageTerminalContainerForm.this.aggregated) {
-                     if (StorageTerminalContainerForm.this.searchTester.matches(item, client.getPlayer(), blackboard)) {
+                     if (StorageTerminalContainerForm.this.matchesCategory(item)
+                           && StorageTerminalContainerForm.this.searchTester.matches(item, client.getPlayer(), blackboard)) {
                         list.add(item);
                      }
                   }
@@ -300,6 +347,57 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
       // null from construction until the first updateList — and input events are handled
       // earlier in the frame than any draw, so a click on the first frame would hit null.
       this.refreshList();
+   }
+
+   /**
+    * Fills a dropdown level with a category's children, recursing while depth allows.
+    *
+    * <p>A category with children of its own becomes a submenu whose first entry selects the
+    * category itself, so "everything under Materials" stays one click away from where its
+    * subdivisions are. Without that entry a parent category would be visible and unselectable,
+    * which is the usual way a nested menu becomes annoying.
+    *
+    * <p>Children are sorted with the game's own {@link ItemCategory} ordering, which is what the
+    * creative menu uses, so the menu reads in the order a player has already seen elsewhere.
+    */
+   private static void addCategoryOptions(
+         FormDropdownSelectionButton<ItemCategory>.OptionsList<ItemCategory> options, ItemCategory parent, int depth) {
+      List<ItemCategory> children = new ArrayList<>();
+      parent.getChildren().forEach(children::add);
+      children.sort(Comparator.naturalOrder());
+
+      for (ItemCategory category : children) {
+         boolean hasChildren = category.getChildren().iterator().hasNext();
+         if (hasChildren && depth < CATEGORY_MENU_DEPTH) {
+            FormDropdownSelectionButton<ItemCategory>.OptionsList<ItemCategory> sub = options.addSub(category.displayName);
+            sub.add(category, new LocalMessage("ui", "arcanestorage_category_everything", "category", category.displayName.translate()));
+            addCategoryOptions(sub, category, depth + 1);
+         } else {
+            options.add(category, category.displayName);
+         }
+      }
+   }
+
+   /**
+    * Whether an item belongs to the chosen category, directly or through any ancestor.
+    *
+    * <p>Walking up from the item's own category is what makes picking a parent mean "and
+    * everything beneath it", and it matches how {@code Item.matchesSearch} treats categories —
+    * so the picker and the search box agree about what a category contains rather than each
+    * having its own idea.
+    */
+   private boolean matchesCategory(InventoryItem item) {
+      if (this.categoryFilter == null) {
+         return true;
+      }
+
+      for (ItemCategory category = ItemCategory.getItemsCategory(item.item); category != null; category = category.parent) {
+         if (category.id == this.categoryFilter.id) {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    /** Names the current ordering, so one cycling button does not leave the player guessing. */
