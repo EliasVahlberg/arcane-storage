@@ -327,15 +327,55 @@ would live.
 - [ ] Recipe search against network-wide availability — `FormContainerCraftingList` already
       carries search, so this arrives with the tab rather than as separate work
 - [ ] Station requirements satisfied by **installing the station into the terminal**
-      (decided, Aug 2026): each crafting bench has its own dedicated slot, and the
-      slots live on their own tab beside the storage view. Magic Storage's
-      convention, chosen for the reason it works there — it pulls the player
-      towards the terminal instead of wandering back to a bench they placed out of
-      habit, and it makes the terminal's capabilities visible and legible rather
-      than depending on what happens to be within an invisible radius. It also
-      gives station access a real cost: you must own and commit the bench.
-      Deliberately *not* vanilla's proximity rule, which is invisible, distance-
-      limited, and would silently pick up benches the player never assigned
+      — **final, Aug 2026.** Not to be reopened without a really good reason. Each
+      bench has its own dedicated slot, the slots live on their own tab, and the
+      recipes an installed bench holds appear once it is added. The terminal does
+      **not** reach out to nearby benches: station access is something you commit a
+      bench to, which makes the terminal's capabilities visible instead of depending
+      on what happens to sit within an invisible radius, and gives that access a real
+      cost. Deliberately *not* vanilla's proximity rule
+- [ ] **A recipe selector by source bench**, the same shape as the category picker but
+      keyed on which installed station a recipe comes from
+- [ ] **A show-all-recipes toggle**, so the list can be everything or only what the
+      network can currently build. Reuses vanilla's own `filteronlycraftable` setting
+      rather than adding a private one, so the choice carries between a vanilla bench
+      and the terminal. Magic Storage ships the same option defaulted to only-craftable
+
+**The crafting pool is the network and nothing else.** No nearby chests, ever. Vanilla's
+"use nearby inventories" would undermine the entire point of a self-contained system, and
+this is free to guarantee rather than something to enforce: nearby pickup is an override of
+`getCraftInventories()` on `CraftingStationContainer` and `UpgradeStationContainer`, not
+behaviour on `Container`, so a terminal that does not override it has the network as its
+only source by construction.
+
+**One terminal, not two.** Magic Storage separates storage from its Storage Crafting
+Interface; both live in one block here, as tabs. A deliberate divergence: the split exists
+in Magic Storage for its own historical reasons, and two blocks would mean two placements,
+two recipes and two things to explain for no gain the player can feel.
+
+**What "reuse the vanilla logic" resolves to**, all verified in the source Aug 2026, so this
+needs no research when it starts:
+
+- `CraftingStationObject` (26 objects) declares `Tech[] getCraftingTechs()`, and
+  `ObjectItem.getObject()` gets there from the item — so a slot accepts a bench by asking
+  the item what techs its object offers. No table of benches to hand-maintain.
+- Recipe registration is vanilla's own one-liner from `CraftingStationContainer`:
+  `Recipes.streamRecipes().filter(r -> techs.anyMatch(r::matchTech)).forEach(this::addRecipe)`.
+- `Tech` carries `itemStringID` and a localized `displayName`, which is both the label for
+  the source-bench selector and the sprite for a slot's faded placeholder icon.
+- Tiering comes free: an upgraded bench returns several techs — a Demonic Workstation covers
+  `WORKSTATION` as well as `DEMONIC` — so installing the upgrade supersedes the base bench
+  without a line of tier logic here.
+- `FormContainerCraftingListContentBox` is abstract with one method to supply,
+  `streamAllRecipes()`, and computes per-recipe can-craft state against the container's craft
+  inventories itself.
+
+**The one real constraint to respect:** recipe IDs are indices into the container's own list
+and `applyCraftingAction` resolves them by index on both sides, so client and server must
+build the same list. The installed set therefore has to come from the terminal's persisted
+state, and installing a bench while the terminal is open has to rebuild both lists rather
+than let them drift. Vanilla changes recipes under an open container when a station upgrades,
+so there is a pattern to follow
 
 **Be honest about what is new here.** Necesse already lets a crafting station
 consume from nearby containers — it is a player-facing per-station checkbox with a
@@ -461,12 +501,10 @@ early game, and no tier is dead content.
 Not blocked on code. Both are recorded because inheriting them silently would be
 worse than choosing them.
 
-- **Crafting stations: items in slots, or placed stations?** Magic Storage puts
-  station *items* into interface slots and ignores the world. Necesse does the
-  opposite: placed stations reach out ±5–9 tiles. The earlier preference for the
-  Magic Storage model was inherited from Magic Storage rather than chosen, and it
-  is now confirmed to be a real divergence from Necesse's own idiom. Both are
-  defensible; the tension is the point. Blocks the last item of Phase 4.
+- ~~**Crafting stations: items in slots, or placed stations?**~~ **Settled Aug 2026:**
+  benches are installed into the terminal and proximity is not used. This entry
+  outlived the decision and was contradicting Phase 4, which is worse than either
+  answer. The divergence from Necesse's own idiom is real and was chosen knowingly.
 - **Remote access range metric.** Waystones are Necesse's built-in fast-travel
   network, which offers a diegetic yardstick — reach measured against settlements
   and waystones rather than an arbitrary tile count.
