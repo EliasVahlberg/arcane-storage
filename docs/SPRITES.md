@@ -62,10 +62,39 @@ guaranteed rather than judged.
 drop-in replacement.** The installed 128×32 four-frame sheet renders straights only, so a run
 that turns a corner shows two straights meeting at right angles instead of an elbow.
 
-### The file
+### Draw six tiles, not sixteen frames
+
+There are only **six conduit shapes**. Sixteen is the number of *states*: 1 empty + 4 caps +
+2 straights + 4 elbows + 4 tees + 1 cross. Everything past the six is a rotation, so it is
+generated rather than drawn.
+
+Deliver six 32×32 files — `stub.png`, `cap.png`, `straight.png`, `elbow.png`, `tee.png`,
+`cross.png` — drawn in these canonical orientations, and run:
+
+```bash
+tools/build_conduit_sheet.py <dir with the six> src/main/resources/objects/arcanestorageconduit.png
+tools/build_conduit_sheet.py --selftest   # proves the rotation mapping matches the bitmask
+```
+
+| Tile | Draw it reaching | Rotations generated |
+|---|---|---|
+| `stub` | no edge; a capped nub, centred | none |
+| `cap` | **north** only | east, south, west |
+| `straight` | **north and south** (vertical) | horizontal |
+| `elbow` | **north and east** | the other three corners |
+| `tee` | **north, east and south** (opening east) | the other three |
+| `cross` | all four | none |
+
+Rotating offline rather than at draw time is deliberate. The engine *can* rotate a sprite
+(`TextureDrawOptionsEnd.rotate`), but rotated textures show dark edges — which is why the build
+has a `preAntialiasTextures` task — vanilla objects use frames rather than runtime rotation, and
+any directional shading would rotate with the sprite and end up lit from the wrong side. An exact
+90° rotation of a square tile, done once, is lossless and free at runtime.
+
+### The output file
 
 `objects/arcanestorageconduit.png`, **512×32** — sixteen 32×32 frames in a horizontal row,
-replacing the current 128×32.
+replacing the current 128×32. Produced by the script above; not drawn by hand.
 
 ### Frame order is not a choice — it is an index
 

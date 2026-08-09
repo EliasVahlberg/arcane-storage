@@ -283,8 +283,16 @@ scrolling, and a returning player can empty their inventory in one click.
       whole network
 - [ ] An explicit "you have 3 of 5, here is what is missing" display
 - [ ] Recipe search against network-wide availability
-- [ ] Station requirements satisfied under a documented rule (**decision
-      required**, see below)
+- [ ] Station requirements satisfied by **installing the station into the terminal**
+      (decided, Aug 2026): each crafting bench has its own dedicated slot, and the
+      slots live on their own tab beside the storage view. Magic Storage's
+      convention, chosen for the reason it works there — it pulls the player
+      towards the terminal instead of wandering back to a bench they placed out of
+      habit, and it makes the terminal's capabilities visible and legible rather
+      than depending on what happens to be within an invisible radius. It also
+      gives station access a real cost: you must own and commit the bench.
+      Deliberately *not* vanilla's proximity rule, which is invisible, distance-
+      limited, and would silently pick up benches the player never assigned
 
 **Be honest about what is new here.** Necesse already lets a crafting station
 consume from nearby containers — it is a player-facing per-station checkbox with a
