@@ -26,6 +26,11 @@ grep/
 
 # Agent configuration and agent-facing context. Development tooling, not
 # part of the mod, and not useful or appropriate for the public repo.
+#
+# NOTE: this repo has its own docs/ directory, and its contents ARE committed.
+# The specific filenames below are the private workspace's notes, shadowed here
+# on purpose so that copying one in cannot leak it. Agent guidance meant for
+# this repo belongs in AGENTS.md, which is public by design.
 .kiro/
 docs/WORKFLOW.md
 docs/MODDING_API.md

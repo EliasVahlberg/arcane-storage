@@ -1,6 +1,6 @@
 # Arcane Storage
 
-![Arcane Storage](src/main/resources/preview.png)
+![Arcane Storage](assets/banner.png)
 
 A storage and crafting interface mod for [Necesse](https://necessegame.com).
 
@@ -16,9 +16,9 @@ directly from all of it.
 > original work rather than edits of Necesse's own art. Said plainly here because
 > people reasonably want to know.
 >
-> See [ROADMAP.md](ROADMAP.md) for what is planned and what works,
-> [QA_BACKLOG.md](QA_BACKLOG.md) for checks that need a live session, and
-> [SPRITES.md](SPRITES.md) for the art the mod needs.
+> See [docs/ROADMAP.md](docs/ROADMAP.md) for what is planned and what works,
+> [docs/QA_BACKLOG.md](docs/QA_BACKLOG.md) for checks that need a live session,
+> and [docs/SPRITES.md](docs/SPRITES.md) for the art the mod needs.
 
 ## Planned features
 
@@ -66,6 +66,9 @@ make scenarios      # every scenario against a real headless server, plus a save
 Scenarios are data files under `tests/scenarios/`, driven through a chat command, so a test
 is a list of actions rather than Java. Ones under `session/` need a live player and are run
 from chat in game: `/arcanestorage run session/roundtrip`.
+
+Contributors should read [CONTRIBUTING.md](CONTRIBUTING.md); if you are pointing an AI
+coding agent at this repo, [AGENTS.md](AGENTS.md) is written for that.
 
 `make help` lists everything. The Makefile wraps Gradle so that output streams
 live and builds cannot silently hang; run it in preference to `./gradlew`
