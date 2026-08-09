@@ -161,7 +161,20 @@ Worth a decision rather than silent abandonment:
 
 Nothing here blocks Phase 3. The dropdown is complete and needs no art.
 
-## Terminal size and footer — August 2026, awaiting first look
+## Terminal size and footer — August 2026, CONFIRMED IN GAME
+
+Seen and approved: "the size and feel is good with the larger ui". The one real risk in the
+change — whether 656x412 fits at a real UI scale with the inventory below — is settled, so
+`COLUMNS = 18` and `ROWS = 8` are now known-good numbers rather than arithmetic.
+
+The conduit shapes are confirmed too, all sixteen.
+
+Still not deliberately exercised, and not to be assumed from "I have seen it": the category
+dropdown's nesting (Objects → Furniture, and whether "All Furniture" selects), whether search and
+category compose, and the capacity bar's amber-at-90% and red-at-full colours, which need a nearly
+full network to show.
+
+### Original checklist, kept for the parts still open
 
 The form went from 368x~300 to **656x412** and the grid from 10x6 to 18x8. Numbers are arithmetic
 from the constants, not observed: nothing about a container form can be checked headlessly.

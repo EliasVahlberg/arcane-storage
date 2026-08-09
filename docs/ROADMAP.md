@@ -242,8 +242,10 @@ Necesse storage mods already have.
       `restockFromInventories` with the network's units as targets, so no transfer
       logic is reimplemented. Both are redirected away from vanilla's
       proximity search, which would miss distant units and scoop up non-member chests
-- [x] **Category filters** over the pooled list *(code complete, awaiting in-game
-      QA)* — partly delivered already, since `Item.matchesSearch` walks the category
+- [x] **Category filters** over the pooled list *(seen in game; the dropdown is present
+      and the layout is right. Its nesting behaviour — Objects → Furniture, and selecting
+      "All Furniture" — has not been deliberately exercised, so treat that part as unproven)*
+      — partly delivered already, since `Item.matchesSearch` walks the category
       tree, so "sword" or "food" filtered by category before this. What was missing was
       picking a category without typing its name, and that is now a dropdown above the
       grid, built from the game's own tree at runtime.
@@ -406,6 +408,25 @@ optional endgame tier.
 **The storage units:** filters, then reduced spoil rate plus a per-unit toggle for
 whether settlers may draw from it, then spoilage fully stopped — which maps onto a
 paused-spoiling state vanilla already has.
+
+- [ ] **Custom panel sprites for the terminal interface**, so it reads as this mod's
+      interface rather than a vanilla form *(deliberately late: it is the one visual
+      change that cannot be judged until the layout has stopped moving)*
+
+      The mechanism is already known, so this does not need research when it comes up.
+      `Form.setBackground(GameBackground)` is public and every form defaults to
+      `GameBackground.form`, so the terminal can carry its own panel without touching
+      anything global. `GameBackground` is not one image: it is outline, centre and edge
+      draw options plus tiled variants and a `getContentPadding()`, so the art request is
+      a nine-slice set rather than a single PNG.
+
+      **The trade-off to decide then, not now:** `GameBackground.form` delegates to
+      `Settings.UI.form`, which is the player's chosen interface style — Necesse ships more
+      than one and shows a selector when it has several. A custom panel therefore *ignores
+      that choice* for our form, which is the point when it makes the mod feel distinct and
+      the cost when a player has deliberately themed their game. Registering a whole
+      `GameInterfaceStyle` is the other option and is the wrong one: it re-skins the entire
+      game rather than one interface.
 
 - [ ] Recipes for the mod's own objects, tiered to Necesse's progression
 - [ ] Capacity growth per tier, plus one real mechanic per tier
