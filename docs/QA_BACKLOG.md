@@ -63,12 +63,13 @@ everything below needs eyes or a player.
       confirming once because it is the failure this design is supposed to make impossible.
 - [ ] **Capacity readout is correct and updates.** Compare "N / M slots used" against what you
       know is stored, then deposit and withdraw and confirm it moves.
-- [ ] **Deposit all** empties your inventory into the network, leaving locked slots alone.
-- [ ] **Quick-stack tops up only what the network already holds**, and deposit-all moves
-      everything. If those two behave the same, one of the buttons is lying.
-- [ ] **Restock** refills partial stacks you are carrying from the network.
-- [ ] **The scripted version of all three**: `/arcanestorage run session/transfers`. Asserts the
-      quick-stack versus deposit-all distinction and conservation across every transfer.
+- [x] ~~**Quick stack, deposit all and restock**, including the quick-stack versus deposit-all
+      distinction and conservation across every transfer.~~ Asserted headlessly by
+      `container_transfers`, 19 assertions.
+- [ ] **Deposit all leaves locked slots alone.** Not covered: the scenario has no locked slots,
+      because locking is a client-side interaction and nothing headless can set one yet.
+- [ ] **The three buttons are present, labelled and clickable.** The behaviour behind them is
+      asserted; that they are drawn at all is not.
 - [ ] **Sort cycles and the tooltip says which mode is active.** Group order should match what
       the inventory-sort button produces on your own inventory, since it is literally the same
       comparator. Name is A-Z, amount is most-numerous first.
@@ -84,9 +85,9 @@ everything below needs eyes or a player.
 The parts most likely to lose or duplicate items, which is the one failure class that cannot be
 recovered from a save.
 
-- [ ] **The round trip.** `/arcanestorage run session/roundtrip`. Sets itself up and covers
-      open, withdraw, shift-click deposit, close, and item conservation at every step. This is
-      the single highest-value check in this file.
+- [x] ~~**The round trip** -- open, withdraw, deposit, close, and item conservation at every
+      step.~~ Asserted headlessly by `container_roundtrip`, 11 assertions. It was described here
+      as the single highest-value check in this file, which is why it was worth automating first.
 - [ ] **The six click conventions individually**, via `/arcanestorage click <slot> <action>`:
       `LEFT_CLICK`, `RIGHT_CLICK`, `QUICK_MOVE`, `TAKE_ONE`, `QUICK_MOVE_ONE`, `QUICK_GET_ONE`.
       The design commitment is that these behave as they do in a vanilla chest; a subtle
