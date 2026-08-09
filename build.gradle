@@ -230,6 +230,8 @@ test {
 // without setting the world's own allowCheats flag — no permanent mark on the save.
 tasks.named('runClient') {
     args '-hiddencheats'
+    // Lets '/arcanestorage run <name>' find scenario files from in-game chat.
+    systemProperty 'arcanestorage.scenarios', "${projectDir}/tests/scenarios"
     // -Ppacketlog turns on the inbound packet log (see arcanestorage.dev.PacketLogPatch).
     // Singleplayer is a real server in the same process, so this captures there too.
     if (project.hasProperty('packetlog')) {

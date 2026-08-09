@@ -1,0 +1,40 @@
+# The withdraw/deposit round trip. Needs a live session, because a container is built from
+# the player's inventory and cannot exist with nobody connected.
+#
+# Run it from in-game chat:  /arcanestorage run session/roundtrip
+#
+# Sets itself up, so it does not care what else is in the world: clearing first removes any
+# object world generation put nearby, which also makes `expect total` unambiguous by leaving
+# no other storage units standing near spawn.
+#
+# Precondition: you are carrying no iron bars. The first assertion checks that rather than
+# assuming it, so it will say so instead of producing confusing numbers later.
+
+arcanestorage clear 12 sand
+
+arcanestorage place terminal 4 0
+arcanestorage place unit 5 0
+arcanestorage place unit 5 1
+arcanestorage fill 5 0 ironbar 40
+arcanestorage fill 5 1 ironbar 40
+
+arcanestorage expect units 4 0 2
+arcanestorage expect total ironbar 80
+arcanestorage expect held ironbar 0
+
+arcanestorage open 4 0
+
+# Withdraw is a move, so the network must lose exactly what the player gains.
+arcanestorage withdraw ironbar 10
+arcanestorage expect held ironbar 10
+arcanestorage expect item 4 0 ironbar 70
+arcanestorage expect total ironbar 70
+
+# And back again. The totals returning to their starting values is the conservation check:
+# an off-by-one that creates or destroys an item fails here even if the grid looks right.
+arcanestorage deposit ironbar 10
+arcanestorage expect held ironbar 0
+arcanestorage expect item 4 0 ironbar 80
+arcanestorage expect total ironbar 80
+
+arcanestorage close

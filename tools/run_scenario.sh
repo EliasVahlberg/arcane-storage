@@ -65,7 +65,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-( cd "$GAME_DIR" && "$JAVA" -jar Server.jar \
+( cd "$GAME_DIR" && "$JAVA" -Darcanestorage.scenarios="$MOD_DIR/tests/scenarios" -jar Server.jar \
       -nogui -log_debug_prints -hiddencheats \
       -world "$WORLD" \
       -mod "$MOD_DIR/build/jar/" ) < "$FIFO" > "$LOG" 2>&1 &

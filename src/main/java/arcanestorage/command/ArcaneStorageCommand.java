@@ -1,6 +1,10 @@
 package arcanestorage.command;
 
 import java.awt.Point;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -14,6 +18,7 @@ import arcanestorage.objectentity.StorageUnitObjectEntity;
 import necesse.engine.commands.AutoComplete;
 import necesse.engine.commands.ChatCommand;
 import necesse.engine.commands.CommandLog;
+import necesse.engine.commands.ParsedCommand;
 import necesse.engine.commands.PermissionLevel;
 import necesse.engine.network.Packet;
 import necesse.engine.network.PacketReader;
@@ -22,6 +27,7 @@ import necesse.engine.network.client.Client;
 import necesse.engine.network.server.Server;
 import necesse.engine.network.server.ServerClient;
 import necesse.engine.registries.ObjectRegistry;
+import necesse.engine.registries.TileRegistry;
 import necesse.entity.objectEntity.ObjectEntity;
 import necesse.inventory.Inventory;
 import necesse.inventory.InventorySlot;
@@ -50,13 +56,16 @@ import necesse.level.maps.Level;
  */
 public class ArcaneStorageCommand extends ChatCommand {
 
+   /** Guards against a scenario file that calls {@code run} on itself. */
+   private boolean running = false;
+
    public ArcaneStorageCommand() {
       super("arcanestorage", PermissionLevel.OWNER);
    }
 
    @Override
    public String getUsage() {
-      return "<place|fill|break|report|expect|give|open|close|withdraw|click|selftest> ...";
+      return "<place|fill|clear|break|report|expect|give|open|close|withdraw|deposit|click|run> ...";
    }
 
    @Override
@@ -101,19 +110,23 @@ public class ArcaneStorageCommand extends ChatCommand {
             case "report":
                return this.report(level, spawn, args, logs);
             case "expect":
-               return this.expect(level, spawn, args, logs);
+               return this.expect(level, spawn, serverClient, args, logs);
             case "give":
                return this.give(level, serverClient, args, logs);
+            case "clear":
+               return this.clear(level, spawn, args, logs);
             case "open":
                return this.open(level, spawn, serverClient, args, logs);
             case "close":
                return this.close(serverClient, logs);
             case "withdraw":
                return this.withdraw(serverClient, args, logs);
+            case "deposit":
+               return this.deposit(serverClient, args, logs);
             case "click":
                return this.click(serverClient, args, logs);
-            case "selftest":
-               return this.selftest(level, spawn, serverClient, args, logs);
+            case "run":
+               return this.runScenario(server, serverClient, args, logs);
             default:
                logs.add("FAIL unknown subcommand '" + sub + "'; usage: " + this.getUsage());
                return false;
@@ -232,7 +245,7 @@ public class ArcaneStorageCommand extends ChatCommand {
     * which is the conservation check: it does not care about topology, so it catches items
     * created or destroyed by any action.
     */
-   private boolean expect(Level level, Point spawn, ArrayList<String> args, CommandLog logs) {
+   private boolean expect(Level level, Point spawn, ServerClient serverClient, ArrayList<String> args, CommandLog logs) {
       String kind = args.get(1).toLowerCase();
 
       if ("total".equals(kind)) {
@@ -240,6 +253,17 @@ public class ArcaneStorageCommand extends ChatCommand {
          int wanted = Integer.parseInt(args.get(3));
          int actual = NetworkContents.totalOf(this.allUnits(level), itemID);
          return this.check(logs, actual == wanted, "total " + itemID + " = " + wanted, "expected " + wanted + ", found " + actual);
+      }
+
+      if ("held".equals(kind)) {
+         String itemID = args.get(2);
+         int wanted = Integer.parseInt(args.get(3));
+         if (this.requirePlayer(serverClient, logs, "expect held") == null) {
+            return false;
+         }
+
+         int actual = this.countHeld(serverClient, itemID);
+         return this.check(logs, actual == wanted, "held " + itemID + " = " + wanted, "expected " + wanted + ", found " + actual);
       }
 
       int x = spawn.x + Integer.parseInt(args.get(2));
@@ -409,103 +433,142 @@ public class ArcaneStorageCommand extends ChatCommand {
    }
 
    /**
-    * {@code selftest <dx> <dy> <itemStringID>} — the whole player-coupled path in one
-    * command: open, withdraw into the inventory, shift-click it back, close.
+    * {@code deposit <itemStringID> <amount>} — shift-click the item from the player's own
+    * inventory into the network, which is a single user action rather than a slot index.
     *
-    * <p>Exists so this half of the mod costs one line in chat rather than a click-through,
-    * which is the difference between a check that gets run and one that gets skipped.
-    *
-    * <p>Every step asserts item conservation, not just the visible outcome: the total across
-    * every unit plus the player's inventory must never change. Withdrawing is a move, so an
-    * off-by-one that creates or destroys items fails here even when the grid looks right.
+    * <p>Player slots are the indices below {@code NETWORK_START}: {@code Container} assigns
+    * them in its own constructor, before this container adds any unit slots.
     */
-   private boolean selftest(Level level, Point spawn, ServerClient serverClient, ArrayList<String> args, CommandLog logs) {
-      if (this.requirePlayer(serverClient, logs, "selftest") == null) {
+   private boolean deposit(ServerClient serverClient, ArrayList<String> args, CommandLog logs) {
+      StorageTerminalContainer container = this.requireTerminalContainer(serverClient, logs, "deposit");
+      if (container == null) {
          return false;
       }
 
-      int dx = Integer.parseInt(args.get(1));
-      int dy = Integer.parseInt(args.get(2));
-      String itemID = args.get(3);
-      int x = spawn.x + dx;
-      int y = spawn.y + dy;
+      String itemID = args.get(1);
+      int amount = Integer.parseInt(args.get(2));
+      int moved = 0;
 
-      StorageTerminalObjectEntity terminal = this.terminalAt(level, x, y);
-      if (terminal == null) {
-         logs.add("FAIL no terminal at " + dx + "," + dy);
-         return false;
-      }
-
-      List<StorageUnitObjectEntity> allUnits = this.allUnits(level);
-      int storedBefore = NetworkContents.totalOf(allUnits, itemID);
-      int heldBefore = this.countHeld(serverClient, itemID);
-      int conserved = storedBefore + heldBefore;
-      boolean ok = true;
-
-      if (storedBefore <= 0) {
-         logs.add("FAIL nothing to withdraw: no " + itemID + " in any unit. Use 'fill' first.");
-         return false;
-      }
-
-      StorageTerminalContainer.openAndSendContainer(ArcaneStorage.TERMINAL_CONTAINER, serverClient, level, x, y);
-      ok &= this.check(logs, serverClient.getContainer() instanceof StorageTerminalContainer,
-         "terminal opens", "container is " + serverClient.getContainer());
-
-      if (!(serverClient.getContainer() instanceof StorageTerminalContainer)) {
-         return false;
-      }
-
-      StorageTerminalContainer container = (StorageTerminalContainer)serverClient.getContainer();
-      ok &= this.check(logs, !container.isNetworkEmpty(), "network is not empty", "no unit slots registered");
-
-      // --- withdraw ---
-      int wanted = Math.min(10, storedBefore);
-      this.sendWithdraw(container, itemID, wanted, false);
-
-      int heldAfter = this.countHeld(serverClient, itemID);
-      int storedAfter = NetworkContents.totalOf(allUnits, itemID);
-      int moved = heldAfter - heldBefore;
-
-      ok &= this.check(logs, moved == wanted, "withdraw moves " + wanted + " " + itemID,
-         "inventory gained " + moved);
-      ok &= this.check(logs, storedAfter == storedBefore - moved, "withdraw removes what it gave",
-         "units held " + storedBefore + ", now " + storedAfter + ", inventory gained " + moved);
-      ok &= this.check(logs, storedAfter + heldAfter == conserved, "withdraw conserves items",
-         "expected " + conserved + " total, found " + (storedAfter + heldAfter));
-
-      // --- deposit the same items straight back, as a shift-click would ---
-      // Player slots are indices below NETWORK_START: Container assigns them in its own
-      // constructor, before this container adds any unit slots.
-      int deposited = 0;
-      for (int slot = 0; slot < container.NETWORK_START && deposited < moved; slot++) {
+      for (int slot = 0; slot < container.NETWORK_START && moved < amount; slot++) {
          ContainerSlot containerSlot = container.getSlot(slot);
          InventoryItem item = containerSlot == null ? null : containerSlot.getItem();
          if (item == null || !item.item.getStringID().equals(itemID)) {
             continue;
          }
 
-         deposited += container.applyContainerAction(slot, ContainerAction.QUICK_MOVE).value;
+         moved += container.applyContainerAction(slot, ContainerAction.QUICK_MOVE).value;
       }
 
-      int heldEnd = this.countHeld(serverClient, itemID);
-      int storedEnd = NetworkContents.totalOf(allUnits, itemID);
+      return this.check(logs, moved == amount, "deposited " + amount + " " + itemID,
+         "only moved " + moved + "; the network may be full or the inventory short");
+   }
 
-      ok &= this.check(logs, deposited == moved, "shift-click deposits all " + moved + " back",
-         "deposited " + deposited);
-      ok &= this.check(logs, storedEnd == storedBefore, "network is back to its starting amount",
-         "started " + storedBefore + ", ended " + storedEnd);
-      ok &= this.check(logs, heldEnd == heldBefore, "inventory is back to its starting amount",
-         "started " + heldBefore + ", ended " + heldEnd);
-      ok &= this.check(logs, storedEnd + heldEnd == conserved, "round trip conserves items",
-         "expected " + conserved + " total, found " + (storedEnd + heldEnd));
+   /**
+    * {@code clear <radius> [tileStringID]} — strips objects, and optionally flattens tiles,
+    * in a square around the world spawn.
+    *
+    * <p>Makes a scenario independent of what world generation happened to put there. Vanilla
+    * ships {@code cleararea}, which does the same and more thoroughly — it clears every
+    * object layer — but it targets a {@code ServerClient}, so it cannot run with nobody
+    * connected. This clears the main object layer only, which is where placeable furniture
+    * lives; decorative layers are left alone.
+    *
+    * <p>Run it <b>before</b> placing anything, or it will remove what was just placed.
+    */
+   private boolean clear(Level level, Point spawn, ArrayList<String> args, CommandLog logs) {
+      int radius = Integer.parseInt(args.get(1));
+      if (radius < 1 || radius > 200) {
+         logs.add("FAIL radius must be between 1 and 200");
+         return false;
+      }
 
-      // --- close ---
-      serverClient.closeContainer(true);
-      ok &= this.check(logs, !(serverClient.getContainer() instanceof StorageTerminalContainer),
-         "terminal closes", "container is still " + serverClient.getContainer());
+      int tileID = -1;
+      if (args.size() > 2) {
+         tileID = TileRegistry.getTileID(args.get(2));
+         if (tileID < 0) {
+            logs.add("FAIL unknown tile '" + args.get(2) + "'");
+            return false;
+         }
+      }
 
-      logs.add(ok ? "selftest: all checks passed" : "selftest: FAILURES above");
-      return ok;
+      int objectsCleared = 0;
+
+      for (int y = spawn.y - radius; y <= spawn.y + radius; y++) {
+         for (int x = spawn.x - radius; x <= spawn.x + radius; x++) {
+            if (level.getObjectID(x, y) != 0) {
+               level.setObject(x, y, 0);
+               objectsCleared++;
+            }
+
+            if (tileID >= 0) {
+               level.setTile(x, y, tileID);
+            }
+         }
+      }
+
+      logs.add("cleared " + objectsCleared + " objects within " + radius + " tiles of spawn"
+         + (tileID >= 0 ? ", tiles set to " + args.get(2) : ""));
+      return true;
+   }
+
+   /**
+    * {@code run <name>} — executes {@code <name>.txt} from the scenario directory, line by
+    * line, as the caller.
+    *
+    * <p>This is what makes a session test a data file rather than Java. Lines are whole
+    * console commands handed to {@code CommandsManager.runServerCommand}, so a session
+    * scenario has exactly the same format as one the headless runner drives, can mix in
+    * vanilla commands, and any line can be pasted into chat on its own to investigate a
+    * failure. Composition belongs in the files; this class only supplies primitives.
+    *
+    * <p>The directory comes from {@code -Darcanestorage.scenarios} and a name cannot escape
+    * it, so this does not become a way to read arbitrary files off the host.
+    */
+   private boolean runScenario(Server server, ServerClient serverClient, ArrayList<String> args, CommandLog logs) {
+      if (this.running) {
+         logs.add("FAIL 'run' cannot nest");
+         return false;
+      }
+
+      String root = System.getProperty("arcanestorage.scenarios");
+      if (root == null) {
+         logs.add("FAIL scenario directory unknown: launch with -Darcanestorage.scenarios=<dir> "
+            + "(make run PACKETLOG=1 and the harness scripts set it already)");
+         return false;
+      }
+
+      Path rootPath = Paths.get(root).toAbsolutePath().normalize();
+      Path file = rootPath.resolve(args.get(1) + ".txt").normalize();
+      if (!file.startsWith(rootPath)) {
+         logs.add("FAIL scenario name must stay inside the scenario directory");
+         return false;
+      }
+
+      List<String> lines;
+      try {
+         lines = Files.readAllLines(file);
+      } catch (IOException e) {
+         logs.add("FAIL could not read " + file + ": " + e.getMessage());
+         return false;
+      }
+
+      this.running = true;
+      try {
+         for (String raw : lines) {
+            String line = raw.trim();
+            if (line.isEmpty() || line.startsWith("#")) {
+               continue;
+            }
+
+            logs.add("> " + line);
+            server.commandsManager.runServerCommand(new ParsedCommand(line), serverClient);
+         }
+      } finally {
+         this.running = false;
+      }
+
+      logs.add("ran scenario " + args.get(1));
+      return true;
    }
 
    /**

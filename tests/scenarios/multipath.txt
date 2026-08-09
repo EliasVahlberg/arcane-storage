@@ -12,6 +12,9 @@
 #
 # The unit at 2,1 is reachable via 2,0 and via 1,1.
 
+# Strip whatever world generation put here, so the layout below is the only thing present.
+arcanestorage clear 45
+
 arcanestorage place terminal 0 0
 arcanestorage place unit 1 0
 arcanestorage place unit 2 0

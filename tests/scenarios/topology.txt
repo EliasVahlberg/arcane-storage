@@ -7,6 +7,9 @@
 
 # --- A chain links through units, not just to the terminal (0,0) ---
 #   T U U U U U
+# Strip whatever world generation put here, so the layout below is the only thing present.
+arcanestorage clear 45
+
 arcanestorage place terminal 0 0
 arcanestorage place unit 1 0
 arcanestorage place unit 2 0

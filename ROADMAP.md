@@ -40,9 +40,9 @@ unit in `Container.isValid`, which `ServerClient` calls each tick, so the termin
 moment its network is invalidated. **Verified in game, Aug 2026:** the terminal closes
 immediately on breaking a unit, with no stale entries in the grid beforehand.
 
-Item conservation is now asserted mechanically rather than by eye — `selftest` sums every
-unit plus the player's inventory before and after each action, so a withdraw that gains or
-loses one item fails even when the grid looks correct.
+Item conservation is now asserted mechanically rather than by eye — the session round trip
+checks the total across every unit plus the player's inventory before and after each
+action, so a withdraw that gains or loses one item fails even when the grid looks right.
 
 ## Performance — deferred, but with numbers
 
@@ -121,10 +121,21 @@ without one. Both use the same command, so a check is one line either way.
 - `make scenarios` — scenario files driven against a **headless dedicated server**. Each
   file is a list of server console commands, so any prefix can be pasted into a live server
   to investigate a failure. `make scenario FILE=...` runs one.
-- **In a session**, `/arcanestorage selftest <dx> <dy> <item>` runs the whole player-coupled
-  path — open, withdraw, shift-click back, close — asserting item conservation at every
-  step. Player-coupled subcommands refuse to run from the console with an explanation
-  rather than failing obscurely.
+- **In a session**, `/arcanestorage run session/roundtrip` executes a scenario file line by
+  line as the player, covering open, withdraw, shift-click deposit and close. Player-coupled
+  subcommands refuse to run from the console with an explanation rather than failing
+  obscurely.
+
+Both tiers use **one mechanism and one file format**: a line is a whole console command, so
+the same file runs either way, vanilla commands can be mixed in, and any single line can be
+pasted into chat or a server console to investigate a failure. The command supplies only
+primitives — `place`, `fill`, `clear`, `break`, `give`, `open`, `close`, `withdraw`,
+`deposit`, `click`, `report`, `expect` — and composition lives in the files.
+
+`clear <radius> [tile]` strips objects around spawn so a scenario does not depend on terrain;
+world generation puts roughly **2,900 objects** within 45 tiles of spawn, so this is not
+theoretical. Vanilla's own `cleararea` is more thorough but targets a `ServerClient` and so
+cannot run headless.
 
 These call the methods the packet handlers call: a click is
 `Container.applyContainerAction(slot, action)` per `PacketContainerAction`, and a withdraw
@@ -141,7 +152,7 @@ established.
 
 ### ⚠ Pending QA — still needs a session
 
-1. Run `/arcanestorage selftest 1 0 ironbar` against a stocked network and confirm every
+1. Run `/arcanestorage run session/roundtrip` and confirm every
    check passes. This covers withdraw, shift-click deposit and close.
 2. The six click conventions individually, via `/arcanestorage click <slot> <action>`.
 3. Walking out of range should close the terminal, as it does for a vanilla chest.
