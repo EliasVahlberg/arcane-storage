@@ -10,6 +10,10 @@
 # Precondition: you are carrying no iron bars. The first assertion checks that rather than
 # assuming it, so it will say so instead of producing confusing numbers later.
 
+# Scenarios share one server boot, so start from no storage objects anywhere on the
+# level -- clear only covers a radius, and expect total scans everything.
+arcanestorage reset
+
 arcanestorage clear 12 sand
 
 arcanestorage place terminal 4 0

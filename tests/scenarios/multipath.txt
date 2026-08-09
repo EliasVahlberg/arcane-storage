@@ -13,6 +13,10 @@
 # The unit at 2,1 is reachable via 2,0 and via 1,1.
 
 # Strip whatever world generation put here, so the layout below is the only thing present.
+# Scenarios share one server boot, so start from no storage objects anywhere on the
+# level -- clear only covers a radius, and expect total scans everything.
+arcanestorage reset
+
 arcanestorage clear 12
 
 arcanestorage place terminal 0 0

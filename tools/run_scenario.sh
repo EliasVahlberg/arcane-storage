@@ -1,24 +1,38 @@
 #!/usr/bin/env bash
-# Runs a scenario file against a headless Necesse server and reports pass/fail.
+# Runs scenario files against a headless Necesse server and reports pass/fail per scenario.
 #
 # A scenario is a plain list of server console commands, one per line. Blank lines and
 # lines starting with # are ignored. Because every line is just a console command, any
 # prefix of a scenario can be pasted into an interactive server to debug a failure.
 #
-# Usage: tools/run_scenario.sh <scenario-file> [world-name]
+# Usage: tools/run_scenario.sh <scenario-file> [more-scenario-files...]
+#        HARNESS_WORLD=<name> tools/run_scenario.sh ...
 #
-# Exit status is 0 only when the server started, every line was sent, and no line
-# reported a failure. Assertion failures are recognised by the "FAIL" marker that the
-# mod's own expect commands print.
+# All scenarios share ONE server boot, because booting is most of the wall clock: a
+# scenario's own work is a fraction of a second, while JVM start, mod load, world load and
+# the shutdown save cost several seconds each time. Scenarios are isolated by starting with
+# 'arcanestorage reset', which removes every storage object on the level regardless of where
+# a previous scenario put it -- 'clear' alone would not, since it only covers a radius while
+# 'expect total' scans the whole level.
+#
+# Exit status is 0 only when the server started, every scenario ran, and none reported a
+# failure. Assertion failures are recognised by the "FAIL" marker the mod's expect commands
+# print.
 set -uo pipefail
 
-SCENARIO="${1:-}"
-WORLD="${2:-arcane_harness}"
-
-if [[ -z "$SCENARIO" || ! -f "$SCENARIO" ]]; then
-   echo "usage: $0 <scenario-file> [world-name]" >&2
+if [[ $# -lt 1 ]]; then
+   echo "usage: $0 <scenario-file> [more-scenario-files...]" >&2
    exit 2
 fi
+
+for f in "$@"; do
+   if [[ ! -f "$f" ]]; then
+      echo "no such scenario file: $f" >&2
+      exit 2
+   fi
+done
+
+WORLD="${HARNESS_WORLD:-arcane_harness}"
 
 MOD_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$MOD_DIR"
@@ -37,8 +51,11 @@ JAVA="$GAME_DIR/jre/bin/java"
 
 OUT_DIR="$MOD_DIR/build/harness"
 mkdir -p "$OUT_DIR"
-NAME="$(basename "$SCENARIO" .txt)"
-LOG="$OUT_DIR/$NAME.log"
+if [[ $# -eq 1 ]]; then
+   LOG="$OUT_DIR/$(basename "$1" .txt).log"
+else
+   LOG="$OUT_DIR/suite.log"
+fi
 : > "$LOG"
 
 # Scenarios must start from a known world or they are not repeatable: objects placed by an
@@ -90,26 +107,59 @@ if ! grep -qF "$READY" "$LOG"; then
    exit 1
 fi
 
-MARK_START="$(wc -l < "$LOG")"
+RAN=()
+UNRUN=()
 
-while IFS= read -r line || [[ -n "$line" ]]; do
-   line="${line%%$'\r'}"
-   [[ -z "${line// }" ]] && continue
-   [[ "${line#\#}" != "$line" ]] && continue
-   printf '%s\n' "$line" >&3
-   # ServerScanThread reads and handles lines sequentially, so ordering needs no delay.
-   # This only spaces the log out enough to stay readable.
-   sleep 0.05
-done < "$SCENARIO"
+for scenario in "$@"; do
+   name="$(basename "$scenario" .txt)"
+
+   # A crash or deadlock in one scenario leaves the rest unrun. Say which, rather than
+   # reporting them as passing because no FAIL line was ever printed.
+   if ! kill -0 "$SERVER_PID" 2>/dev/null; then
+      UNRUN+=("$name")
+      continue
+   fi
+
+   printf 'arcanestorage echo === BEGIN %s ===\n' "$name" >&3
+
+   while IFS= read -r line || [[ -n "$line" ]]; do
+      line="${line%%$'\r'}"
+      [[ -z "${line// }" ]] && continue
+      [[ "${line#\#}" != "$line" ]] && continue
+      printf '%s\n' "$line" >&3
+      # ServerScanThread reads and handles lines sequentially, so ordering needs no delay.
+      # This only spaces the log out enough to stay readable.
+      sleep 0.05
+   done < "$scenario"
+
+   printf 'arcanestorage echo === END %s ===\n' "$name" >&3
+   sleep 0.15
+   RAN+=("$name")
+done
 
 printf 'stop\n' >&3
 wait "$SERVER_PID" 2>/dev/null
 SERVER_PID=
 
-RESULTS="$(tail -n "+$MARK_START" "$LOG")"
-FAILURES="$(printf '%s\n' "$RESULTS" | grep -cE "\bFAIL\b" || true)"
-PASSES="$(printf '%s\n' "$RESULTS" | grep -cE "\bPASS\b" || true)"
+PLAIN="$(sed 's/\x1b\[[0-9;]*m//g' "$LOG")"
+TOTAL_FAIL=0
 
-printf '%s\n' "$RESULTS" | grep -E "\b(PASS|FAIL)\b" || echo "(no assertions reported)"
-echo "--- $NAME: $PASSES passed, $FAILURES failed  (full log: $LOG)"
-[[ "$FAILURES" -eq 0 ]] || exit 1
+for name in "${RAN[@]}"; do
+   section="$(printf '%s\n' "$PLAIN" | awk -v s="=== BEGIN $name ===" -v e="=== END $name ===" '
+      index($0, s) { inside = 1; next } index($0, e) { inside = 0 } inside')"
+   passes="$(printf '%s\n' "$section" | grep -cE "\bPASS\b" || true)"
+   failures="$(printf '%s\n' "$section" | grep -cE "\bFAIL\b" || true)"
+   TOTAL_FAIL=$((TOTAL_FAIL + failures))
+
+   printf '%s\n' "$section" | grep -E "\b(PASS|FAIL)\b" || echo "  (no assertions reported)"
+   echo "--- $name: $passes passed, $failures failed"
+done
+
+for name in "${UNRUN[@]:-}"; do
+   [[ -z "$name" ]] && continue
+   echo "--- $name: DID NOT RUN (the server was already gone)"
+   TOTAL_FAIL=$((TOTAL_FAIL + 1))
+done
+
+echo "=== ${#RAN[@]} scenario(s) run, $TOTAL_FAIL failure(s)  (full log: $LOG)"
+[[ "$TOTAL_FAIL" -eq 0 ]] || exit 1

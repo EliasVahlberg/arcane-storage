@@ -118,9 +118,15 @@ Two tiers, because `Container` is built from the player's inventory and so canno
 without one. Both use the same command, so a check is one line either way.
 
 - `make test` — unit tests over game-independent logic (the network traversal). Sub-second.
-- `make scenarios` — scenario files driven against a **headless dedicated server**. Each
-  file is a list of server console commands, so any prefix can be pasted into a live server
-  to investigate a failure. `make scenario FILE=...` runs one.
+- `make scenarios` — scenario files driven against a **headless dedicated server**, all of
+  them in **one server boot**. Each file is a list of server console commands, so any prefix
+  can be pasted into a live server to investigate a failure. `make scenario FILE=...` runs
+  one. Booting dominates the wall clock — 10.4s for the suite, of which an extra scenario
+  costs about **0.3s** — so scenarios are cheap to add.
+
+  They share a world, so each starts with `reset`, which removes every storage object on the
+  level wherever it is. `clear` is not sufficient for this: it only covers a radius, while
+  `expect total` scans the whole level.
 - **In a session**, `/arcanestorage run session/roundtrip` executes a scenario file line by
   line as the player, covering open, withdraw, shift-click deposit and close. Player-coupled
   subcommands refuse to run from the console with an explanation rather than failing

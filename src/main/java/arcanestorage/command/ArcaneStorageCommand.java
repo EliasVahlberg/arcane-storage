@@ -65,7 +65,7 @@ public class ArcaneStorageCommand extends ChatCommand {
 
    @Override
    public String getUsage() {
-      return "<place|fill|clear|break|report|expect|give|open|close|withdraw|deposit|click|run> ...";
+      return "<place|fill|clear|reset|break|report|expect|give|open|close|withdraw|deposit|click|run|echo> ...";
    }
 
    @Override
@@ -110,6 +110,17 @@ public class ArcaneStorageCommand extends ChatCommand {
       // each subcommand atomic with respect to the tick, so an assertion cannot observe a
       // half-applied change. A player-issued command arrives as a packet on the server
       // thread and is already safe; the lock is reentrant, so holding it costs nothing there.
+      if (sub.equals("run")) {
+         // Each line locks itself, so a long scenario never holds the tick hostage for its
+         // whole duration. ThreadFreezeMonitor reports a freeze after 15 seconds.
+         return this.runScenario(server, serverClient, args, logs);
+      }
+
+      if (sub.equals("echo")) {
+         logs.add(String.join(" ", args.subList(1, args.size())));
+         return true;
+      }
+
       synchronized (level.entityManager.lock) {
          return this.dispatch(sub, level, spawn, server, serverClient, args, logs);
       }
@@ -133,6 +144,8 @@ public class ArcaneStorageCommand extends ChatCommand {
                return this.give(level, serverClient, args, logs);
             case "clear":
                return this.clear(level, spawn, args, logs);
+            case "reset":
+               return this.reset(level, logs);
             case "open":
                return this.open(level, spawn, serverClient, args, logs);
             case "close":
@@ -526,6 +539,31 @@ public class ArcaneStorageCommand extends ChatCommand {
 
       logs.add("cleared " + objectsCleared + " objects within " + radius + " tiles of spawn"
          + (tileID >= 0 ? ", tiles set to " + args.get(2) : ""));
+      return true;
+   }
+
+   /**
+    * {@code reset} — removes every storage object on the level, wherever it is.
+    *
+    * <p>Needed because several scenarios now share one server boot. {@code clear} only covers
+    * a radius, so a unit a previous scenario left outside that radius would still be counted
+    * by {@code expect total}, which scans the whole level. This is radius-independent, so a
+    * scenario cannot be polluted by one that ran before it.
+    */
+   private boolean reset(Level level, CommandLog logs) {
+      ArrayList<Point> ours = new ArrayList<>();
+
+      for (ObjectEntity entity : level.entityManager.objectEntities) {
+         if (!entity.removed() && (entity instanceof StorageUnitObjectEntity || entity instanceof StorageTerminalObjectEntity)) {
+            ours.add(new Point(entity.tileX, entity.tileY));
+         }
+      }
+
+      for (Point tile : ours) {
+         level.setObject(tile.x, tile.y, 0);
+      }
+
+      logs.add("reset removed " + ours.size() + " storage objects from the level");
       return true;
    }
 

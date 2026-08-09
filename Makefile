@@ -40,9 +40,9 @@ scenario: ## Run one scenario against a headless server: make scenario FILE=test
 	@$(MAKE) --no-print-directory build > /dev/null
 	@tools/run_scenario.sh "$(FILE)"
 
-scenarios: ## Run every scenario; non-zero exit if any assertion fails
+scenarios: ## Run every scenario in one server boot; non-zero exit if any assertion fails
 	@$(MAKE) --no-print-directory build > /dev/null
-	@fail=0; for f in tests/scenarios/*.txt; do tools/run_scenario.sh "$$f" || fail=1; done; exit $$fail
+	@tools/run_scenario.sh tests/scenarios/*.txt
 
 run: ## Launch the game with the in-development mod (needs Steam running). PACKETLOG=1 logs inbound packets
 	@mkdir -p $(LOGDIR)
