@@ -91,9 +91,9 @@ public class ArcaneStorage {
       // and being present in a normal game is harmless.
       CommandsManager.registerServerCommand(new ArcaneStorageCommand());
 
-      // Adds this mod's assertions to the test kit's command, when the kit is installed. Guarded
-      // inside that class, since the kit is an optional dependency and referencing an absent type
+      // Adds this mod's assertions to the harness's command, when the harness is installed. Guarded
+      // inside that class, since the harness is an optional dependency and referencing an absent type
       // is a NoClassDefFoundError rather than something catchable at the call site.
-      arcanestorage.testkit.ArcaneStorageVerbs.registerIfPresent();
+      arcanestorage.harness.ArcaneStorageVerbs.registerIfPresent();
    }
 }

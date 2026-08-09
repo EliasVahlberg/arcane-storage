@@ -1,4 +1,4 @@
-package arcanestorage.testkit;
+package arcanestorage.harness;
 
 import java.util.List;
 
@@ -11,23 +11,23 @@ import arcanestorage.objectentity.StorageUnitObjectEntity;
 import necesse.entity.objectEntity.ObjectEntity;
 import necesse.inventory.InventoryItem;
 import necesse.level.maps.Level;
-import necessetestkit.TestKit;
-import necessetestkit.command.TestContext;
-import necessetestkit.command.TestVerb;
+import necesseheadlessharness.Harness;
+import necesseheadlessharness.command.TestContext;
+import necesseheadlessharness.command.TestVerb;
 
 /**
- * Registers this mod's own vocabulary with the test kit.
+ * Registers this mod's own vocabulary with the harness.
  *
- * <p><strong>Nothing outside this package may reference it.</strong> The kit is an
+ * <p><strong>Nothing outside this package may reference it.</strong> The harness is an
  * {@code optionalDependencies} entry, so it may be absent at runtime -- and merely loading a class
  * that mentions a missing type throws {@code NoClassDefFoundError}. Keeping every kit reference
- * inside this one class means a player without the kit loses the test verbs and nothing else.
+ * inside this one class means a player without the harness loses the test verbs and nothing else.
  * {@link #registerIfPresent()} is the only door in.
  *
- * <p>What lives here is what the kit cannot know: the shape of a storage network. The kit's own
+ * <p>What lives here is what the harness cannot know: the shape of a storage network. The harness's own
  * {@code expect item} counts one tile's inventory, which is the right answer for a chest and the
  * wrong one for a terminal, so this registers a version that means "everything the network at this
- * tile can see". Registering over a built-in is supported by the kit for exactly this case.
+ * tile can see". Registering over a built-in is supported by the harness for exactly this case.
  */
 public final class ArcaneStorageVerbs {
 
@@ -35,7 +35,7 @@ public final class ArcaneStorageVerbs {
    }
 
    /**
-    * Registers everything, or does nothing if the kit is not installed.
+    * Registers everything, or does nothing if the harness is not installed.
     *
     * <p>The catch is {@code Throwable} rather than {@code Exception} on purpose:
     * {@code NoClassDefFoundError} is an {@code Error}, and it is the exact failure being guarded
@@ -45,25 +45,25 @@ public final class ArcaneStorageVerbs {
       try {
          register();
       } catch (Throwable kitAbsent) {
-         // Deliberately quiet at info level: for a player, the kit being absent is the normal
+         // Deliberately quiet at info level: for a player, the harness being absent is the normal
          // case and not a problem worth a warning.
-         System.out.println("Arcane Storage: test kit not present, test verbs not registered ("
+         System.out.println("Arcane Storage: harness not present, test verbs not registered ("
                + kitAbsent.getClass().getSimpleName() + ")");
       }
    }
 
    private static void register() {
       // Lets scenarios read 'place unit 5 0' rather than naming full string IDs.
-      TestKit.registerObjectAlias("terminal", ArcaneStorage.TERMINAL_STRING_ID);
-      TestKit.registerObjectAlias("unit", ArcaneStorage.UNIT_STRING_ID);
-      TestKit.registerObjectAlias("conduit", ArcaneStorage.CONDUIT_STRING_ID);
+      Harness.registerObjectAlias("terminal", ArcaneStorage.TERMINAL_STRING_ID);
+      Harness.registerObjectAlias("unit", ArcaneStorage.UNIT_STRING_ID);
+      Harness.registerObjectAlias("conduit", ArcaneStorage.CONDUIT_STRING_ID);
 
-      TestKit.registerExpectation(new UnitsExpectation());
-      TestKit.registerExpectation(new NetworkItemExpectation());
-      TestKit.registerExpectation(new CapacityExpectation());
-      TestKit.registerExpectation(new FitsExpectation());
-      TestKit.registerExpectation(new MaskExpectation());
-      TestKit.registerExpectation(new NetworkTotalExpectation());
+      Harness.registerExpectation(new UnitsExpectation());
+      Harness.registerExpectation(new NetworkItemExpectation());
+      Harness.registerExpectation(new CapacityExpectation());
+      Harness.registerExpectation(new FitsExpectation());
+      Harness.registerExpectation(new MaskExpectation());
+      Harness.registerExpectation(new NetworkTotalExpectation());
    }
 
    // ---------------------------------------------------------------------------------------
@@ -116,7 +116,7 @@ public final class ArcaneStorageVerbs {
    /**
     * {@code expect item <dx> <dy> <itemStringID> <n>} -- the aggregate the terminal shows.
     *
-    * <p>Replaces the kit's built-in {@code item}, which counts the inventory of the tile itself. A
+    * <p>Replaces the harness's built-in {@code item}, which counts the inventory of the tile itself. A
     * terminal has no inventory of its own; the number that matters is what its network can see.
     */
    private static final class NetworkItemExpectation implements TestVerb {
@@ -248,7 +248,7 @@ public final class ArcaneStorageVerbs {
    /**
     * {@code expect total <itemStringID> <n>} -- every storage unit on the level.
     *
-    * <p>Replaces the kit's built-in {@code total}, which sums every inventory on the level. That
+    * <p>Replaces the harness's built-in {@code total}, which sums every inventory on the level. That
     * is the better default for a mod that does not own its containers, but here it would also
     * count vanilla chests and mask the thing being tested: whether an action conserved items
     * inside the network.
