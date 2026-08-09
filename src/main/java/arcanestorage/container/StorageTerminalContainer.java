@@ -157,9 +157,29 @@ public class StorageTerminalContainer extends Container {
    }
 
    /**
-    * Server-side revalidation, run by the engine while the container is open. Closes the
-    * container if the terminal was destroyed or the player walked out of range, which is
+    * Server-side revalidation, run by {@code ServerClient} every server tick while the
+    * container is open; returning false closes it via {@code closeContainer(true)}.
+    *
+    * <p>Closes when the terminal is destroyed or the player walks out of range, which is
     * what stops a client holding a stale container open and reaching into it remotely.
+    *
+    * <p><b>Also closes when any linked unit is destroyed, which fixes a real duplication
+    * and loss bug.</b> The slots registered in the constructor hold a live reference to each
+    * unit's {@code Inventory} object, and breaking a unit removes its object entity from the
+    * world without touching that object. The slots then read and write a <b>detached
+    * inventory</b>: withdrawing from it produces items the world no longer contains, and
+    * depositing into it writes somewhere that will never be saved. Both were observed in
+    * testing — an item appearing to duplicate and then vanishing.
+    *
+    * <p>Closing rather than rebuilding, because {@code Container} assembles its slot list in
+    * the constructor, so a membership change cannot be represented in an open container.
+    * This is also what vanilla does: every object container, from {@code OEInventoryContainer}
+    * to {@code SignContainer}, closes when its backing object entity goes away.
+    *
+    * <p>Only removals are checked, not additions. Removal is the only way connectivity can
+    * break, since objects never move — breaking a unit mid-chain removes that unit, which is
+    * caught here. A unit being <i>added</i> is harmless: it simply is not shown until the
+    * terminal is reopened, a stale view rather than a correctness failure.
     */
    @Override
    public boolean isValid(ServerClient client) {
@@ -167,10 +187,19 @@ public class StorageTerminalContainer extends Container {
          return false;
       }
 
+      if (this.terminal.removed()) {
+         return false;
+      }
+
+      for (StorageUnitObjectEntity unit : this.linkedUnits) {
+         if (unit.removed()) {
+            return false;
+         }
+      }
+
       Level level = client.getLevel();
-      return !this.terminal.removed()
-         && level.getObject(this.terminal.tileX, this.terminal.tileY)
-            .isInInteractRange(level, this.terminal.tileX, this.terminal.tileY, client.playerMob);
+      return level.getObject(this.terminal.tileX, this.terminal.tileY)
+         .isInInteractRange(level, this.terminal.tileX, this.terminal.tileY, client.playerMob);
    }
 
    /**

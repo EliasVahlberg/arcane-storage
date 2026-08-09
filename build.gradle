@@ -224,3 +224,10 @@ test {
         exceptionFormat "full"
     }
 }
+
+// Enables the debug panel (F10) so items and objects can be spawned while testing:
+// WorldSettings line 441 is `allowCheats || cheatsHidden`, so this grants cheats
+// without setting the world's own allowCheats flag — no permanent mark on the save.
+tasks.named('runClient') {
+    args '-hiddencheats'
+}

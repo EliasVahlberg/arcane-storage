@@ -25,13 +25,18 @@ public class StorageUnitObjectEntity extends InventoryObjectEntity {
    }
 
    /** Number of occupied slots, for the interact readout. */
+   /**
+    * How many of this unit's slots hold something.
+    *
+    * <p>Delegates to the engine, which counts the inventory's backing slot array directly
+    * ({@code Arrays.stream(items).filter(Objects::nonNull).count()}). It is therefore a
+    * count of occupied slots and never derived from the terminal's aggregated view, so it
+    * cannot disagree with what the unit actually holds.
+    *
+    * <p>The figure is deliberately <b>per unit</b>, not per network: this is reported when
+    * inspecting one unit, so a network's total is the sum across its units.
+    */
    public int getUsedSlots() {
-      int used = 0;
-      for (int i = 0; i < this.inventory.getSize(); i++) {
-         if (!this.inventory.isSlotClear(i)) {
-            used++;
-         }
-      }
-      return used;
+      return this.inventory.getUsedSlots();
    }
 }
