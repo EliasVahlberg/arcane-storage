@@ -31,6 +31,19 @@ optimisation repairs an already-corrupted save.
 
 Test for duplication explicitly at every phase. Do not assume it.
 
+**One instance of this has already been found and fixed** (`f68875b`), which is why the
+rule is stated so plainly. Breaking a storage unit while the terminal was open left its
+slots registered against the removed object entity's `Inventory`: withdrawing produced items
+the world no longer contained, and depositing wrote into an object that was never saved. It
+presented as "looks like an item dupe but the item disappears". The fix checks every linked
+unit in `Container.isValid`, which `ServerClient` calls each tick, so the terminal closes the
+moment its network is invalidated. **Verified in game, Aug 2026:** the terminal closes
+immediately on breaking a unit, with no stale entries in the grid beforehand.
+
+Item conservation is now asserted mechanically rather than by eye — `selftest` sums every
+unit plus the player's inventory before and after each action, so a withdraw that gains or
+loses one item fails even when the grid looks correct.
+
 ## Performance — deferred, but with numbers
 
 Optimisation comes after the basics work. These are recorded as targets rather
@@ -101,34 +114,38 @@ Two honest caveats, neither covered by the criteria above:
 
 ### Verification
 
-Two suites, both runnable without launching the game:
+Two tiers, because `Container` is built from the player's inventory and so cannot exist
+without one. Both use the same command, so a check is one line either way.
 
 - `make test` — unit tests over game-independent logic (the network traversal). Sub-second.
 - `make scenarios` — scenario files driven against a **headless dedicated server**. Each
-  file is a list of server console commands, so any prefix of one can be pasted into a
-  live server to investigate a failure. `make scenario FILE=...` runs one.
+  file is a list of server console commands, so any prefix can be pasted into a live server
+  to investigate a failure. `make scenario FILE=...` runs one.
+- **In a session**, `/arcanestorage selftest <dx> <dy> <item>` runs the whole player-coupled
+  path — open, withdraw, shift-click back, close — asserting item conservation at every
+  step. Player-coupled subcommands refuse to run from the console with an explanation
+  rather than failing obscurely.
 
-Automated so far: chains link through units; a diagonal neighbour is excluded; a one-tile
-gap is not bridged; a multi-path block counts each unit exactly once; breaking a unit
-mid-chain orphans what lies beyond; two terminals on one chain see the same network.
+These call the methods the packet handlers call: a click is
+`Container.applyContainerAction(slot, action)` per `PacketContainerAction`, and a withdraw
+is `WithdrawAction.executePacket` per `PacketContainerCustomAction`, with the request
+encoded exactly as the client encodes it. So what runs is the shipping path.
 
-What the harness cannot reach: `Container` needs a player, so opening a terminal,
-withdrawing, depositing and the close-on-unit-destroyed behaviour still need a session.
-Scenarios asserting those run in a live game with the same command.
+Automated headlessly: chains link through units; a diagonal neighbour is excluded; a
+one-tile gap is not bridged; a multi-path block counts each unit exactly once; breaking a
+unit mid-chain orphans what lies beyond; two terminals on one chain see the same network.
+
+`tools/capture_server.sh` starts a server with a stocked network at spawn and logs every
+inbound packet (`-Darcanestorage.packetlog`), which is how the packet vocabulary above was
+established.
 
 ### ⚠ Pending QA — still needs a session
 
-Connectivity itself is covered by `make scenarios`. What remains is the player-coupled
-half:
-
-1. Withdraw and deposit against a chain of several units, with exact counts.
-2. Break a unit **while the terminal is open** — the terminal should close on the spot
-   rather than showing stale contents. This was a real duplication-and-loss bug: the slots
-   held a live reference to the removed unit's inventory, so withdrawing produced items the
-   world no longer contained and depositing wrote somewhere never saved. Fixed by checking
-   the units in `isValid`, but the fix itself is unverified in game.
-3. Two terminals open at once: withdraw at one, confirm the other reflects it.
-4. Walking out of range should close the terminal, as it does for a vanilla chest.
+1. Run `/arcanestorage selftest 1 0 ironbar` against a stocked network and confirm every
+   check passes. This covers withdraw, shift-click deposit and close.
+2. The six click conventions individually, via `/arcanestorage click <slot> <action>`.
+3. Walking out of range should close the terminal, as it does for a vanilla chest.
+4. Two terminals open at once: withdraw at one, confirm the other reflects it.
 
 Also unresolved from Phase 1: the per-unit `slots used` readout. It counts occupied slots
 directly via `Inventory.getUsedSlots()`, so it cannot disagree with a unit's real contents

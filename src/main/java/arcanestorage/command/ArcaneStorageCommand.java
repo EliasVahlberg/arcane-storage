@@ -15,13 +15,20 @@ import necesse.engine.commands.AutoComplete;
 import necesse.engine.commands.ChatCommand;
 import necesse.engine.commands.CommandLog;
 import necesse.engine.commands.PermissionLevel;
+import necesse.engine.network.Packet;
+import necesse.engine.network.PacketReader;
+import necesse.engine.network.PacketWriter;
 import necesse.engine.network.client.Client;
 import necesse.engine.network.server.Server;
 import necesse.engine.network.server.ServerClient;
 import necesse.engine.registries.ObjectRegistry;
 import necesse.entity.objectEntity.ObjectEntity;
 import necesse.inventory.Inventory;
+import necesse.inventory.InventorySlot;
 import necesse.inventory.InventoryItem;
+import necesse.inventory.container.ContainerAction;
+import necesse.inventory.container.ContainerActionResult;
+import necesse.inventory.container.slots.ContainerSlot;
 import necesse.level.maps.Level;
 
 /**
@@ -49,7 +56,7 @@ public class ArcaneStorageCommand extends ChatCommand {
 
    @Override
    public String getUsage() {
-      return "<place|fill|break|report|expect> ...";
+      return "<place|fill|break|report|expect|give|open|close|withdraw|click|selftest> ...";
    }
 
    @Override
@@ -95,6 +102,18 @@ public class ArcaneStorageCommand extends ChatCommand {
                return this.report(level, spawn, args, logs);
             case "expect":
                return this.expect(level, spawn, args, logs);
+            case "give":
+               return this.give(level, serverClient, args, logs);
+            case "open":
+               return this.open(level, spawn, serverClient, args, logs);
+            case "close":
+               return this.close(serverClient, logs);
+            case "withdraw":
+               return this.withdraw(serverClient, args, logs);
+            case "click":
+               return this.click(serverClient, args, logs);
+            case "selftest":
+               return this.selftest(level, spawn, serverClient, args, logs);
             default:
                logs.add("FAIL unknown subcommand '" + sub + "'; usage: " + this.getUsage());
                return false;
@@ -259,6 +278,250 @@ public class ArcaneStorageCommand extends ChatCommand {
    private boolean check(CommandLog logs, boolean ok, String what, String detail) {
       logs.add((ok ? "PASS " : "FAIL ") + what + (ok ? "" : " -- " + detail));
       return ok;
+   }
+
+   // ------------------------------------------------------------------------------------
+   // Player-coupled subcommands.
+   //
+   // Container(client, uniqueSeed) reads client.playerMob.getInv(), so a container cannot
+   // exist without a player. That is the harness's hard boundary: with nobody connected
+   // there is nothing to open, so everything below needs a live session and reports a clear
+   // failure when run from the server console, where serverClient is null.
+   //
+   // These do not fabricate a click. They call the exact methods the packet handlers call:
+   // a click is Container.applyContainerAction(slot, action) per PacketContainerAction, and
+   // a withdraw is WithdrawAction.executePacket(reader) per PacketContainerCustomAction. So
+   // what is tested is the shipping path, not a parallel imitation of it.
+   // ------------------------------------------------------------------------------------
+
+   private ServerClient requirePlayer(ServerClient serverClient, CommandLog logs, String sub) {
+      if (serverClient == null) {
+         logs.add("FAIL '" + sub + "' needs a player: a container is built from the player's inventory, "
+            + "so it cannot be opened from the console. Run this from in-game chat.");
+      }
+
+      return serverClient;
+   }
+
+   private StorageTerminalContainer requireTerminalContainer(ServerClient serverClient, CommandLog logs, String sub) {
+      if (this.requirePlayer(serverClient, logs, sub) == null) {
+         return null;
+      }
+
+      if (!(serverClient.getContainer() instanceof StorageTerminalContainer)) {
+         logs.add("FAIL '" + sub + "' needs an open terminal; run 'open <dx> <dy>' first");
+         return null;
+      }
+
+      return (StorageTerminalContainer)serverClient.getContainer();
+   }
+
+   /** {@code give <itemStringID> <amount>} — into the player's own inventory. */
+   private boolean give(Level level, ServerClient serverClient, ArrayList<String> args, CommandLog logs) {
+      if (this.requirePlayer(serverClient, logs, "give") == null) {
+         return false;
+      }
+
+      String itemID = args.get(1);
+      int amount = Integer.parseInt(args.get(2));
+      boolean added = serverClient.playerMob.getInv().addItem(new InventoryItem(itemID, amount), true, "harness");
+      return this.check(logs, added, "gave " + amount + " " + itemID, "inventory would not take them");
+   }
+
+   /** {@code open <dx> <dy>} — the same call the object's interact makes. */
+   private boolean open(Level level, Point spawn, ServerClient serverClient, ArrayList<String> args, CommandLog logs) {
+      if (this.requirePlayer(serverClient, logs, "open") == null) {
+         return false;
+      }
+
+      int x = spawn.x + Integer.parseInt(args.get(1));
+      int y = spawn.y + Integer.parseInt(args.get(2));
+      if (this.terminalAt(level, x, y) == null) {
+         logs.add("FAIL no terminal at " + args.get(1) + "," + args.get(2));
+         return false;
+      }
+
+      StorageTerminalContainer.openAndSendContainer(ArcaneStorage.TERMINAL_CONTAINER, serverClient, level, x, y);
+      return this.check(logs, serverClient.getContainer() instanceof StorageTerminalContainer,
+         "opened terminal at " + args.get(1) + "," + args.get(2), "container did not open");
+   }
+
+   private boolean close(ServerClient serverClient, CommandLog logs) {
+      if (this.requirePlayer(serverClient, logs, "close") == null) {
+         return false;
+      }
+
+      serverClient.closeContainer(true);
+      logs.add("closed container");
+      return true;
+   }
+
+   /** {@code withdraw <itemStringID> <amount> [cursor]} */
+   private boolean withdraw(ServerClient serverClient, ArrayList<String> args, CommandLog logs) {
+      StorageTerminalContainer container = this.requireTerminalContainer(serverClient, logs, "withdraw");
+      if (container == null) {
+         return false;
+      }
+
+      String itemID = args.get(1);
+      int amount = Integer.parseInt(args.get(2));
+      boolean toCursor = args.size() > 3 && "cursor".equalsIgnoreCase(args.get(3));
+
+      this.sendWithdraw(container, itemID, amount, toCursor);
+      logs.add("withdrew up to " + amount + " " + itemID + (toCursor ? " to the cursor" : " to the inventory"));
+      return true;
+   }
+
+   /**
+    * Encodes the request exactly as {@code WithdrawAction.runAndSend} does and hands it to
+    * the same {@code executePacket}, so the packet encoding is exercised too rather than
+    * bypassed.
+    */
+   private void sendWithdraw(StorageTerminalContainer container, String itemID, int amount, boolean toCursor) {
+      Packet content = new Packet();
+      PacketWriter writer = new PacketWriter(content);
+      new InventoryItem(itemID, 1).addPacketContent(writer);
+      writer.putNextInt(amount);
+      writer.putNextBoolean(toCursor);
+      container.withdrawAction.executePacket(new PacketReader(content));
+      container.markFullDirty();
+   }
+
+   /** {@code click <slotIndex> <LEFT_CLICK|QUICK_MOVE|...>} — a raw container action. */
+   private boolean click(ServerClient serverClient, ArrayList<String> args, CommandLog logs) {
+      StorageTerminalContainer container = this.requireTerminalContainer(serverClient, logs, "click");
+      if (container == null) {
+         return false;
+      }
+
+      int slot = Integer.parseInt(args.get(1));
+      ContainerAction action;
+      try {
+         action = ContainerAction.valueOf(args.get(2).toUpperCase());
+      } catch (IllegalArgumentException e) {
+         logs.add("FAIL unknown action '" + args.get(2) + "'; try LEFT_CLICK, RIGHT_CLICK, QUICK_MOVE or TAKE_ONE");
+         return false;
+      }
+
+      ContainerActionResult result = container.applyContainerAction(slot, action);
+      logs.add("click " + action + " on slot " + slot + " moved " + result.value);
+      return true;
+   }
+
+   /**
+    * {@code selftest <dx> <dy> <itemStringID>} — the whole player-coupled path in one
+    * command: open, withdraw into the inventory, shift-click it back, close.
+    *
+    * <p>Exists so this half of the mod costs one line in chat rather than a click-through,
+    * which is the difference between a check that gets run and one that gets skipped.
+    *
+    * <p>Every step asserts item conservation, not just the visible outcome: the total across
+    * every unit plus the player's inventory must never change. Withdrawing is a move, so an
+    * off-by-one that creates or destroys items fails here even when the grid looks right.
+    */
+   private boolean selftest(Level level, Point spawn, ServerClient serverClient, ArrayList<String> args, CommandLog logs) {
+      if (this.requirePlayer(serverClient, logs, "selftest") == null) {
+         return false;
+      }
+
+      int dx = Integer.parseInt(args.get(1));
+      int dy = Integer.parseInt(args.get(2));
+      String itemID = args.get(3);
+      int x = spawn.x + dx;
+      int y = spawn.y + dy;
+
+      StorageTerminalObjectEntity terminal = this.terminalAt(level, x, y);
+      if (terminal == null) {
+         logs.add("FAIL no terminal at " + dx + "," + dy);
+         return false;
+      }
+
+      List<StorageUnitObjectEntity> allUnits = this.allUnits(level);
+      int storedBefore = NetworkContents.totalOf(allUnits, itemID);
+      int heldBefore = this.countHeld(serverClient, itemID);
+      int conserved = storedBefore + heldBefore;
+      boolean ok = true;
+
+      if (storedBefore <= 0) {
+         logs.add("FAIL nothing to withdraw: no " + itemID + " in any unit. Use 'fill' first.");
+         return false;
+      }
+
+      StorageTerminalContainer.openAndSendContainer(ArcaneStorage.TERMINAL_CONTAINER, serverClient, level, x, y);
+      ok &= this.check(logs, serverClient.getContainer() instanceof StorageTerminalContainer,
+         "terminal opens", "container is " + serverClient.getContainer());
+
+      if (!(serverClient.getContainer() instanceof StorageTerminalContainer)) {
+         return false;
+      }
+
+      StorageTerminalContainer container = (StorageTerminalContainer)serverClient.getContainer();
+      ok &= this.check(logs, !container.isNetworkEmpty(), "network is not empty", "no unit slots registered");
+
+      // --- withdraw ---
+      int wanted = Math.min(10, storedBefore);
+      this.sendWithdraw(container, itemID, wanted, false);
+
+      int heldAfter = this.countHeld(serverClient, itemID);
+      int storedAfter = NetworkContents.totalOf(allUnits, itemID);
+      int moved = heldAfter - heldBefore;
+
+      ok &= this.check(logs, moved == wanted, "withdraw moves " + wanted + " " + itemID,
+         "inventory gained " + moved);
+      ok &= this.check(logs, storedAfter == storedBefore - moved, "withdraw removes what it gave",
+         "units held " + storedBefore + ", now " + storedAfter + ", inventory gained " + moved);
+      ok &= this.check(logs, storedAfter + heldAfter == conserved, "withdraw conserves items",
+         "expected " + conserved + " total, found " + (storedAfter + heldAfter));
+
+      // --- deposit the same items straight back, as a shift-click would ---
+      // Player slots are indices below NETWORK_START: Container assigns them in its own
+      // constructor, before this container adds any unit slots.
+      int deposited = 0;
+      for (int slot = 0; slot < container.NETWORK_START && deposited < moved; slot++) {
+         ContainerSlot containerSlot = container.getSlot(slot);
+         InventoryItem item = containerSlot == null ? null : containerSlot.getItem();
+         if (item == null || !item.item.getStringID().equals(itemID)) {
+            continue;
+         }
+
+         deposited += container.applyContainerAction(slot, ContainerAction.QUICK_MOVE).value;
+      }
+
+      int heldEnd = this.countHeld(serverClient, itemID);
+      int storedEnd = NetworkContents.totalOf(allUnits, itemID);
+
+      ok &= this.check(logs, deposited == moved, "shift-click deposits all " + moved + " back",
+         "deposited " + deposited);
+      ok &= this.check(logs, storedEnd == storedBefore, "network is back to its starting amount",
+         "started " + storedBefore + ", ended " + storedEnd);
+      ok &= this.check(logs, heldEnd == heldBefore, "inventory is back to its starting amount",
+         "started " + heldBefore + ", ended " + heldEnd);
+      ok &= this.check(logs, storedEnd + heldEnd == conserved, "round trip conserves items",
+         "expected " + conserved + " total, found " + (storedEnd + heldEnd));
+
+      // --- close ---
+      serverClient.closeContainer(true);
+      ok &= this.check(logs, !(serverClient.getContainer() instanceof StorageTerminalContainer),
+         "terminal closes", "container is still " + serverClient.getContainer());
+
+      logs.add(ok ? "selftest: all checks passed" : "selftest: FAILURES above");
+      return ok;
+   }
+
+   /**
+    * How much of an item the player is carrying.
+    *
+    * <p>Counts every slot the manager exposes, including inactive equipment sets and the
+    * temporary and cloud slots, so nothing can hide from a conservation check by sitting
+    * somewhere unusual.
+    */
+   private int countHeld(ServerClient serverClient, String itemID) {
+      return serverClient.playerMob.getInv()
+         .streamInventorySlots(true, true, true, true)
+         .map(InventorySlot::getItem)
+         .filter(item -> item != null && item.item.getStringID().equals(itemID))
+         .mapToInt(InventoryItem::getAmount)
+         .sum();
    }
 
    /** Every unit on the level, found by scanning loaded object entities. */
