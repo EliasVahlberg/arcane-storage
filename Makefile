@@ -1,4 +1,5 @@
 # Thin wrapper so the Necesse mod build behaves like cargo/cmake:
+HARNESS_VENV = $(CURDIR)/../necesse-headless-harness/.venv/bin/python
 # one short command, output streams live, exit status is real, never hangs.
 #
 # Three rules encoded here, each fixing a specific failure we hit:
@@ -97,3 +98,8 @@ doctor: ## Verify the toolchain assumptions on this machine
 	@test -f "$$(grep -oP '(?<=^org.gradle.java.home=).*' gradle.properties)/lib/libawt_xawt.so" \
 		&& echo "AWT         : headful" \
 		|| echo "AWT         : HEADLESS JVM (runServer cannot work; error dialogs throw instead of showing)"
+
+pytest: ## Run the Python suite against a headless server (needs the harness's .venv)
+	@$(MAKE) --no-print-directory testjar > /dev/null
+	@# The venv lives in the harness repo, because the client is released with the jar.
+	@$(HARNESS_VENV) -m pytest tests/python -q

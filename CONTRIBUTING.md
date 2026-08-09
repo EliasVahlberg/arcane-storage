@@ -79,6 +79,29 @@ can see.
 
 Coordinates are relative to world spawn, so scenarios are world-independent.
 
+### Or as Python, when values matter
+
+The same server, driven through the harness's request/reply protocol, with assertions in pytest:
+
+```bash
+make pytest
+```
+
+```python
+def test_capacity_counts_slots_not_items(terminal):
+    terminal.harness.fill(1, 0, "ironbar", 40)
+    assert terminal.capacity() == (1, 40)      # one slot, not forty
+```
+
+`tests/python/conftest.py` holds this mod's fixtures -- a `terminal` with a unit beside it, a
+`storage` fixture that runs `reset` so isolation does not depend on a clear radius, and the queries
+that mean something here. It mirrors `ArcaneStorageVerbs` on the Java side: the harness supplies the
+generic driver, this repo supplies its own vocabulary.
+
+Use Python when the test wants a value, a size sweep, or a diff on failure. Use a scenario when the
+value of the test is that you can paste it into a live server. Both run against the same code, and
+`reset`, `withdraw`, `deposit`, `depositall`, `report` and `bench` are available either way.
+
 Prefer adding a scenario over adding a unit test when the behaviour involves the level, objects,
 or containers — the harness exercises the real server, real packets and real persistence, which
 is where the interesting bugs are. Keep unit tests for pure graph logic.

@@ -24,6 +24,8 @@ import necesse.inventory.InventoryItem;
 import necesse.level.maps.Level;
 import necesseheadlessharness.Harness;
 import necesseheadlessharness.command.TestContext;
+import necesseheadlessharness.Json;
+import necesseheadlessharness.command.TestQuery;
 import necesseheadlessharness.command.TestVerb;
 
 /**
@@ -408,13 +410,18 @@ public final class ArcaneStorageVerbs {
    }
 
    /** {@code expect units <dx> <dy> <n>} -- how many units the terminal's walk reaches. */
-   private static final class UnitsExpectation implements TestVerb {
+   private static final class UnitsExpectation implements TestVerb, TestQuery {
       public String name() {
          return "units";
       }
 
       public String usage() {
          return "expect units <dx> <dy> <count>";
+      }
+
+      public void query(TestContext context, Json.Writer out) {
+         List<StorageUnitObjectEntity> units = unitsFrom(context);
+         out.num("units", units == null ? -1 : units.size());
       }
 
       public int coordinateArgIndex() {
@@ -439,13 +446,19 @@ public final class ArcaneStorageVerbs {
     * <p>Replaces the harness's built-in {@code item}, which counts the inventory of the tile itself. A
     * terminal has no inventory of its own; the number that matters is what its network can see.
     */
-   private static final class NetworkItemExpectation implements TestVerb {
+   private static final class NetworkItemExpectation implements TestVerb, TestQuery {
       public String name() {
          return "item";
       }
 
       public String usage() {
          return "expect item <dx> <dy> <itemStringID> <count>";
+      }
+
+      public void query(TestContext context, Json.Writer out) {
+         List<StorageUnitObjectEntity> units = unitsFrom(context);
+         out.str("item", context.arg(4))
+            .num("count", units == null ? -1 : NetworkContents.totalOf(units, context.arg(4)));
       }
 
       public int coordinateArgIndex() {
@@ -475,13 +488,19 @@ public final class ArcaneStorageVerbs {
    }
 
    /** {@code expect capacity <dx> <dy> <used> <total>}. */
-   private static final class CapacityExpectation implements TestVerb {
+   private static final class CapacityExpectation implements TestVerb, TestQuery {
       public String name() {
          return "capacity";
       }
 
       public String usage() {
          return "expect capacity <dx> <dy> <usedSlots> <totalSlots>";
+      }
+
+      public void query(TestContext context, Json.Writer out) {
+         List<StorageUnitObjectEntity> units = unitsFrom(context);
+         out.num("used", units == null ? -1 : NetworkContents.usedSlots(units))
+            .num("total", units == null ? -1 : NetworkContents.totalSlots(units));
       }
 
       public int coordinateArgIndex() {
@@ -506,13 +525,21 @@ public final class ArcaneStorageVerbs {
    }
 
    /** {@code expect fits <dx> <dy> <itemStringID> <true|false>}. */
-   private static final class FitsExpectation implements TestVerb {
+   private static final class FitsExpectation implements TestVerb, TestQuery {
       public String name() {
          return "fits";
       }
 
       public String usage() {
          return "expect fits <dx> <dy> <itemStringID> <true|false>";
+      }
+
+      public void query(TestContext context, Json.Writer out) {
+         StorageTerminalObjectEntity terminal = terminalAt(context, 2);
+         List<StorageUnitObjectEntity> units = unitsFrom(context);
+         out.str("item", context.arg(4)).bool("fits", units != null && NetworkContents.canFit(
+            context.level, units, new InventoryItem(context.arg(4)),
+            StorageTerminalContainer.DEPOSIT_PURPOSE));
       }
 
       public int coordinateArgIndex() {
@@ -540,13 +567,18 @@ public final class ArcaneStorageVerbs {
     *
     * <p>Addresses a tile rather than an object entity, because a conduit has none.
     */
-   private static final class MaskExpectation implements TestVerb {
+   private static final class MaskExpectation implements TestVerb, TestQuery {
       public String name() {
          return "mask";
       }
 
       public String usage() {
          return "expect mask <dx> <dy> <bitmask: north 1, east 2, south 4, west 8>";
+      }
+
+      public void query(TestContext context, Json.Writer out) {
+         out.num("mask", StorageConduitObject.connectionMask(
+            context.level, context.tileX(context.intArg(2)), context.tileY(context.intArg(3))));
       }
 
       public int coordinateArgIndex() {
@@ -573,13 +605,18 @@ public final class ArcaneStorageVerbs {
     * count vanilla chests and mask the thing being tested: whether an action conserved items
     * inside the network.
     */
-   private static final class NetworkTotalExpectation implements TestVerb {
+   private static final class NetworkTotalExpectation implements TestVerb, TestQuery {
       public String name() {
          return "total";
       }
 
       public String usage() {
          return "expect total <itemStringID> <count>";
+      }
+
+      public void query(TestContext context, Json.Writer out) {
+         out.str("item", context.arg(2))
+            .num("count", NetworkContents.totalOf(allUnits(context.level), context.arg(2)));
       }
 
       public boolean run(TestContext context) {
