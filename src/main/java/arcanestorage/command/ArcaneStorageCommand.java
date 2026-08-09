@@ -109,30 +109,9 @@ public class ArcaneStorageCommand extends ChatCommand {
       Point spawn = server.world.worldEntity.spawnTile;
       String sub = args.get(0).toLowerCase();
 
-      // Console commands run on the 'Command scanner' thread, not the server thread, and
-      // every subcommand here touches region data. Level.setObject reaches LightManager and
-      // then wants a region lock, while the server thread takes entityManager.lock first and
-      // LightManager second -- opposite order, so the two deadlock. The engine's own
-      // ThreadFreezeMonitor caught exactly that during development.
-      //
-      // Taking entityManager.lock around the whole subcommand matches the order the engine
-      // uses (RegionManager holds it outermost), which removes the inversion. It also makes
-      // each subcommand atomic with respect to the tick, so an assertion cannot observe a
-      // half-applied change. A player-issued command arrives as a packet on the server
-      // thread and is already safe; the lock is reentrant, so holding it costs nothing there.
-      // Regions load on demand, and reads do NOT trigger a load: the object layer resolves a
-      // tile through RegionBoundsExecutor with loadIfNotLoaded=false, so an unloaded region
-      // reads as empty rather than as itself. On a freshly generated world every region is
-      // already in memory, which hides this completely -- it only appears after a restart,
-      // where a scenario would see an empty world and report a persistence bug that is not
-      // there. Loading the addressed region first is what makes reads mean what they say.
-      //
-      // Only a player normally causes regions to load, and the harness has no player.
-      this.ensureRegionLoaded(level, spawn, args);
-
+      // 'run' and 'echo' do no level work of their own: run feeds its lines back through this
+      // method, so each line marshals itself.
       if (sub.equals("run")) {
-         // Each line locks itself, so a long scenario never holds the tick hostage for its
-         // whole duration. ThreadFreezeMonitor reports a freeze after 15 seconds.
          return this.runScenario(server, serverClient, args, logs);
       }
 
@@ -141,9 +120,33 @@ public class ArcaneStorageCommand extends ChatCommand {
          return true;
       }
 
-      synchronized (level.entityManager.lock) {
-         return this.dispatch(sub, level, spawn, server, serverClient, args, logs);
+      // Everything else touches the level, so it runs on the server thread rather than on the
+      // console's own thread. See ServerThreadTasks for why: mutating the level from the command
+      // scanner races the tick, and the engine's ThreadFreezeMonitor kills the server when the two
+      // take the same pair of locks in opposite orders. This replaces both an entityManager.lock
+      // workaround and a per-command delay in the test runner, neither of which was a real fix.
+      //
+      // Region loading is inside the marshalled work deliberately: loading a region that has never
+      // been generated is itself one of the operations that used to invert.
+      boolean[] result = new boolean[1];
+      boolean ran = ServerThreadTasks.runAndWait(() -> {
+         // Reads do NOT load regions: the object layer resolves a tile through RegionBoundsExecutor
+         // with loadIfNotLoaded=false, so an unloaded region reads as *empty* rather than as itself.
+         // Only a player normally triggers a load, and the harness has no player. A freshly
+         // generated world hides this entirely, since generation leaves every region in memory --
+         // it appears only after a restart, where a scenario would see an empty world and report a
+         // persistence bug that does not exist.
+         this.ensureRegionLoaded(level, spawn, args);
+         result[0] = this.dispatch(sub, level, spawn, server, serverClient, args, logs);
+      }, 15000L);
+
+      if (!ran) {
+         // Better to say the work never happened than to report a pass that was never executed.
+         logs.add("FAIL the server thread did not run '" + sub + "' within 15s");
+         return false;
       }
+
+      return result[0];
    }
 
    private boolean dispatch(String sub, Level level, Point spawn, Server server, ServerClient serverClient,
@@ -906,20 +909,12 @@ public class ArcaneStorageCommand extends ChatCommand {
    /**
     * Loads every region overlapping a tile box, inclusive.
     *
-    * <p>Holds the level's own monitor while doing it, and that is not defensive: loading a region
-    * that has never been generated runs generation, which takes the level monitor while already
-    * holding the region map's lock. {@code Level.serverTick} takes the same two locks in the
-    * opposite order, so without this the two threads deadlock — the engine's
-    * {@code ThreadFreezeMonitor} caught exactly that. Taking the level monitor first matches the
-    * tick's order and removes the inversion.
-    *
-    * <p>Note this is a *second*, distinct inversion from the one the dispatch lock addresses.
-    * Loading a region is not the same operation as mutating one.
+    * <p>No locking here any more. This used to take the level's monitor to match the order the tick
+    * uses, because generating a region takes that monitor while holding a region lock. Running on
+    * the server thread makes the question moot: there is no second thread to invert against.
     */
    private void loadRegionsAround(Level level, int fromX, int fromY, int toX, int toY) {
-      synchronized (level) {
-         loadRegionsIn(level, fromX, fromY, toX, toY);
-      }
+      loadRegionsIn(level, fromX, fromY, toX, toY);
    }
 
    private static void loadRegionsIn(Level level, int fromX, int fromY, int toX, int toY) {

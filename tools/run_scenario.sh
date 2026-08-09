@@ -144,13 +144,12 @@ for scenario in "$@"; do
       [[ -z "${line// }" ]] && continue
       [[ "${line#\#}" != "$line" ]] && continue
       printf '%s\n' "$line" >&3
-      # ServerScanThread reads and handles lines sequentially, so ordering needs no delay.
-      # This only spaces the log out enough to stay readable.
-      sleep 0.05
+      # No delay needed: the mod marshals each command onto the server thread, so commands
+      # cannot interleave with a tick. This used to need spacing, and spacing was never a fix --
+      # it only made the deadlock rare. See ServerThreadTasks.
    done < "$scenario"
 
    printf 'arcanestorage echo === END %s ===\n' "$name" >&3
-   sleep 0.15
    RAN+=("$name")
 done
 
