@@ -25,7 +25,11 @@ project.ext.clientside = false
  * Uncomment and configure these if your mod has dependencies
  */
 //project.ext.modDependencies = ["other.modid1", "other.modid2"]
-//project.ext.modOptionalDependencies = ["optional.modid1", "optional.modid2"]
+// The test kit is optional at runtime: it registers the harness verbs this mod's scenarios use,
+// and a player has no reason to install it. Optional rather than required means the mod loads
+// without it -- see arcanestorage.testkit.ArcaneStorageVerbs for the isolation that makes that
+// safe. The jar is compiled against from ./mods, which is already on the classpath below.
+project.ext.modOptionalDependencies = ["elias.necessetestkit"]
 
 // The path to the games install directory, modify this only if the auto-detection fails
 // Allow overriding via gradle.properties (necesseGameDir), since the upstream

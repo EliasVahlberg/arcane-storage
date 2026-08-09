@@ -90,5 +90,10 @@ public class ArcaneStorage {
       // Drives the scenario harness. Registered unconditionally: it needs owner permission,
       // and being present in a normal game is harmless.
       CommandsManager.registerServerCommand(new ArcaneStorageCommand());
+
+      // Adds this mod's assertions to the test kit's command, when the kit is installed. Guarded
+      // inside that class, since the kit is an optional dependency and referencing an absent type
+      // is a NoClassDefFoundError rather than something catchable at the call site.
+      arcanestorage.testkit.ArcaneStorageVerbs.registerIfPresent();
    }
 }
