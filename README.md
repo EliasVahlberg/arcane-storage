@@ -8,7 +8,9 @@ every connected container as one searchable inventory, and lets you craft
 directly from all of it.
 
 > **Status: early development.** Not yet released, not yet on the Workshop.
-> See [ROADMAP.md](ROADMAP.md) for what is planned and what works.
+> See [ROADMAP.md](ROADMAP.md) for what is planned and what works,
+> [QA_BACKLOG.md](QA_BACKLOG.md) for checks that need a live session, and
+> [SPRITES.md](SPRITES.md) for the art the mod needs.
 
 ## Planned features
 

@@ -189,22 +189,13 @@ Consequence worth knowing: `expect total` scans **loaded** regions, so in a fres
 "everything in the areas the scenario has touched". Assert per-network numbers first, then
 totals.
 
-### ⚠ Pending QA — still needs a session
+### In-game QA
 
-1. Place a **Storage Conduit** from the crafting menu and confirm it renders in the world,
-   shows its inventory icon, and displays "Extends a storage network" on hover. The headless
-   server never loads textures or runs draw code, so this is the one part of the conduit the
-   harness cannot reach.
-2. Run `/arcanestorage run session/roundtrip` and confirm every assertion passes. It sets
-   itself up and covers withdraw, deposit, conservation and close.
-3. The six click conventions individually, via `/arcanestorage click <slot> <action>`.
-4. Walking out of range should close the terminal, as it does for a vanilla chest.
-5. Two terminals open at once: withdraw at one, confirm the other reflects it.
+Checks that need a live session are tracked in [QA_BACKLOG.md](QA_BACKLOG.md) rather than
+inline here, so this file stays a statement of what the mod does and that one stays a queue of
+what to look at next. Nothing in it is blocking.
 
-Also unresolved from Phase 1: the per-unit `slots used` readout. It counts occupied slots
-directly via `Inventory.getUsedSlots()`, so it cannot disagree with a unit's real contents
-— but it is deliberately per unit, not per network, so a network's total is the sum across
-its units.
+### Design notes
 
 A Storage Unit has no UI of its own to host a membership button, because a
 terminal is the only way to interact with it. Membership is therefore placement:
@@ -215,15 +206,17 @@ Membership is a pure function of layout, recomputed each time a terminal opens, 
 nothing is persisted and breaking a unit needs no cleanup. Persistence only
 becomes necessary if linking stops being derivable from the world.
 
-Multiple terminals may already work, since each terminal resolves its own network
-independently — verify before building anything for it.
+Several terminals on one network work, and needed no code: each terminal resolves
+its own network independently, so they share it rather than competing for it.
 
 **Ordinary chests do not join this way.** They join later through an import bus
 (Phase 5), which keeps settlers using chests they already understand while the
 network never has to expose itself to settler access.
 
 **Done when:** a network survives a full game restart, and breaking it in the
-obvious ways loses nothing.
+obvious ways loses nothing. **Both are now verified** — `make persistence` restarts
+the server and re-asserts every number, and orphaning beyond a broken unit or
+conduit is asserted by the topology and conduit scenarios.
 
 ## Phase 3 — Usable at scale
 
