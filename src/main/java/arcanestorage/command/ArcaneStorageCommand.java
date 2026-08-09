@@ -99,6 +99,24 @@ public class ArcaneStorageCommand extends ChatCommand {
       Point spawn = server.world.worldEntity.spawnTile;
       String sub = args.get(0).toLowerCase();
 
+      // Console commands run on the 'Command scanner' thread, not the server thread, and
+      // every subcommand here touches region data. Level.setObject reaches LightManager and
+      // then wants a region lock, while the server thread takes entityManager.lock first and
+      // LightManager second -- opposite order, so the two deadlock. The engine's own
+      // ThreadFreezeMonitor caught exactly that during development.
+      //
+      // Taking entityManager.lock around the whole subcommand matches the order the engine
+      // uses (RegionManager holds it outermost), which removes the inversion. It also makes
+      // each subcommand atomic with respect to the tick, so an assertion cannot observe a
+      // half-applied change. A player-issued command arrives as a packet on the server
+      // thread and is already safe; the lock is reentrant, so holding it costs nothing there.
+      synchronized (level.entityManager.lock) {
+         return this.dispatch(sub, level, spawn, server, serverClient, args, logs);
+      }
+   }
+
+   private boolean dispatch(String sub, Level level, Point spawn, Server server, ServerClient serverClient,
+                            ArrayList<String> args, CommandLog logs) {
       try {
          switch (sub) {
             case "place":

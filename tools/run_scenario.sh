@@ -97,7 +97,9 @@ while IFS= read -r line || [[ -n "$line" ]]; do
    [[ -z "${line// }" ]] && continue
    [[ "${line#\#}" != "$line" ]] && continue
    printf '%s\n' "$line" >&3
-   sleep 0.35   # let the server tick and print before the next line
+   # ServerScanThread reads and handles lines sequentially, so ordering needs no delay.
+   # This only spaces the log out enough to stay readable.
+   sleep 0.05
 done < "$SCENARIO"
 
 printf 'stop\n' >&3
