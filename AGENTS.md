@@ -61,6 +61,13 @@ fail at load. When a change touches registration, resources, rendering or input,
 it was compiled but not run, and add the check to `docs/QA_BACKLOG.md`. Do not tick a
 `docs/ROADMAP.md` box on the strength of a green build.
 
+**A hung run is not a slow run.** A deadlock does not stop the game — `ThreadFreezeMonitor` writes
+`<install>/latest-crash.log` and leaves the JVM alive with its command thread no longer reading
+stdin. So a duration that equals a timeout you passed is a hang, not a measurement, and the
+diagnosis is already written to that crash log. Check it, and compare its timestamp against the
+run, before theorising. The harness bounds itself now and prints any crash it finds, so this should
+surface on its own.
+
 Do not launch the game. `make run` takes over the display and needs Steam; the maintainer runs
 in-game testing. Give a numbered test script instead of trying to test it yourself.
 
