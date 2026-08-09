@@ -128,6 +128,11 @@ public class ArcaneStorageCommand extends ChatCommand {
       //
       // Region loading is inside the marshalled work deliberately: loading a region that has never
       // been generated is itself one of the operations that used to invert.
+      // A console command has no client. If a headless player has been spawned, stand in for one
+      // here -- once, before dispatch -- so that every verb below sees a client without any of
+      // them having to know where it came from.
+      ServerClient actingClient = serverClient != null ? serverClient : HeadlessPlayer.current();
+
       boolean[] result = new boolean[1];
       boolean ran = ServerThreadTasks.runAndWait(() -> {
          // Reads do NOT load regions: the object layer resolves a tile through RegionBoundsExecutor
@@ -137,7 +142,7 @@ public class ArcaneStorageCommand extends ChatCommand {
          // it appears only after a restart, where a scenario would see an empty world and report a
          // persistence bug that does not exist.
          this.ensureRegionLoaded(level, spawn, args);
-         result[0] = this.dispatch(sub, level, spawn, server, serverClient, args, logs);
+         result[0] = this.dispatch(sub, level, spawn, server, actingClient, args, logs);
       }, 15000L);
 
       if (!ran) {
@@ -189,6 +194,8 @@ public class ArcaneStorageCommand extends ChatCommand {
                return this.click(serverClient, args, logs);
             case "run":
                return this.runScenario(server, serverClient, args, logs);
+            case "player":
+               return this.player(server, level, args, logs);
             default:
                logs.add("FAIL unknown subcommand '" + sub + "'; usage: " + this.getUsage());
                return false;
@@ -422,13 +429,29 @@ public class ArcaneStorageCommand extends ChatCommand {
    // what is tested is the shipping path, not a parallel imitation of it.
    // ------------------------------------------------------------------------------------
 
+   /** {@code player spawn} / {@code player despawn} -- see {@link HeadlessPlayer}. */
+   private boolean player(Server server, Level level, ArrayList<String> args, CommandLog logs) {
+      String action = args.size() > 1 ? args.get(1).toLowerCase(Locale.ROOT) : "";
+      if (action.equals("spawn")) {
+         return HeadlessPlayer.spawn(server, level, logs) != null;
+      }
+      if (action.equals("despawn")) {
+         HeadlessPlayer.despawn(server, logs);
+         return true;
+      }
+      logs.add("FAIL usage: player <spawn|despawn>");
+      return false;
+   }
+
    private ServerClient requirePlayer(ServerClient serverClient, CommandLog logs, String sub) {
-      if (serverClient == null) {
-         logs.add("FAIL '" + sub + "' needs a player: a container is built from the player's inventory, "
-            + "so it cannot be opened from the console. Run this from in-game chat.");
+      if (serverClient != null) {
+         return serverClient;
       }
 
-      return serverClient;
+      logs.add("FAIL '" + sub + "' needs a player: a container is built from the player's inventory, "
+         + "so it cannot be opened from the console. Run 'player spawn' first, or run this from "
+         + "in-game chat.");
+      return null;
    }
 
    private StorageTerminalContainer requireTerminalContainer(ServerClient serverClient, CommandLog logs, String sub) {

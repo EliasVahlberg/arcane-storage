@@ -1,13 +1,16 @@
-# Deposit-all, quick-stack and restock against the whole network.
+# Quick stack, deposit all and restock.
 #
-# Session-only: every transfer here needs a real player, because a Container is built from the
-# player's inventory and cannot exist with nobody connected. Run it in game from chat:
+# This used to be session-only, on the belief that a container needs a real player and so could
+# only be driven by hand from in-game chat. That was half right: it needs a player, but the player
+# does not have to be a person. 'player spawn' connects a socketless client -- NetworkInfo is a
+# four-method abstract class and the game ships InvalidNetworkInfo, which discards what it sends --
+# so this now runs headless in the normal suite.
 #
-#   /arcanestorage run session/transfers
+# The player is spawned here and disconnected at the end rather than once for the whole suite,
+# deliberately: a connected player keeps regions loaded, and the persistence scenarios exist to
+# catch exactly the bug that hides behind loaded regions.
 #
-# The distinction being tested is the one players get wrong about other storage mods:
-# quick-stack tops up only what the network already holds, while deposit-all moves everything.
-# If those two behaved the same, one of the buttons would be a lie.
+arcanestorage player spawn
 
 arcanestorage reset
 arcanestorage clear 20
@@ -57,3 +60,5 @@ arcanestorage close
 arcanestorage expect total ironbar 0
 arcanestorage expect total stone 30
 arcanestorage expect held stone 0
+
+arcanestorage player despawn

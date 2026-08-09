@@ -1,20 +1,22 @@
-# The withdraw/deposit round trip. Needs a live session, because a container is built from
-# the player's inventory and cannot exist with nobody connected.
+# The withdraw/deposit round trip.
 #
-# Run it from in-game chat:  /arcanestorage run session/roundtrip
+# This used to be session-only, on the belief that a container needs a real player and so could
+# only be driven by hand from in-game chat. That was half right: it needs a player, but the player
+# does not have to be a person. 'player spawn' connects a socketless client -- NetworkInfo is a
+# four-method abstract class and the game ships InvalidNetworkInfo, which discards what it sends --
+# so this now runs headless in the normal suite.
 #
-# Sets itself up, so it does not care what else is in the world: clearing first removes any
-# object world generation put nearby, which also makes `expect total` unambiguous by leaving
-# no other storage units standing near spawn.
+# The player is spawned here and disconnected at the end rather than once for the whole suite,
+# deliberately: a connected player keeps regions loaded, and the persistence scenarios exist to
+# catch exactly the bug that hides behind loaded regions.
 #
-# Precondition: you are carrying no iron bars. The first assertion checks that rather than
-# assuming it, so it will say so instead of producing confusing numbers later.
+arcanestorage player spawn
 
 # Scenarios share one server boot, so start from no storage objects anywhere on the
 # level -- clear only covers a radius, and expect total scans everything.
 arcanestorage reset
 
-arcanestorage clear 12 sand
+arcanestorage clear 12
 
 arcanestorage place terminal 4 0
 arcanestorage place unit 5 0
@@ -42,3 +44,5 @@ arcanestorage expect item 4 0 ironbar 80
 arcanestorage expect total ironbar 80
 
 arcanestorage close
+
+arcanestorage player despawn
