@@ -56,7 +56,27 @@ game art. The house policy (see the workspace `docs/ASSETS.md`) is to derive fro
 own sprites where possible rather than draw from scratch, precisely so that fit is
 guaranteed rather than judged.
 
-## Priority 1 — everything currently implemented, plus the next thing being built
+## Priority 1 — DELIVERED and installed (Aug 2026)
+
+The terminal, unit and conduit sprites plus their item icons are in
+`src/main/resources/`, replacing the placeholders, along with `preview.png`. Two of them
+changed behaviour rather than just appearance:
+
+- **The terminal is 32×64**, so it stands two tiles tall in a one-tile footprint. Safe because
+  sprites are bottom-anchored and grow upward, and collision comes from `Rectangle(32, 32)`.
+- **The conduit is 128×32, which is four frames, which turns rotation on.** Frame order
+  alternates vertical / horizontal, which is correct rather than merely defensive: the default
+  place option in `GameObject` uses `playerDir` as the rotation, and facings 0/2 are vertical
+  while 1/3 are horizontal, so a conduit orients itself to the way the player faces.
+- `objects/arcanestorageterminal_open.png` now exists, so the open state activates for free —
+  `InventoryObject` swaps it while `isInUse()`, which our container already drives through
+  `startUser`/`stopUser`.
+
+One acknowledged deviation: the unit is not top-lit, because the top-lit version read as a
+lidded box and a unit must never look openable. Fixing the lighting without implying a lid is
+the open problem.
+
+## Priority 1 (original brief) — everything currently implemented, plus the next thing being built
 
 These three unblock the mod as it stands. The first two currently ship as 32×32
 placeholders that want replacing.
@@ -183,13 +203,26 @@ interface exists and its shapes are known:
 - **A capacity gauge** showing how full the network is. `processing_arrow_empty` and
   `processing_arrow_full` exist as progress art and may be adaptable.
 
-`[unverified]` The pixel dimensions `ButtonIcon` expects for icon content. The field names
-were read; the loader was not. Check before drawing icons.
+**Icon content is drawn at its native size and never scaled** (verified Aug 2026). The loader
+constrains nothing; `FormContentIconButton.getIconDrawX/Y` centres the texture and calls
+`.draw(x, y)` with no dimensions, so an oversized icon simply overflows the button. `SIZE_24`
+is a 24×24 button, so its icon content must be **≤ 24×24**, and vanilla uses exactly 24×24 for
+every icon listed above. Prefer even dimensions, since the centring is integer division.
+
+**Consequence worth knowing:** vanilla's own 32×32 slot-style icons do **not** fit a `SIZE_24`
+button. Use `FormInputSize.SIZE_32` for a row that wants them. Different rows may use different
+sizes, so the category row can be `SIZE_32` while the toolbar stays `SIZE_24`.
 
 ## Non-sprite asset
 
-`src/main/resources/preview.png` — required for Workshop upload. `[unverified]` Necesse's
-preferred dimensions.
+`src/main/resources/preview.png` — required for Workshop upload. **Installed: 512×512.**
+
+There is no required size and no validation (verified Aug 2026): `LoadedMod` reads it straight
+into a texture. But `ModProvider.provideModInfoContent` calls `shrinkHeight(128, false)`, and
+that method *sets* height to 128 and scales width to match, with no minimum — so a smaller
+image is upscaled rather than left alone. 512×512 is an exact 4x downscale to 128 in-game,
+which keeps pixel art crisp, and is also a reasonable Workshop thumbnail. Avoid heights that
+are not integer multiples of 128.
 
 ## Summary of what to draw first
 

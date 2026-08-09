@@ -30,17 +30,20 @@ caught it, and that is worth recording.
 The headless server never loads textures and never runs draw code, so this whole class is
 invisible to the harness. It is also the quickest to check by eye.
 
-- [ ] **Storage Conduit renders.** Place one and confirm it appears in the world, has an
-      inventory icon, and shows "Extends a storage network" on hover. `addDrawables` and
-      `drawPreview` are compiled but have never executed. The texture is currently a
-      placeholder copied from the Storage Unit, so expect it to look wrong — what matters is
-      that it draws at all and is not the pink `[ER]` placeholder.
-- [ ] **Conduit rotation.** Once the real sprite exists with four facings, confirm placement
-      rotation cycles through them. Frame count is derived as `width / 32`, so this changes
-      behaviour the moment the art changes, with no code edit.
-- [ ] **Terminal open state.** Once `objects/arcanestorageterminal_open.png` exists, confirm it
-      swaps in while the terminal is open and reverts when closed.
-- [ ] **All three objects show correct names and icons** in the crafting menu and inventory.
+Real sprites are now installed, so all four of these are live rather than waiting on art.
+
+- [ ] **All three objects render.** Terminal, unit and conduit in the world, plus their
+      inventory icons. None of this draw code has ever executed.
+- [ ] **The terminal stands two tiles tall** and its foot sits on its own tile rather than
+      floating, since the sprite is 32×64 and bottom-anchored.
+- [ ] **Conduit rotation follows the way you face.** Place conduits facing up/down and then
+      left/right: the sprite should switch between a vertical and a horizontal channel, and a
+      run of them should join without visible seams. Rotation comes from `playerDir`, and frame
+      count is derived from texture width, so this is behaviour no code change enabled.
+- [ ] **The terminal screen lights up while open** and goes dark when closed
+      (`arcanestorageterminal_open.png`, swapped by `isInUse()`).
+- [ ] **A run of units reads as one wall**, with the intended notches where four corners meet
+      rather than looking like a mistake.
 
 ## Phase 3 interface — new, none of it exercised yet
 
