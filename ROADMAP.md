@@ -245,8 +245,15 @@ Necesse storage mods already have.
 - [ ] **Category filters** over the pooled list — partly delivered already, since
       `Item.matchesSearch` walks the category tree, so "sword" or "food" filters by
       category today. What is missing is picking a category without typing its name
-- [ ] **Sort** by semantic group, name, and quantity
-- [ ] Usable with a large network without stutter
+- [x] **Sort** by semantic group, name, and quantity *(code complete, awaiting
+      in-game QA)* — one cycling button. Group order is the engine's own:
+      `InventoryItem` is `Comparable` and `Inventory.sortItems` just calls
+      `Collections.sort`, so the network sorts the way the player's inventory-sort
+      button already does. Not persisted, so it resets when the terminal reopens
+- [ ] Usable with a large network without stutter — two known costs removed
+      (aggregation was quadratic in distinct items and the draw path aggregated
+      three times a frame), but **not yet measured against a full 64-unit network**,
+      so this stays open until it is
 
 Search over items the player *possesses* is the genuinely novel piece: Necesse
 has search in at least three places — station recipes, settler lists, the

@@ -1,7 +1,9 @@
 package arcanestorage.network;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import arcanestorage.objectentity.StorageUnitObjectEntity;
 import necesse.inventory.Inventory;
@@ -38,6 +40,16 @@ public final class NetworkContents {
    public static List<InventoryItem> aggregate(Level level, List<StorageUnitObjectEntity> units, String purpose) {
       List<InventoryItem> aggregated = new ArrayList<>();
 
+      // Candidates bucketed by item string ID, so merging a slot compares it only against
+      // entries that could possibly match instead of against every entry found so far.
+      //
+      // The naive linear scan is quadratic in distinct items: a full 64-unit network is 2560
+      // slots, and with several hundred distinct items that is over a million calls to
+      // InventoryItem.equals per aggregation -- while the interface aggregates as it draws.
+      // Bucketing keeps identity exactly as it was, because two items with different string
+      // IDs can never be equal, so this only skips comparisons that were always going to fail.
+      Map<String, List<InventoryItem>> byStringID = new HashMap<>();
+
       for (StorageUnitObjectEntity unit : units) {
          Inventory inventory = unit.inventory;
 
@@ -47,9 +59,12 @@ public final class NetworkContents {
                continue;
             }
 
+            // Output order stays first-seen, which keeps the list deterministic for a given
+            // layout -- the bucket map is only an index into it, never the order itself.
+            List<InventoryItem> candidates = byStringID.computeIfAbsent(item.item.getStringID(), id -> new ArrayList<>());
             boolean merged = false;
 
-            for (InventoryItem existing : aggregated) {
+            for (InventoryItem existing : candidates) {
                if (existing.equals(level, item, true, false, purpose)) {
                   existing.setAmount(existing.getAmount() + item.getAmount());
                   merged = true;
@@ -58,7 +73,9 @@ public final class NetworkContents {
             }
 
             if (!merged) {
-               aggregated.add(item.copy());
+               InventoryItem copy = item.copy();
+               aggregated.add(copy);
+               candidates.add(copy);
             }
          }
       }

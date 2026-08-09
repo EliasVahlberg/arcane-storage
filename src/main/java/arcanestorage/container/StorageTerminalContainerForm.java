@@ -1,12 +1,14 @@
 package arcanestorage.container;
 
 import java.awt.Rectangle;
+import java.util.Comparator;
 import java.util.List;
 
 import necesse.engine.gameLoop.tickManager.TickManager;
 import necesse.engine.input.Control;
 import necesse.engine.input.InputEvent;
 import necesse.engine.localization.Localization;
+import necesse.engine.localization.message.GameMessage;
 import necesse.engine.localization.message.LocalMessage;
 import necesse.engine.network.client.Client;
 import necesse.engine.network.packet.PacketContainerAction;
@@ -44,6 +46,46 @@ import necesse.inventory.item.ItemSearchTester;
  */
 public class StorageTerminalContainerForm<T extends StorageTerminalContainer> extends ContainerFormSwitcher<T> {
 
+   /**
+    * Orderings offered for the pooled list.
+    *
+    * <p>{@link #GROUP} is the engine's own: {@code InventoryItem} is {@code Comparable} and
+    * {@code Inventory.sortItems} simply calls {@code Collections.sort}, so sorting by natural
+    * order puts the network in the same order the player's own inventory-sort button produces.
+    * That is the semantic grouping asked for, and it costs nothing to match rather than invent.
+    *
+    * <p>Sorting is safe to do purely in the view for the same reason filtering is: a withdrawal
+    * names an item, never a position, so reordering cannot misdirect a click.
+    */
+   private enum SortMode {
+      GROUP("arcanestorage_sort_group"),
+      NAME("arcanestorage_sort_name"),
+      AMOUNT("arcanestorage_sort_amount");
+
+      final String localeKey;
+
+      SortMode(String localeKey) {
+         this.localeKey = localeKey;
+      }
+
+      SortMode next() {
+         return values()[(this.ordinal() + 1) % values().length];
+      }
+
+      Comparator<InventoryItem> comparator() {
+         switch (this) {
+            case NAME:
+               return Comparator.comparing(item -> item.getItemDisplayName().toLowerCase());
+            case AMOUNT:
+               // Most numerous first, then the engine's order so equal amounts are not arbitrary.
+               return Comparator.<InventoryItem>comparingInt(InventoryItem::getAmount).reversed().thenComparing(item -> item);
+            case GROUP:
+            default:
+               return Comparator.naturalOrder();
+         }
+      }
+   }
+
    private static final int CELL_SIZE = 36;
    private static final int COLUMNS = 10;
    private static final int ROWS = 6;
@@ -54,6 +96,7 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
    public final FormItemList itemList;
    public final FormTextInput searchInput;
    public final FormLabel capacityLabel;
+   public FormContentIconButton sortButton;
 
    /**
     * The live search filter, rebuilt whenever the query changes.
@@ -67,6 +110,21 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
     * for "not searching".
     */
    private ItemSearchTester searchTester = ItemSearchTester.constructSearchTester("");
+
+   /**
+    * The current ordering. Not persisted anywhere: it resets when the terminal is reopened,
+    * which keeps it out of config and save data until there is evidence a player misses it.
+    */
+   private SortMode sortMode = SortMode.GROUP;
+
+   /**
+    * The network's contents as of this frame.
+    *
+    * <p>Aggregation walks every slot in the network, and the draw path needs the result three
+    * times over -- to detect a change, to rebuild the grid, and to fill it. Reading it once per
+    * frame keeps a 64-unit network from paying for that three times at 60fps.
+    */
+   private List<InventoryItem> aggregated;
 
    /**
     * Signature of the aggregated list the grid was last built from. The list only populates
@@ -122,11 +180,13 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
                   // re-resolves it against its own units -- so a filtered view cannot make a
                   // click land on the wrong item.
                   GameBlackboard blackboard = new GameBlackboard();
-                  for (InventoryItem item : container.getAggregatedItems()) {
+                  for (InventoryItem item : StorageTerminalContainerForm.this.aggregated) {
                      if (StorageTerminalContainerForm.this.searchTester.matches(item, client.getPlayer(), blackboard)) {
                         list.add(item);
                      }
                   }
+
+                  list.sort(StorageTerminalContainerForm.this.sortMode.comparator());
                }
 
                @Override
@@ -174,6 +234,19 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
       restockButton.setCooldown(500);
 
       controlX -= controlHeight + PADDING;
+      this.sortButton = this.mainForm
+         .addComponent(
+            new FormContentIconButton(
+               controlX, controlY, FormInputSize.SIZE_24, ButtonColor.BASE, Settings.UI.inventory_sort, this.sortTooltip()
+            )
+         );
+      this.sortButton.onClicked(event -> {
+         this.sortMode = this.sortMode.next();
+         this.sortButton.setTooltips(this.sortTooltip());
+         this.refreshList();
+      });
+
+      controlX -= controlHeight + PADDING;
       FormContentIconButton quickStackButton = this.mainForm
          .addComponent(
             new FormContentIconButton(
@@ -219,11 +292,19 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
       this.mainForm.setHeight(flow.next(PADDING));
       this.makeCurrent(this.mainForm);
 
+      // Primed here because refreshList() reads it, and the first draw has not happened yet.
+      this.aggregated = container.getAggregatedItems();
+
       // Must happen before the form can receive input, not lazily in draw().
       // FormItemList.reset() does not call super.reset(), so FormGeneralList.elements stays
       // null from construction until the first updateList — and input events are handled
       // earlier in the frame than any draw, so a click on the first frame would hit null.
       this.refreshList();
+   }
+
+   /** Names the current ordering, so one cycling button does not leave the player guessing. */
+   private GameMessage sortTooltip() {
+      return new LocalMessage("ui", "arcanestorage_sorttip", "mode", Localization.translate("ui", this.sortMode.localeKey));
    }
 
    /**
@@ -283,7 +364,7 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
     * at all.
     */
    private void refreshList() {
-      this.shownSignature = signatureOf(this.getContainer().getAggregatedItems());
+      this.shownSignature = signatureOf(this.aggregated);
       this.itemList.reset();
       this.itemList.populateIfNotAlready();
       this.updateCapacityLabel();
@@ -296,7 +377,8 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
     */
    @Override
    public void draw(TickManager tickManager, PlayerMob perspective, Rectangle renderBox) {
-      if (signatureOf(this.getContainer().getAggregatedItems()) != this.shownSignature) {
+      this.aggregated = this.getContainer().getAggregatedItems();
+      if (signatureOf(this.aggregated) != this.shownSignature) {
          this.refreshList();
       }
 

@@ -64,6 +64,13 @@ everything below needs eyes or a player.
 - [ ] **Restock** refills partial stacks you are carrying from the network.
 - [ ] **The scripted version of all three**: `/arcanestorage run session/transfers`. Asserts the
       quick-stack versus deposit-all distinction and conservation across every transfer.
+- [ ] **Sort cycles and the tooltip says which mode is active.** Group order should match what
+      the inventory-sort button produces on your own inventory, since it is literally the same
+      comparator. Name is A-Z, amount is most-numerous first.
+- [ ] **A large network does not stutter.** Fill something close to 64 units with varied items
+      and open the terminal. Two known costs were removed unmeasured -- aggregation was
+      quadratic in distinct items, and the draw path aggregated three times per frame -- so this
+      needs a real network to confirm rather than an argument.
 - [ ] **The layout survives a small window.** The header now holds a title and a search box, and
       the footer a capacity label and three controls, so there is more to collide than before.
 
