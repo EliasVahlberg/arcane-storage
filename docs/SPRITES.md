@@ -7,6 +7,73 @@ The technical rules below are read from the game's own drawing code
 (`InventoryObject.loadTextures` and `addDrawables`), not from documentation, so they can be
 relied on. Anything not verified is marked `[unverified]`.
 
+## OUTSTANDING REQUEST — August 2026
+
+Everything else previously requested has been delivered. **Two items, one blocking.**
+
+### 1. Conduit connection shapes — six 32×32 tiles `[blocking]`
+
+Filenames, all 32×32, drawn in exactly these orientations:
+
+| File | Draw the channel reaching | Notes |
+|---|---|---|
+| `stub.png` | no edge | a short capped nub, centred — an isolated conduit |
+| `cap.png` | **north** only | the pipe ends here; capped at the centre end |
+| `straight.png` | **north and south** | this is the existing vertical tile, reusable as-is |
+| `elbow.png` | **north and east** | the bend keeps the channel's full width through the turn |
+| `tee.png` | **north, east and south** | one continuous run with a branch joining it |
+| `cross.png` | all four | |
+
+Do **not** draw the other ten orientations. They are generated:
+
+```bash
+tools/build_conduit_sheet.py <dir with the six> src/main/resources/objects/arcanestorageconduit.png
+```
+
+Rules carried over from the delivered sheet, all still binding:
+
+- The channel is ~12 px across, low visual weight, and **reaches the exact tile edge** on every
+  side it is drawn for, so runs join seamlessly. The existing tiles already satisfy this.
+- **Caps only where the pipe truly ends** — `stub` and `cap`. The earlier horizontal tile had
+  black caps on its through-edges, which produced a visible 2 px bar at every 32 px join. That
+  fix must not regress.
+- Same nine-colour ramp, **no off-palette pixels**. Measured from every sprite already shipped,
+  darkest to lightest — these are the only nine values in use:
+
+  `#000000` `#1a1420` `#2e2247` `#46356b` `#604a8c` `#7a5fa8` `#9d86c9` `#c7b0e8` `#e8dcff`
+
+  `#604a8c` is the object's map colour and must appear. Hard alpha only: every pixel is either
+  fully opaque or fully transparent, with no partial values anywhere.
+- Keep the bright core continuous through bends and junctions. A tee should read as a run with a
+  branch, not as three stubs meeting.
+
+The corners and tees in `assets/banner.png` are the intended look.
+
+### 2. Storage Unit lighting — one 32×32 revision `[not blocking]`
+
+`objects/arcanestorageunit.png` is currently lit flat rather than from above, so a wall of units
+reads as bevelled metal next to vanilla's top-lit furniture. The submission flagged this itself.
+
+The constraint that makes it hard, and it is a hard requirement rather than a preference: **a
+unit must never look openable.** The player cannot open one — that is the whole point of the
+object — so any top highlight that reads as a *lid seam* is worse than the current flat
+lighting. Light it from above without implying a hinge.
+
+### Deliberately not requested
+
+So nothing is generated that will not be used:
+
+- **Tier variants** — delivered, and the filenames already match the settled naming
+  (`arcanestoragedemonicunit`, `tungsten`, `fallen`). Nothing to redo.
+- **Category icons** — delivered at 32×32. The size question is resolved: they will be used on a
+  `FormInputSize.SIZE_32` row, so they do not need redrawing at 24×24.
+- **Tab icons** — not needed. Necesse ships `FormTabTextComponent`, so tabs are text, and the
+  labels already exist in the locale.
+- **Crafting station slots** — not needed. Each station's slot will show that station's own
+  vanilla item texture, faded, which is the derive-from-the-game's-art policy working as
+  intended and stays correct if the game changes a station sprite.
+- **Buses, shard, sigil, charm** — delivered, held until the features exist.
+
 ## The file contract
 
 Every placeable needs **two** files, and they are loaded by different systems:
@@ -56,11 +123,12 @@ game art. The house policy is to derive from Necesse's
 own sprites where possible rather than draw from scratch, precisely so that fit is
 guaranteed rather than judged.
 
-## REQUEST: conduit connection shapes — a 16-frame sheet
+## Conduit connection shapes — reference detail
 
-**Status: needed. The code is already in place and falls back gracefully, so this is a
-drop-in replacement.** The installed 128×32 four-frame sheet renders straights only, so a run
-that turns a corner shows two straights meeting at right angles instead of an elbow.
+**Status: requested — see the outstanding request at the top of this file for what to draw.**
+The code is already in place and falls back gracefully, so this is a drop-in replacement. The
+installed 128×32 four-frame sheet renders straights only, so a run that turns a corner currently
+shows two straights meeting at right angles instead of an elbow.
 
 ### Draw six tiles, not sixteen frames
 
@@ -190,7 +258,11 @@ One acknowledged deviation: the unit is not top-lit, because the top-lit version
 lidded box and a unit must never look openable. Fixing the lighting without implying a lid is
 the open problem.
 
-## Priority 1 (original brief) — everything currently implemented, plus the next thing being built
+## Priority 1 (original brief) — historical
+
+Kept for the per-sprite intent notes below, which still describe what each object has to
+communicate. Ignore the status language: all of it is delivered and installed, and the conduit's
+string ID is settled as `arcanestorageconduit`.
 
 These three unblock the mod as it stands. The first two currently ship as 32×32
 placeholders that want replacing.
