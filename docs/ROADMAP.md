@@ -299,12 +299,31 @@ scrolling, and a returning player can empty their inventory in one click.
 
 ## Phase 4 — Crafting from the network
 
-- [ ] Recipes craftable from network contents, at any distance
-- [ ] Crafting consumes ingredients from anywhere in the network
+**The mechanism already works, and this changes the shape of the phase.** Verified
+headlessly (Aug 2026, `tests/python/test_crafting.py`): with eight logs in a unit and
+nothing in the player's hands, a `woodboat` crafts and the logs are consumed from the
+network — including through a 21-tile conduit run, so it is network membership doing the
+work and not proximity. **No mod code implements this.** `Container.addSlot` adds every
+slot's inventory to `craftInventories`, the terminal already has a slot per network slot,
+and `applyCraftingAction` is defined on `Container` rather than on a crafting station and
+consumes from `getCraftInventories()`. Global ingredients resolve too: the recipe asks for
+`anylog` and the network answers with oak.
+
+So this phase is an interface phase, not a mechanics phase, and the mod should keep
+implementing no ingredient consumption of its own — that is exactly where a duplication bug
+would live.
+
+- [x] Recipes craftable from network contents, at any distance — *mechanism verified
+      headless; no player-facing way to trigger it yet, which is the crafting tab below*
+- [x] Crafting consumes ingredients from anywhere in the network — *verified headless,
+      including a refusal that consumes nothing when materials are short*
 - [ ] Per-ingredient availability — have, missing, partial — judged against the
-      whole network
+      whole network. **Vanilla already computes this**: `Container.canCraftRecipe` takes the
+      inventory collection, and `FormContainerCraftingListContentBox` renders can-craft state
+      per recipe from it. The work is showing that list in the terminal, not computing it
 - [ ] An explicit "you have 3 of 5, here is what is missing" display
-- [ ] Recipe search against network-wide availability
+- [ ] Recipe search against network-wide availability — `FormContainerCraftingList` already
+      carries search, so this arrives with the tab rather than as separate work
 - [ ] Station requirements satisfied by **installing the station into the terminal**
       (decided, Aug 2026): each crafting bench has its own dedicated slot, and the
       slots live on their own tab beside the storage view. Magic Storage's
@@ -327,6 +346,13 @@ false.
 
 The missing-ingredient display is the part Terraria players install *additional*
 mods to get, so it carries more weight than its size suggests.
+
+One consequence worth checking in game: the terminal's form sets
+`shouldOpenInventory()`, so the player's inventory panel — which carries vanilla's own
+crafting list for the *open container's* recipes — is on screen while the terminal is open.
+If that list is already live, hand-craftable recipes may be craftable from the network today
+with no crafting tab at all. Unverified visually; it would be a pleasant surprise rather than
+a substitute for the tab, since it cannot show station recipes.
 
 **Done when:** an item can be crafted from materials spread across several units
 without opening any of them, and the interface says plainly why a recipe is not
