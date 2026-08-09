@@ -41,19 +41,40 @@ public final class UnitNetwork {
       T unitAt(int x, int y);
    }
 
+   /** Whether a tile carries the network onward without holding items itself. */
+   public interface ConductorTest {
+      boolean conductsAt(int x, int y);
+   }
+
    private UnitNetwork() {
    }
 
    /**
-    * Every unit reachable from {@code (startX, startY)} through orthogonally connected
-    * units, breadth-first, capped at {@code maxUnits}.
+    * Units reachable through other units only, with nothing conducting between them.
+    */
+   public static <T> List<T> discover(int startX, int startY, UnitLookup<T> lookup, int maxUnits) {
+      return discover(startX, startY, lookup, (x, y) -> false, maxUnits, 0);
+   }
+
+   /**
+    * Every unit reachable from {@code (startX, startY)} through orthogonally connected units
+    * and conductors, breadth-first.
     *
     * <p>The starting tile is never itself reported, even if the lookup would resolve it.
     *
-    * @param maxUnits hard ceiling on the number of units returned; bounds both the
-    *                 container's slot count and the work done on a pathological layout
+    * <p>Conductors extend reach without adding capacity, so a network can be routed around a
+    * base instead of being one solid block of units. They are counted separately and capped
+    * separately: {@code maxUnits} bounds the container's slot count, while
+    * {@code maxConductors} bounds the distance walked. Without the second cap a long run of
+    * cheap conductors would make the traversal arbitrarily expensive even though the network
+    * holds nothing.
+    *
+    * @param maxUnits      hard ceiling on the number of units returned
+    * @param maxConductors hard ceiling on conducting tiles walked through
     */
-   public static <T> List<T> discover(int startX, int startY, UnitLookup<T> lookup, int maxUnits) {
+   public static <T> List<T> discover(
+      int startX, int startY, UnitLookup<T> lookup, ConductorTest conducts, int maxUnits, int maxConductors
+   ) {
       List<T> found = new ArrayList<>();
       if (maxUnits <= 0) {
          return found;
@@ -61,6 +82,7 @@ public final class UnitNetwork {
 
       Set<Long> seen = new HashSet<>();
       Deque<int[]> frontier = new ArrayDeque<>();
+      int conductors = 0;
 
       // Marking the start as seen is what stops the walk stepping back onto the terminal.
       seen.add(key(startX, startY));
@@ -69,12 +91,19 @@ public final class UnitNetwork {
       while (!frontier.isEmpty() && found.size() < maxUnits) {
          int[] tile = frontier.poll();
          T unit = lookup.unitAt(tile[0], tile[1]);
-         if (unit == null) {
+
+         if (unit != null) {
+            found.add(unit);
+            expand(tile[0], tile[1], seen, frontier);
             continue;
          }
 
-         found.add(unit);
-         expand(tile[0], tile[1], seen, frontier);
+         // A conductor carries the walk onward but is never reported, so capacity stays a
+         // property of units alone.
+         if (conductors < maxConductors && conducts.conductsAt(tile[0], tile[1])) {
+            conductors++;
+            expand(tile[0], tile[1], seen, frontier);
+         }
       }
 
       return found;

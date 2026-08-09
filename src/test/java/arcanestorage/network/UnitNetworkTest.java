@@ -32,6 +32,53 @@ public class UnitNetworkTest {
       return UnitNetwork.discover(startX, startY, grid(rows), 64);
    }
 
+   /** A conductor test over the same string art, where {@code C} is a conduit. */
+   private static UnitNetwork.ConductorTest conduits(final String... rows) {
+      return (x, y) -> y >= 0 && y < rows.length && x >= 0 && x < rows[y].length() && rows[y].charAt(x) == 'C';
+   }
+
+   private static List<String> discoverWithConduits(int startX, int startY, int maxConduits, String... rows) {
+      return UnitNetwork.discover(startX, startY, grid(rows), conduits(rows), 64, maxConduits);
+   }
+
+   @Test
+   public void conduitsCarryTheNetworkWithoutAddingCapacity() {
+      // Two units the terminal could never reach on its own, joined by a run of conduits.
+      List<String> found = discoverWithConduits(0, 0, 256, "TCCCUU");
+      assertEquals("conduits must not be reported as units", 2, found.size());
+      assertTrue(found.contains("4,0"));
+      assertTrue(found.contains("5,0"));
+   }
+
+   @Test
+   public void conduitsDoNotBridgeAGap() {
+      // A conduit conducts, it does not teleport: one empty tile still severs the network.
+      assertEquals(0, discoverWithConduits(0, 0, 256, "TC.CU").size());
+   }
+
+   @Test
+   public void conduitsAreBoundedIndependentlyOfUnits() {
+      // The cap is what stops a cheap run of conduits making discovery arbitrarily expensive.
+      assertEquals(1, discoverWithConduits(0, 0, 3, "TCCCU").size());
+      assertEquals(0, discoverWithConduits(0, 0, 2, "TCCCU").size());
+      assertEquals(0, discoverWithConduits(0, 0, 0, "TCU").size());
+   }
+
+   @Test
+   public void aConduitBranchReachesUnitsOnBothSides() {
+      // Branching is the reason conduits exist: routing a network around a base.
+      List<String> found = discoverWithConduits(1, 0, 256,
+         ".T.",
+         "UCU");
+      assertEquals(2, found.size());
+   }
+
+   @Test
+   public void ignoresConduitsWhenNoneAreAllowed() {
+      // The short overload means "no conductors", which is what the pre-conduit behaviour was.
+      assertEquals(0, UnitNetwork.discover(0, 0, grid("TCCU"), 64).size());
+   }
+
    @Test
    public void findsNothingWhenAloneOrUnreachable() {
       assertEquals(0, discover(0, 0, "T....").size());

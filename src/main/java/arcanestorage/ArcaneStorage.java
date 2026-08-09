@@ -4,6 +4,7 @@ import arcanestorage.command.ArcaneStorageCommand;
 import arcanestorage.container.StorageTerminalContainer;
 import arcanestorage.container.StorageTerminalContainerForm;
 import arcanestorage.object.StorageTerminalObject;
+import arcanestorage.object.StorageConduitObject;
 import arcanestorage.object.StorageUnitObject;
 import arcanestorage.objectentity.StorageTerminalObjectEntity;
 import necesse.engine.commands.CommandsManager;
@@ -33,6 +34,17 @@ public class ArcaneStorage {
    /** Registry string ID of the storage unit object; also its texture and locale key. */
    public static final String UNIT_STRING_ID = "arcanestorageunit";
 
+   /** Registry string ID of the conduit object; also its texture and locale key. */
+   public static final String CONDUIT_STRING_ID = "arcanestorageconduit";
+
+   /**
+    * The registered conduit, kept so the traversal can match it by object ID.
+    *
+    * <p>A conduit has no object entity to test for, because it has no state, so recognising
+    * one means comparing the object ID at a tile.
+    */
+   public static StorageConduitObject CONDUIT;
+
    /**
     * Container IDs are assigned sequentially by {@code ContainerRegistry}, which takes no
     * string ID — every container registers under the literal name "container". They are
@@ -44,6 +56,8 @@ public class ArcaneStorage {
    public void init() {
       ObjectRegistry.registerObject(TERMINAL_STRING_ID, new StorageTerminalObject(), 10.0F, true);
       ObjectRegistry.registerObject(UNIT_STRING_ID, new StorageUnitObject(), 10.0F, true);
+      CONDUIT = new StorageConduitObject();
+      ObjectRegistry.registerObject(CONDUIT_STRING_ID, CONDUIT, 4.0F, true);
 
       TERMINAL_CONTAINER = ContainerRegistry.registerOEContainer(
          (client, uniqueSeed, objectEntity, content) -> new StorageTerminalContainerForm<>(
@@ -68,6 +82,9 @@ public class ArcaneStorage {
       );
       Recipes.registerModRecipe(
          new Recipe(UNIT_STRING_ID, 1, RecipeTechRegistry.NONE, new Ingredient[]{new Ingredient("anylog", 8)})
+      );
+      Recipes.registerModRecipe(
+         new Recipe(CONDUIT_STRING_ID, 4, RecipeTechRegistry.NONE, new Ingredient[]{new Ingredient("anylog", 2)})
       );
 
       // Drives the scenario harness. Registered unconditionally: it needs owner permission,

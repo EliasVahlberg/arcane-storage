@@ -103,14 +103,24 @@ Two honest caveats, neither covered by the criteria above:
 ## Phase 2 — Network membership and persistence
 
 - [x] Units join a network by topology — units connected to units, not just to the
-      terminal *(code complete, **awaiting in-game QA** — see below)*
-- [ ] Extended by a connector object for range
+      terminal *(harness-verified; the container half awaits in-game QA — see below)*
+- [x] Extended by a connector object for range — the **Storage Conduit** conducts a
+      network onward without holding anything, so layout no longer fights capacity
+      *(server logic harness-verified; client rendering compiled but not yet run)*
 - [ ] Membership survives save/load and level changes
-- [ ] Removing a terminal or a linked unit degrades gracefully rather than
-      orphaning items
-- [ ] A unit belongs to only one network
-- [ ] A sensible bound on how far a network may reach
-- [ ] Several terminals may access one network
+- [x] Removing a terminal or a linked unit degrades gracefully rather than
+      orphaning items *(verified in game: breaking a unit closes an open terminal
+      immediately, with no stale entries — and the harness covers orphaning
+      beyond a broken unit or conduit)*
+- [x] A unit belongs to only one network — true by construction: membership is
+      connectivity, so a unit lies in exactly one connected component. Two
+      terminals on that component share it rather than competing for it
+- [x] A sensible bound on how far a network may reach — `MAX_CONDUITS = 256`
+      bounds reach, separately from `MAX_UNITS = 64` which bounds capacity. A
+      conduit is cheap and holds nothing, so without its own bound a long run
+      would make discovery expensive for a network storing nothing
+- [x] Several terminals may access one network *(harness-verified: two terminals on
+      one chain both resolve the same 3 units)*
 
 ### Verification
 
@@ -158,11 +168,15 @@ established.
 
 ### ⚠ Pending QA — still needs a session
 
-1. Run `/arcanestorage run session/roundtrip` and confirm every
-   check passes. This covers withdraw, shift-click deposit and close.
-2. The six click conventions individually, via `/arcanestorage click <slot> <action>`.
-3. Walking out of range should close the terminal, as it does for a vanilla chest.
-4. Two terminals open at once: withdraw at one, confirm the other reflects it.
+1. Place a **Storage Conduit** from the crafting menu and confirm it renders in the world,
+   shows its inventory icon, and displays "Extends a storage network" on hover. The headless
+   server never loads textures or runs draw code, so this is the one part of the conduit the
+   harness cannot reach.
+2. Run `/arcanestorage run session/roundtrip` and confirm every assertion passes. It sets
+   itself up and covers withdraw, deposit, conservation and close.
+3. The six click conventions individually, via `/arcanestorage click <slot> <action>`.
+4. Walking out of range should close the terminal, as it does for a vanilla chest.
+5. Two terminals open at once: withdraw at one, confirm the other reflects it.
 
 Also unresolved from Phase 1: the per-unit `slots used` readout. It counts occupied slots
 directly via `Inventory.getUsedSlots()`, so it cannot disagree with a unit's real contents

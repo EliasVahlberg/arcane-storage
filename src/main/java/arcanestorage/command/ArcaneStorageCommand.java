@@ -182,8 +182,10 @@ public class ArcaneStorageCommand extends ChatCommand {
          stringID = ArcaneStorage.TERMINAL_STRING_ID;
       } else if ("unit".equals(what)) {
          stringID = ArcaneStorage.UNIT_STRING_ID;
+      } else if ("conduit".equals(what)) {
+         stringID = ArcaneStorage.CONDUIT_STRING_ID;
       } else {
-         logs.add("FAIL place expects 'terminal' or 'unit', got '" + what + "'");
+         logs.add("FAIL place expects 'terminal', 'unit' or 'conduit', got '" + what + "'");
          return false;
       }
 

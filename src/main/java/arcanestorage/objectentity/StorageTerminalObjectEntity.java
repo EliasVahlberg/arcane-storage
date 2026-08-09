@@ -3,6 +3,7 @@ package arcanestorage.objectentity;
 import java.util.ArrayList;
 import java.util.List;
 
+import arcanestorage.ArcaneStorage;
 import arcanestorage.network.UnitNetwork;
 import necesse.entity.objectEntity.InventoryObjectEntity;
 import necesse.entity.objectEntity.ObjectEntity;
@@ -40,6 +41,16 @@ public class StorageTerminalObjectEntity extends InventoryObjectEntity {
     */
    public static final int MAX_UNITS = 64;
 
+   /**
+    * Ceiling on conducting tiles one network may be routed through.
+    *
+    * <p>Separate from {@link #MAX_UNITS} because conduits cost almost nothing to place and
+    * hold no items: without their own bound, a long cheap run would make discovery expensive
+    * for a network that stores nothing. Also the practical answer to "how far may a network
+    * reach" — reach is now bounded by this rather than by unit count.
+    */
+   public static final int MAX_CONDUITS = 256;
+
    public StorageTerminalObjectEntity(Level level, int x, int y, int slots) {
       super(level, x, y, slots);
       this.type = TYPE;
@@ -49,8 +60,9 @@ public class StorageTerminalObjectEntity extends InventoryObjectEntity {
     * The linked Storage Units, discovered fresh on each call.
     *
     * <p>Membership is connectivity: any unit reachable from this terminal through
-    * orthogonally touching units. Units conduct, so a chain or block of them all belongs to
-    * one network, but a terminal never bridges two groups. See {@link UnitNetwork} for the
+    * orthogonally touching units and conduits. Units and conduits both conduct, so a chain or
+    * block of them all belongs to one network, but a terminal never bridges two groups. A
+    * conduit adds reach without adding capacity. See {@link UnitNetwork} for the
     * traversal and the reasoning behind its guarantees.
     *
     * <p>Still no persistence: the network is recomputed each time rather than stored, so
@@ -75,6 +87,7 @@ public class StorageTerminalObjectEntity extends InventoryObjectEntity {
          }
 
          return null;
-      }, MAX_UNITS);
+      }, (x, y) -> ArcaneStorage.CONDUIT != null && level.getObjectID(x, y) == ArcaneStorage.CONDUIT.getID(),
+         MAX_UNITS, MAX_CONDUITS);
    }
 }
