@@ -94,16 +94,41 @@ mkfifo "$FIFO"
 
 cleanup() {
    [[ -n "${IN_FD_OPEN:-}" ]] && exec 3>&- 2>/dev/null
-   [[ -n "${SERVER_PID:-}" ]] && kill "$SERVER_PID" 2>/dev/null
+   [[ -n "${WATCHDOG_PID:-}" ]] && kill "$WATCHDOG_PID" 2>/dev/null
+   [[ -n "${SERVER_PID:-}" ]] && kill -9 "$SERVER_PID" 2>/dev/null
    rm -f "$FIFO"
 }
 trap cleanup EXIT
+
+# Note the crash log's state before starting, so a crash during THIS run is distinguishable
+# from one left behind by an earlier one.
+CRASH_LOG="$GAME_DIR/latest-crash.log"
+CRASH_BEFORE="$(stat -c %Y "$CRASH_LOG" 2>/dev/null || echo 0)"
+
+# How long the whole run may take before it is treated as wedged. A deadlock does not stop
+# the JVM: the engine's ThreadFreezeMonitor writes a crash log and leaves the process alive,
+# with its command thread no longer reading stdin. Every hang seen here has been that, and
+# without this the script waits forever on a process that will never exit -- which is how a
+# deadlock came to look like a 400-second test run rather than a failure.
+DEADLINE="${HARNESS_DEADLINE:-180}"
 
 ( cd "$GAME_DIR" && "$JAVA" -Darcanestorage.scenarios="$MOD_DIR/tests/scenarios" -jar Server.jar \
       -nogui -log_debug_prints -hiddencheats \
       -world "$WORLD" \
       -mod "$MOD_DIR/build/jar/" ) < "$FIFO" > "$LOG" 2>&1 &
 SERVER_PID=$!
+
+# The watchdog must not inherit this script's stdout or the fifo. A background job holding the
+# stdout pipe open keeps any reader -- a grep on the end of the pipeline, say -- blocked until the
+# job finishes, so an idle watchdog would delay every run by its full deadline. It also must not
+# hold the fifo's write end, or the server would never see stdin close.
+( exec 3>&-
+  sleep "$DEADLINE"
+  if kill -0 "$SERVER_PID" 2>/dev/null; then
+     echo "the server was still running after ${DEADLINE}s; treating it as wedged" >> "$LOG"
+     kill -9 "$SERVER_PID" 2>/dev/null
+  fi ) >> "$LOG" 2>&1 &
+WATCHDOG_PID=$!
 
 exec 3> "$FIFO"
 IN_FD_OPEN=1
@@ -143,10 +168,14 @@ for scenario in "$@"; do
       line="${line%%$'\r'}"
       [[ -z "${line// }" ]] && continue
       [[ "${line#\#}" != "$line" ]] && continue
-      printf '%s\n' "$line" >&3
-      # No delay needed: the mod marshals each command onto the server thread, so commands
+      # No delay between commands: the mod marshals each one onto the server thread, so they
       # cannot interleave with a tick. This used to need spacing, and spacing was never a fix --
       # it only made the deadlock rare. See ServerThreadTasks.
+      if ! kill -0 "$SERVER_PID" 2>/dev/null; then
+         echo "FAIL  server died during $name; see $LOG" >&2
+         break
+      fi
+      printf '%s\n' "$line" >&3
    done < "$scenario"
 
    printf 'arcanestorage echo === END %s ===\n' "$name" >&3
@@ -170,16 +199,50 @@ for _ in $(seq 1 60); do
       SAVED=1
       break
    fi
+   # A dead server will never confirm anything. Waiting the full 30s for a save that cannot
+   # happen is how a failure that was already detected still cost half a minute.
+   if ! kill -0 "$SERVER_PID" 2>/dev/null; then
+      echo "FAIL  server is gone; it will never confirm a save" >&2
+      break
+   fi
    sleep 0.5
 done
 
 printf 'stop\n' >&3
+
+# Bounded wait. A wedged server never exits, and an unbounded wait here is what turned a
+# deadlock into a run that appeared to take as long as whatever timeout was wrapped around it.
+for _ in $(seq 1 60); do
+   kill -0 "$SERVER_PID" 2>/dev/null || break
+   sleep 0.5
+done
+
+if kill -0 "$SERVER_PID" 2>/dev/null; then
+   echo "FAIL  the server did not stop within 30s of being asked; killing it" >&2
+   kill -9 "$SERVER_PID" 2>/dev/null
+   STOP_FAILED=1
+fi
+
+kill "$WATCHDOG_PID" 2>/dev/null
+WATCHDOG_PID=
 wait "$SERVER_PID" 2>/dev/null
 SERVER_PID=
+
+if [[ -n "${CRASHED:-}" || -n "${STOP_FAILED:-}" ]]; then
+   exit 1
+fi
 
 if [[ "$SAVED" -eq 0 ]]; then
    echo "FAIL  the server never confirmed a completed world save; a --keep run after this cannot be trusted" >&2
    exit 1
+fi
+
+CRASH_AFTER="$(stat -c %Y "$CRASH_LOG" 2>/dev/null || echo 0)"
+if [[ "$CRASH_AFTER" != "$CRASH_BEFORE" ]]; then
+   echo "FAIL  the game wrote a crash log during this run:" >&2
+   grep -aA6 "^Exceptions:" "$CRASH_LOG" | head -12 >&2
+   echo "      full log: $CRASH_LOG" >&2
+   CRASHED=1
 fi
 
 PLAIN="$(sed 's/\x1b\[[0-9;]*m//g' "$LOG")"

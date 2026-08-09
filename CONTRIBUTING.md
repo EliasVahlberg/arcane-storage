@@ -36,7 +36,16 @@ make scenarios    # every scenario against a real headless server, plus a save/l
 make persistence  # just the two-boot restart pair
 ```
 
-`make scenarios` boots the real dedicated server twice and takes about 20 seconds.
+`make scenarios` boots the real dedicated server twice, about 30 seconds in total. Per boot that
+is roughly 3s of JVM start, mod load and world generation, 7s of commands, and 2s for a save the
+runner waits on deliberately.
+
+**A run can never hang.** A deadlock does not stop the game: the engine's `ThreadFreezeMonitor`
+writes a crash log and leaves the JVM alive with its command thread no longer reading stdin. The
+runner therefore has its own deadline (`HARNESS_DEADLINE`, 180s), checks the server is alive
+between commands, bounds how long it waits for a stop, and prints any crash log the game wrote
+during the run. Before that, a deadlock looked like a test run that took as long as whatever
+timeout happened to be wrapped around it — 400 seconds in one case — while reporting nothing.
 
 ### Scenarios are data, not Java
 
