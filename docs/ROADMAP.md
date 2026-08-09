@@ -250,10 +250,16 @@ Necesse storage mods already have.
       `InventoryItem` is `Comparable` and `Inventory.sortItems` just calls
       `Collections.sort`, so the network sorts the way the player's inventory-sort
       button already does. Not persisted, so it resets when the terminal reopens
-- [ ] Usable with a large network without stutter — two known costs removed
-      (aggregation was quadratic in distinct items and the draw path aggregated
-      three times a frame), but **not yet measured against a full 64-unit network**,
-      so this stays open until it is
+- [x] Usable with a large network without stutter — **measured, not assumed**
+      (`tests/scenarios/performance.txt`). Against the largest network the mod
+      allows — 64 units, 2560 slots, 1910 distinct items, so effectively every
+      stackable item in the game — one aggregation costs **0.34ms, about 2% of a
+      60fps frame**. The scenario fails the build above 2ms, so this cannot
+      silently regress. Two costs had already been removed by reading the code
+      (aggregation was quadratic in distinct items, and the draw path aggregated
+      three times a frame); the measurement is what closed the item. Still worth an
+      in-game look, since a benchmark cannot see a stutter caused by drawing rather
+      than counting
 
 Search over items the player *possesses* is the genuinely novel piece: Necesse
 has search in at least three places — station recipes, settler lists, the

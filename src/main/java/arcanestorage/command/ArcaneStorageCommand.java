@@ -7,12 +7,16 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 import arcanestorage.ArcaneStorage;
 import arcanestorage.container.StorageTerminalContainer;
 import arcanestorage.network.NetworkContents;
 import arcanestorage.object.StorageConduitObject;
+import arcanestorage.object.StorageUnitObject;
 import arcanestorage.network.UnitNetwork;
 import arcanestorage.objectentity.StorageTerminalObjectEntity;
 import arcanestorage.objectentity.StorageUnitObjectEntity;
@@ -28,11 +32,13 @@ import necesse.engine.network.client.Client;
 import necesse.engine.network.server.Server;
 import necesse.engine.network.server.ServerClient;
 import necesse.engine.registries.ObjectRegistry;
+import necesse.engine.registries.ItemRegistry;
 import necesse.engine.registries.TileRegistry;
 import necesse.entity.objectEntity.ObjectEntity;
 import necesse.inventory.Inventory;
 import necesse.inventory.InventorySlot;
 import necesse.inventory.InventoryItem;
+import necesse.inventory.item.Item;
 import necesse.inventory.container.Container;
 import necesse.inventory.container.ContainerAction;
 import necesse.inventory.container.ContainerActionResult;
@@ -154,6 +160,8 @@ public class ArcaneStorageCommand extends ChatCommand {
                return this.report(level, spawn, args, logs);
             case "expect":
                return this.expect(level, spawn, serverClient, args, logs);
+            case "bench":
+               return this.bench(level, spawn, args, logs);
             case "give":
                return this.give(level, serverClient, args, logs);
             case "clear":
@@ -433,7 +441,105 @@ public class ArcaneStorageCommand extends ChatCommand {
       return (StorageTerminalContainer)serverClient.getContainer();
    }
 
-   /** {@code give <itemStringID> <amount>} — into the player's own inventory. */
+   /**
+    * {@code bench <dx> <dy> <units> <iterations>} — builds a worst-case network and times the
+    * work the interface does every time it redraws.
+    *
+    * <p>Exists because "usable with a large network" was an open claim backed by reasoning rather
+    * than measurement. Two costs were removed on the strength of reading the code, and reading the
+    * code cannot tell you whether what remains fits in a frame.
+    *
+    * <p>The network is a solid block of units filled with as many *distinct* items as the registry
+    * offers, because distinct items are what aggregation scales on — a network holding one item
+    * type in every slot is cheap no matter how large it is.
+    */
+   private boolean bench(Level level, Point spawn, ArrayList<String> args, CommandLog logs) {
+      int x = spawn.x + Integer.parseInt(args.get(1));
+      int y = spawn.y + Integer.parseInt(args.get(2));
+      int wantedUnits = Integer.parseInt(args.get(3));
+      int iterations = args.size() > 4 ? Integer.parseInt(args.get(4)) : 200;
+
+      StorageTerminalObjectEntity terminal = this.terminalAt(level, x, y);
+      if (terminal == null) {
+         logs.add("FAIL bench: no terminal at " + args.get(1) + "," + args.get(2));
+         return false;
+      }
+
+      // Stackable, non-placeable items only: placing an object item would build scenery instead of
+      // filling a slot, and unstackable items would cap every slot at 1 and understate the load.
+      List<String> pool = new ArrayList<>();
+      for (Item item : ItemRegistry.getItems()) {
+         if (item != null && item.getStringID() != null && item.getStackSize() > 1) {
+            pool.add(item.getStringID());
+         }
+      }
+
+      if (pool.isEmpty()) {
+         logs.add("FAIL bench: no stackable items in the registry");
+         return false;
+      }
+
+      int unitObjectID = ObjectRegistry.getObjectID(ArcaneStorage.UNIT_STRING_ID);
+      int placed = 0;
+      int distinct = 0;
+      for (int i = 0; placed < wantedUnits; i++) {
+         // A solid rectangle beside the terminal, so every unit links by adjacency alone and the
+         // walk has the widest possible frontier — the worst case for discovery as well.
+         int unitX = x + 1 + i % 8;
+         int unitY = y + i / 8;
+
+         level.setObject(unitX, unitY, unitObjectID);
+         StorageUnitObjectEntity unit = this.unitAt(level, unitX, unitY);
+         if (unit == null) {
+            continue;
+         }
+
+         for (int slot = 0; slot < unit.inventory.getSize(); slot++) {
+            String itemID = pool.get(distinct++ % pool.size());
+            unit.inventory.setItem(slot, new InventoryItem(itemID, 1));
+         }
+
+         placed++;
+      }
+
+      // No refresh call exists or is needed: membership is recomputed from layout on every call,
+      // which is also why this measures discovery honestly rather than a cached result.
+      List<StorageUnitObjectEntity> units = terminal.getLinkedUnits();
+
+      // Warm up first: the first call pays for classloading and JIT, and reporting that as the
+      // per-frame cost would overstate it by an order of magnitude.
+      for (int i = 0; i < 20; i++) {
+         NetworkContents.aggregate(level, units, StorageTerminalContainer.AGGREGATE_PURPOSE);
+      }
+
+      long start = System.nanoTime();
+      int lastSize = 0;
+      for (int i = 0; i < iterations; i++) {
+         lastSize = NetworkContents.aggregate(level, units, StorageTerminalContainer.AGGREGATE_PURPOSE).size();
+      }
+      long elapsed = System.nanoTime() - start;
+
+      double perCall = elapsed / (double)iterations / 1_000_000.0;
+      logs.add(
+         "BENCH units=" + units.size()
+            + " slots=" + NetworkContents.totalSlots(units)
+            + " distinct=" + lastSize
+            + " aggregate=" + String.format(Locale.ROOT, "%.3f", perCall) + "ms"
+            + " (" + String.format(Locale.ROOT, "%.1f", perCall / 16.67 * 100.0) + "% of a 60fps frame)"
+      );
+
+      // A frame has 16.67ms for everything, so the interface's own share must be a small
+      // fraction of it. 2ms is the line: beyond that this needs caching rather than tuning.
+      if (perCall > 2.0) {
+         logs.add("FAIL bench: aggregation costs " + String.format(Locale.ROOT, "%.3f", perCall) + "ms, over the 2ms budget");
+         return false;
+      }
+
+      logs.add("PASS bench: aggregation within budget");
+      return true;
+   }
+
+
    private boolean give(Level level, ServerClient serverClient, ArrayList<String> args, CommandLog logs) {
       if (this.requirePlayer(serverClient, logs, "give") == null) {
          return false;
@@ -734,47 +840,88 @@ public class ArcaneStorageCommand extends ChatCommand {
    }
 
    /**
-    * Loads the regions a subcommand is about to touch.
+    * Where each subcommand's tile coordinates actually are, as an argument index for {@code dx}.
     *
-    * <p>Every scenario coordinate is an offset from spawn, and every subcommand that names a
-    * tile is covered by scanning the arguments for numbers rather than by teaching this method
-    * each subcommand's argument order — a scenario that addresses a tile always passes it as a
-    * pair of integers.
+    * <p>This used to scan every argument for integers and treat each consecutive pair as a
+    * coordinate. That was wrong in a way that took a server crash to expose: coordinates always
+    * arrive as a pair, but not every pair is a coordinate. {@code expect capacity 0 0 2560 2560}
+    * produced the pair (2560, 2560) from the two slot counts and tried to load a region 2560
+    * tiles away — which, never having been generated, sent the command down the region
+    * *generation* path and deadlocked against the server tick.
     *
-    * <p>{@code clear} is the exception: it takes a radius rather than a coordinate, so its box
-    * is loaded from spawn outward. That box is bounded by the same radius limit the subcommand
-    * enforces.
+    * <p>So this is explicit. A subcommand absent from the map addresses no tile.
+    */
+   private static final Map<String, Integer> COORDINATE_ARG = new HashMap<>();
+
+   static {
+      COORDINATE_ARG.put("place", 2);
+      COORDINATE_ARG.put("expect", 2);
+      COORDINATE_ARG.put("fill", 1);
+      COORDINATE_ARG.put("break", 1);
+      COORDINATE_ARG.put("report", 1);
+      COORDINATE_ARG.put("bench", 1);
+      COORDINATE_ARG.put("open", 1);
+      COORDINATE_ARG.put("close", 1);
+   }
+
+   /**
+    * Forces the region a subcommand addresses to load, because reads do not load regions: the
+    * object layer resolves a tile through {@code RegionBoundsExecutor} with
+    * {@code loadIfNotLoaded = false}, so an unloaded region reads as *empty* rather than as
+    * itself. Only a player normally triggers loading, and the harness has no player.
+    *
+    * <p>A freshly generated world hides this completely, since generation leaves every region in
+    * memory. It appears only after a restart, where a scenario would see an empty world and
+    * report a persistence bug that does not exist.
     */
    private void ensureRegionLoaded(Level level, Point spawn, ArrayList<String> args) {
-      if ("clear".equals(args.get(0).toLowerCase()) && args.size() > 1) {
-         try {
-            int radius = Math.min(200, Math.abs(Integer.parseInt(args.get(1))));
-            loadRegionsIn(level, spawn.x - radius, spawn.y - radius, spawn.x + radius, spawn.y + radius);
-         } catch (NumberFormatException ignored) {
-            // Bad input is reported by the subcommand itself.
-         }
+      String sub = args.get(0).toLowerCase();
 
+      // clear takes a radius rather than a coordinate, and works outward from spawn.
+      if ("clear".equals(sub)) {
+         int radius = args.size() > 1 ? Integer.parseInt(args.get(1)) : 0;
+         this.loadRegionsAround(level, spawn.x - radius, spawn.y - radius, spawn.x + radius, spawn.y + radius);
          return;
       }
 
-      ArrayList<Integer> offsets = new ArrayList<>();
-      for (int i = 1; i < args.size(); i++) {
-         try {
-            offsets.add(Integer.parseInt(args.get(i)));
-         } catch (NumberFormatException ignored) {
-            // Item IDs, action names and similar are not coordinates.
-         }
+      Integer index = COORDINATE_ARG.get(sub);
+      if (index == null || args.size() <= index + 1) {
+         return;
       }
 
-      // Coordinates always arrive as a pair, so load a region around each pair found.
-      for (int i = 0; i + 1 < offsets.size(); i += 2) {
-         int x = spawn.x + offsets.get(i);
-         int y = spawn.y + offsets.get(i + 1);
-         loadRegionsIn(level, x, y, x, y);
+      int x;
+      int y;
+      try {
+         x = spawn.x + Integer.parseInt(args.get(index));
+         y = spawn.y + Integer.parseInt(args.get(index + 1));
+      } catch (NumberFormatException notCoordinates) {
+         // 'expect total <itemStringID> <n>' addresses no tile, and shares a verb with those
+         // that do. Failing to parse is the signal, not an error.
+         return;
+      }
+
+      this.loadRegionsAround(level, x, y, x, y);
+   }
+
+   /**
+    * Loads every region overlapping a tile box, inclusive.
+    *
+    * <p>Holds the level's own monitor while doing it, and that is not defensive: loading a region
+    * that has never been generated runs generation, which takes the level monitor while already
+    * holding the region map's lock. {@code Level.serverTick} takes the same two locks in the
+    * opposite order, so without this the two threads deadlock — the engine's
+    * {@code ThreadFreezeMonitor} caught exactly that. Taking the level monitor first matches the
+    * tick's order and removes the inversion.
+    *
+    * <p>Note this is a *second*, distinct inversion from the one the dispatch lock addresses.
+    * Loading a region is not the same operation as mutating one.
+    */
+   private void loadRegionsAround(Level level, int fromX, int fromY, int toX, int toY) {
+      synchronized (level) {
+         loadRegionsIn(level, fromX, fromY, toX, toY);
       }
    }
 
-   /** Loads every region overlapping a tile box, inclusive. */
    private static void loadRegionsIn(Level level, int fromX, int fromY, int toX, int toY) {
       int bits = RegionManager.REGION_SIZE_BITS;
       for (int regionY = fromY >> bits; regionY <= toY >> bits; regionY++) {
