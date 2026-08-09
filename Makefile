@@ -44,9 +44,9 @@ scenarios: ## Run every scenario; non-zero exit if any assertion fails
 	@$(MAKE) --no-print-directory build > /dev/null
 	@fail=0; for f in tests/scenarios/*.txt; do tools/run_scenario.sh "$$f" || fail=1; done; exit $$fail
 
-run: ## Launch the game with the in-development mod (needs Steam running)
+run: ## Launch the game with the in-development mod (needs Steam running). PACKETLOG=1 logs inbound packets
 	@mkdir -p $(LOGDIR)
-	$(GRADLE) runClient < /dev/null 2>&1 | tee $(LOGDIR)/runClient.log
+	$(GRADLE) runClient $(if $(PACKETLOG),-Ppacketlog,) < /dev/null 2>&1 | tee $(LOGDIR)/runClient.log
 
 dev: ## Launch a second client with a different auth ID, for multiplayer testing
 	@mkdir -p $(LOGDIR)
