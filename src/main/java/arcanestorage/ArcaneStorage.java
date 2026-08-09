@@ -1,10 +1,12 @@
 package arcanestorage;
 
+import arcanestorage.command.ArcaneStorageCommand;
 import arcanestorage.container.StorageTerminalContainer;
 import arcanestorage.container.StorageTerminalContainerForm;
 import arcanestorage.object.StorageTerminalObject;
 import arcanestorage.object.StorageUnitObject;
 import arcanestorage.objectentity.StorageTerminalObjectEntity;
+import necesse.engine.commands.CommandsManager;
 import necesse.engine.modLoader.annotations.ModEntry;
 import necesse.engine.registries.ContainerRegistry;
 import necesse.engine.registries.ObjectRegistry;
@@ -67,5 +69,9 @@ public class ArcaneStorage {
       Recipes.registerModRecipe(
          new Recipe(UNIT_STRING_ID, 1, RecipeTechRegistry.NONE, new Ingredient[]{new Ingredient("anylog", 8)})
       );
+
+      // Drives the scenario harness. Registered unconditionally: it needs owner permission,
+      // and being present in a normal game is harmless.
+      CommandsManager.registerServerCommand(new ArcaneStorageCommand());
    }
 }

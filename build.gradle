@@ -236,6 +236,18 @@ tasks.named('runClient') {
 // loads, so it cannot start on this machine's headless-only JDK 17 — every JFrame throws
 // regardless of DISPLAY. The game ships its own headful JRE, so run the server on that.
 // The build still uses the system JDK 17, since only the launched JVM needs AWT.
+//
+// -nogui is a real, built-in option: DesktopServerWindow.init skips the JFrame and starts
+// a ServerScanThread that reads stdin lines into ServerLoader.handleCommand. So the server
+// is scriptable with no custom launcher — which is why standardInput is wired through.
+// -log_debug_prints is undocumented in the server's own -help output and sends debug
+// prints to the log file as well as the console.
+//
+// -PnecesseServerWorld=<name> picks the world. Defaults to a harness-only world so an
+// automated run never mutates a world used for manual testing.
 tasks.named('runServer') {
     executable = "${gameDirectory}/jre/bin/java"
+    args '-nogui', '-log_debug_prints'
+    args '-world', (project.findProperty('necesseServerWorld') ?: 'arcane_harness')
+    standardInput = System.in
 }

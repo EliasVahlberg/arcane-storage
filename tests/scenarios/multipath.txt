@@ -1,0 +1,30 @@
+# Multi-path connectivity must not double-count.
+#
+# This is the case that gated Phase 2: a block of units where at least one unit is
+# reachable by more than one path. If the traversal's visited set fails, the far unit's
+# slots are registered twice and its contents are counted twice, which a player would read
+# as item duplication.
+#
+# Layout, relative to the world spawn tile (T is the terminal, U a storage unit):
+#
+#   T U U
+#   . U U
+#
+# The unit at 2,1 is reachable via 2,0 and via 1,1.
+
+arcanestorage place terminal 0 0
+arcanestorage place unit 1 0
+arcanestorage place unit 2 0
+arcanestorage place unit 1 1
+arcanestorage place unit 2 1
+
+arcanestorage fill 1 0 ironbar 15
+arcanestorage fill 2 0 ironbar 15
+arcanestorage fill 1 1 ironbar 15
+arcanestorage fill 2 1 ironbar 15
+
+arcanestorage expect units 0 0 4
+arcanestorage expect item 0 0 ironbar 60
+arcanestorage expect total ironbar 60
+
+arcanestorage report 0 0

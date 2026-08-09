@@ -3,6 +3,7 @@ package arcanestorage.container;
 import java.util.ArrayList;
 import java.util.List;
 
+import arcanestorage.network.NetworkContents;
 import arcanestorage.objectentity.StorageTerminalObjectEntity;
 import arcanestorage.objectentity.StorageUnitObjectEntity;
 import necesse.engine.network.NetworkClient;
@@ -107,37 +108,21 @@ public class StorageTerminalContainer extends Container {
     * <p>Entries are copies. Summing into a slot's own {@code InventoryItem} would edit the
     * unit's real contents.
     */
+   /**
+    * The network's contents as one deduplicated list, each entry carrying the summed
+    * amount across every linked unit.
+    *
+    * <p>Delegates to {@link NetworkContents#aggregate}, which works over units rather than
+    * container slots. Keeping one implementation matters: the scenario harness asserts
+    * through the same method with no player connected, and a second copy here would let
+    * the tested path drift away from the one the UI actually shows.
+    */
    public List<InventoryItem> getAggregatedItems() {
-      List<InventoryItem> aggregated = new ArrayList<>();
       if (this.isNetworkEmpty()) {
-         return aggregated;
+         return new ArrayList<>();
       }
 
-      Level level = this.terminal.getLevel();
-
-      for (int index = this.NETWORK_START; index <= this.NETWORK_END; index++) {
-         ContainerSlot slot = this.getSlot(index);
-         InventoryItem item = slot == null ? null : slot.getItem();
-         if (item == null) {
-            continue;
-         }
-
-         boolean merged = false;
-
-         for (InventoryItem existing : aggregated) {
-            if (existing.equals(level, item, true, false, AGGREGATE_PURPOSE)) {
-               existing.setAmount(existing.getAmount() + item.getAmount());
-               merged = true;
-               break;
-            }
-         }
-
-         if (!merged) {
-            aggregated.add(item.copy());
-         }
-      }
-
-      return aggregated;
+      return NetworkContents.aggregate(this.terminal.getLevel(), this.linkedUnits, AGGREGATE_PURPOSE);
    }
 
    @Override

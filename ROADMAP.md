@@ -99,28 +99,41 @@ Two honest caveats, neither covered by the criteria above:
 - [ ] A sensible bound on how far a network may reach
 - [ ] Several terminals may access one network
 
-### ⚠ Pending QA — run this first next session
+### Verification
 
-Connectivity-based linking is committed and unit-tested but **has never been run
-in the game**. 11 tests cover the traversal (`make test`, needs no game), so what
-is unverified is specifically the parts that touch `Level` and `ObjectEntity`.
+Two suites, both runnable without launching the game:
 
-1. A chain of 5+ units running away from the terminal, only the first touching it.
-   All should aggregate — a different item in each makes it readable.
-2. Break a middle unit, reopen: far units drop out, near ones stay, nothing lost.
-3. **An L-shape or a solid block**, so more than one path exists to some unit.
-   Counts must be exact — a doubled stack means the visited set is failing in the
-   real game, which is the duplication path and stops everything else.
-4. A diagonally-touching unit — must be excluded.
-5. A unit one tile away with a gap — must be excluded.
-6. Two terminals on one chain: same contents, and a withdrawal at one is reflected
-   at the other.
+- `make test` — unit tests over game-independent logic (the network traversal). Sub-second.
+- `make scenarios` — scenario files driven against a **headless dedicated server**. Each
+  file is a list of server console commands, so any prefix of one can be pasted into a
+  live server to investigate a failure. `make scenario FILE=...` runs one.
 
-Also still open from Phase 1 QA: the per-unit `slots used` readout appeared not to
-change when a second non-stackable item entered the network. Most likely the item
-landed in the *other* unit and the readout is per-unit by design — clicking both
-units and comparing against the terminal's total distinguishes that from a real
-bug.
+Automated so far: chains link through units; a diagonal neighbour is excluded; a one-tile
+gap is not bridged; a multi-path block counts each unit exactly once; breaking a unit
+mid-chain orphans what lies beyond; two terminals on one chain see the same network.
+
+What the harness cannot reach: `Container` needs a player, so opening a terminal,
+withdrawing, depositing and the close-on-unit-destroyed behaviour still need a session.
+Scenarios asserting those run in a live game with the same command.
+
+### ⚠ Pending QA — still needs a session
+
+Connectivity itself is covered by `make scenarios`. What remains is the player-coupled
+half:
+
+1. Withdraw and deposit against a chain of several units, with exact counts.
+2. Break a unit **while the terminal is open** — the terminal should close on the spot
+   rather than showing stale contents. This was a real duplication-and-loss bug: the slots
+   held a live reference to the removed unit's inventory, so withdrawing produced items the
+   world no longer contained and depositing wrote somewhere never saved. Fixed by checking
+   the units in `isValid`, but the fix itself is unverified in game.
+3. Two terminals open at once: withdraw at one, confirm the other reflects it.
+4. Walking out of range should close the terminal, as it does for a vanilla chest.
+
+Also unresolved from Phase 1: the per-unit `slots used` readout. It counts occupied slots
+directly via `Inventory.getUsedSlots()`, so it cannot disagree with a unit's real contents
+— but it is deliberately per unit, not per network, so a network's total is the sum across
+its units.
 
 A Storage Unit has no UI of its own to host a membership button, because a
 terminal is the only way to interact with it. Membership is therefore placement:
