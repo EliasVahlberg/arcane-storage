@@ -154,9 +154,34 @@ for scenario in "$@"; do
    RAN+=("$name")
 done
 
+# Save explicitly, and wait for the game to say it finished, before stopping.
+#
+# Stopping alone is not enough. The shutdown save is best-effort: one run logged "Starting world
+# save" and then "Server has stopped" with no completion line, and the next boot found an empty
+# world -- which reads exactly like a persistence bug and is not one. That flake is worse than a
+# plain failure, because it can also hide a real one.
+#
+# So: ask for a save while the server is definitely alive, confirm it completed, and only then
+# stop. If the confirmation never arrives, say so loudly rather than letting the next boot
+# report a mystery.
+printf 'save\n' >&3
+SAVED=0
+for _ in $(seq 1 60); do
+   if grep -aq "Completed world save" "$LOG"; then
+      SAVED=1
+      break
+   fi
+   sleep 0.5
+done
+
 printf 'stop\n' >&3
 wait "$SERVER_PID" 2>/dev/null
 SERVER_PID=
+
+if [[ "$SAVED" -eq 0 ]]; then
+   echo "FAIL  the server never confirmed a completed world save; a --keep run after this cannot be trusted" >&2
+   exit 1
+fi
 
 PLAIN="$(sed 's/\x1b\[[0-9;]*m//g' "$LOG")"
 TOTAL_FAIL=0
