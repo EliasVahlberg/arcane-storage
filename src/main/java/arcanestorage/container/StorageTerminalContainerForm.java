@@ -38,6 +38,18 @@ import necesse.inventory.container.Container;
 import necesse.inventory.container.ContainerAction;
 import necesse.inventory.item.ItemCategory;
 import necesse.inventory.item.ItemSearchTester;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import necesse.engine.GameLog;
+import necesse.engine.GlobalData;
+import necesse.engine.registries.RecipeTechRegistry;
+import necesse.gfx.forms.components.FormContainerCraftingListContentBox;
+import necesse.gfx.forms.components.localComponents.FormLocalCheckBox;
+import necesse.gfx.forms.presets.TabbedFormPreset;
+import necesse.inventory.container.ContainerRecipe;
+import necesse.inventory.recipe.RecipeFilter;
+import arcanestorage.ArcaneStorage;
 
 /**
  * Client-side UI for the Storage Terminal.
@@ -119,6 +131,28 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
    private static final int PADDING = 4;
    private static final int SEARCH_WIDTH = 220;
 
+   private static final int FORM_WIDTH = PADDING * 2 + COLUMNS * CELL_SIZE;
+
+   /**
+    * Height shared by every tab.
+    *
+    * <p>Tabs cannot size themselves: {@code TabbedFormPreset} draws one panel at the size it was
+    * constructed with and gives each tab a content form with {@code drawBase = false}, so a tab that
+    * wanted a different height would either be clipped or leave the panel empty below it. The value
+    * is therefore derived from the storage layout, which is the taller of the two, and the crafting
+    * tab fills whatever is left.
+    *
+    * <p>This duplicates what the storage tab's {@code FormFlow} computes, so the two can drift. That
+    * is checked at construction rather than trusted -- see the warning below the layout.
+    */
+   private static final int FORM_HEIGHT = PADDING
+         + FormInputSize.SIZE_24.height + PADDING
+         + FormInputSize.SIZE_20.height + PADDING
+         + ROWS * CELL_SIZE + GRID_SCROLL_BUTTONS
+         + PADDING
+         + FormInputSize.SIZE_24.height + PADDING
+         + PADDING;
+
    /**
     * How deep the category menu goes before it stops offering submenus.
     *
@@ -132,6 +166,8 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
    public final Form mainForm;
    public final FormItemList itemList;
    public final FormTextInput searchInput;
+   public final TabbedFormPreset tabs;
+   public final Form craftingForm;
    public final FormProgressBarText capacityBar;
    public final FormLabel summaryLabel;
    public FormContentIconButton sortButton;
@@ -185,8 +221,15 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
 
    public StorageTerminalContainerForm(Client client, T container) {
       super(client, container);
-      int width = PADDING * 2 + COLUMNS * CELL_SIZE;
-      this.mainForm = this.addComponent(new Form(width, 100));
+
+      // One terminal with two tabs rather than Magic Storage's two blocks. The tab strip is
+      // vanilla's own -- the creative menu is built from this preset -- so the tabs draw above the
+      // panel, in the game's shape, and the earlier plan of reserving a strip inside the form for
+      // them turned out to be unnecessary: FormTabContentComponent positions itself at
+      // form.getY() - offset, outside the panel entirely.
+      this.tabs = this.addComponent(
+            new TabbedFormPreset(0, TabbedFormPreset.TabStyle.Fill, FORM_WIDTH, FORM_HEIGHT));
+      this.mainForm = this.tabs.addLocalizedTab(new LocalMessage("ui", "arcanestorage_tab_storage"), null);
 
       FormFlow flow = new FormFlow(PADDING);
       // The header is one row: title on the left, search on the right. Its height is driven by
@@ -405,8 +448,16 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
       this.capacityBar.setTooltip(new LocalMessage("ui", "arcanestorage_capacity_tip"));
       this.updateCapacityLabel();
 
-      this.mainForm.setHeight(flow.next(PADDING));
-      this.makeCurrent(this.mainForm);
+      // The tab's height is fixed, so the flow cannot set it. Checked instead, because a silent
+      // half-row of clipping is exactly the kind of thing that survives a review.
+      int layoutHeight = flow.next(PADDING);
+      if (layoutHeight != FORM_HEIGHT) {
+         GameLog.warn.println("Arcane Storage: storage tab wants " + layoutHeight
+               + "px but FORM_HEIGHT is " + FORM_HEIGHT + "px; the tab will clip or leave a gap.");
+      }
+
+      this.craftingForm = this.buildCraftingTab(client, container);
+      this.makeCurrent(this.tabs);
 
       // Primed here because refreshList() reads it, and the first draw has not happened yet.
       this.aggregated = container.getAggregatedItems();
@@ -416,6 +467,100 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
       // null from construction until the first updateList — and input events are handled
       // earlier in the frame than any draw, so a click on the first frame would hit null.
       this.refreshList();
+   }
+
+   /**
+    * The crafting tab: vanilla's recipe list, fed by the network.
+    *
+    * <p>Almost nothing here is ours. {@link FormContainerCraftingListContentBox} is abstract with a
+    * single method to supply, and computes each recipe's craftable state itself against the
+    * container's craft inventories -- which for this container are the network's slots, so "can I
+    * build this" is answered against everything in storage without a line of code here. The
+    * per-ingredient have/missing display and the click-to-craft path come with it.
+    *
+    * <p>{@link RecipeFilter} is vanilla too, and already holds exactly the state this tab needs:
+    * a search tester, a craftable-only flag, and category filters, with
+    * {@code getFilteredRecipes} evaluating craftability against the container's own inventories.
+    * Writing a filter here would have duplicated it and diverged from how a bench behaves.
+    *
+    * <p>Recipes are streamed with {@link RecipeTechRegistry#ALL}, which {@code Recipe.matchTech}
+    * treats as matching everything. So the tab shows whatever the container has registered and
+    * needs no knowledge of which stations are installed -- when bench installation lands, its
+    * recipes appear here because they were registered, not because this method changed.
+    */
+   private Form buildCraftingTab(Client client, T container) {
+      Form form = this.tabs.addLocalizedTab(new LocalMessage("ui", "arcanestorage_tab_crafting"), null);
+
+      // Keyed by string ID rather than by the object instance, because Settings keeps these in a
+      // plain map for the session and a stable key is the only requirement.
+      RecipeFilter filter = Settings.getRecipeFilterSetting(ArcaneStorage.TERMINAL_STRING_ID);
+
+      // Vanilla's setting is the source of truth, so the choice carries between a bench and the
+      // terminal instead of being a private option a player has to find twice.
+      filter.setCraftableOnly(Settings.craftingListOnlyCraftable.get());
+
+      FormFlow flow = new FormFlow(PADDING);
+      int headerY = flow.next(FormInputSize.SIZE_24.height + PADDING);
+      form.addComponent(
+            new FormLocalLabel("ui", "arcanestorage_tab_crafting", new FontOptions(20), -1, PADDING, headerY + 4,
+                  FORM_WIDTH - PADDING * 3 - SEARCH_WIDTH));
+
+      FormTextInput search = form.addComponent(
+            new FormTextInput(FORM_WIDTH - PADDING - SEARCH_WIDTH, headerY, FormInputSize.SIZE_24, SEARCH_WIDTH, -1, 100));
+      search.placeHolder = new LocalMessage("ui", "searchtip");
+      search.rightClickToClear = true;
+      search.setText(filter.getSearchFilter());
+      search.onChange(event -> filter.setSearchFilter(search.getText()));
+
+      int controlHeight = 16 + PADDING;
+      int listY = flow.next(0);
+      int listHeight = FORM_HEIGHT - listY - controlHeight - PADDING;
+
+      form.addComponent(
+            new FormContainerCraftingListContentBox(
+                  PADDING, listY, FORM_WIDTH - PADDING * 2, listHeight, client, false, false, false) {
+               private final Supplier<Boolean> filterChanged = filter.addMonitor(this);
+
+               @Override
+               public Stream<ContainerRecipe> streamAllRecipes() {
+                  return filter
+                     .getFilteredRecipes(
+                        container.streamRecipes(RecipeTechRegistry.ALL).collect(Collectors.toList()), container)
+                     .stream();
+               }
+
+               @Override
+               public void draw(TickManager tickManager, PlayerMob perspective, Rectangle renderBox) {
+                  // Polled in draw for the same reason the base class polls its own craftable flag
+                  // here: a filter change can arrive from the search box, the checkbox, or the
+                  // settings listener, and rebuilding at the point of change would do it repeatedly
+                  // for one keystroke.
+                  if (this.filterChanged.get()) {
+                     this.updateRecipes();
+                  }
+
+                  super.draw(tickManager, perspective, renderBox);
+               }
+            });
+
+      FormLocalCheckBox onlyCraftable = form.addComponent(
+            new FormLocalCheckBox("ui", "filteronlycraftable", PADDING, FORM_HEIGHT - 16 - PADDING,
+                  Settings.craftingListOnlyCraftable.get()),
+            100);
+      onlyCraftable.onClicked(event -> {
+         Settings.craftingListOnlyCraftable.set(event.from.checked);
+         Settings.saveClientSettings();
+      });
+
+      // Mirrors vanilla's own listener so the checkbox follows the setting when it is changed
+      // elsewhere -- including by a crafting bench open at the same time.
+      Settings.craftingListOnlyCraftable.addChangeListener(value -> {
+         onlyCraftable.checked = value;
+         filter.setCraftableOnly(value);
+         GlobalData.updateCraftable();
+      }, this::isDisposed);
+
+      return form;
    }
 
    /**
@@ -580,7 +725,9 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
    @Override
    public void onWindowResized(GameWindow window) {
       super.onWindowResized(window);
-      ContainerComponent.setPosFocus(this.mainForm);
+      // The preset's own form is the panel that gets drawn and positioned; the tab contents live
+      // inside it and the tab buttons position themselves against it.
+      ContainerComponent.setPosFocus(this.tabs.form);
    }
 
    @Override

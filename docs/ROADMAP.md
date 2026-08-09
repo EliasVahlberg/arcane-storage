@@ -319,12 +319,15 @@ would live.
       headless; no player-facing way to trigger it yet, which is the crafting tab below*
 - [x] Crafting consumes ingredients from anywhere in the network — *verified headless,
       including a refusal that consumes nothing when materials are short*
-- [ ] Per-ingredient availability — have, missing, partial — judged against the
+- [x] Per-ingredient availability — have, missing, partial — judged against the
       whole network. **Vanilla already computes this**: `Container.canCraftRecipe` takes the
       inventory collection, and `FormContainerCraftingListContentBox` renders can-craft state
       per recipe from it. The work is showing that list in the terminal, not computing it
-- [ ] An explicit "you have 3 of 5, here is what is missing" display
-- [ ] Recipe search against network-wide availability — `FormContainerCraftingList` already
+- [x] An explicit "you have 3 of 5, here is what is missing" display *(code complete,
+      awaiting in-game QA)* — arrives with vanilla's recipe component rather than being
+      drawn here
+- [x] Recipe search against network-wide availability *(code complete, awaiting in-game
+      QA)* — `FormContainerCraftingList` already
       carries search, so this arrives with the tab rather than as separate work
 - [ ] Station requirements satisfied by **installing the station into the terminal**
       — **final, Aug 2026.** Not to be reopened without a really good reason. Each

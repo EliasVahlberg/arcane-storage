@@ -208,3 +208,41 @@ empty and vanish as items move, and the common task is "find what I have, sorted
 the taxonomy". A flat grid with a category filter is also what Magic Storage settles on. Say the
 word if you want it tried; it would replace `FormItemList`, which is the flowing grid you said you
 liked.
+
+## The crafting tab — August 2026, never drawn
+
+Compiles, and the 8 scenarios and 15 pytest tests still pass, but none of them touch a form: this
+has not been on screen once. The whole terminal is now a `TabbedFormPreset`, so a mistake here
+breaks the storage view too, not just the new tab.
+
+1. **The tab strip exists and both tabs work.** Two tabs, Storage and Crafting, splitting the panel
+   width. They draw *above* the panel, which is where vanilla puts them -- `FormTabContentComponent`
+   positions itself at `form.getY() - offset`. The creative menu looks the same way.
+2. **The storage tab is unchanged.** This is the regression risk. Grid, search, category dropdown,
+   sort, deposit-all, quick-stack, restock, capacity bar and the kinds/items summary should all be
+   exactly as before. The panel is now drawn by the tab preset rather than by the form itself, and
+   the tab content has `drawBase = false`, so a double panel or a missing panel would show here.
+3. **No clipping at the bottom of either tab.** Both tabs share one height, which is derived from
+   the storage layout by arithmetic. If it is wrong the control row clips -- but the code checks its
+   own arithmetic at construction and writes a warning to the log naming both numbers, so check
+   `server.log`/the client log before measuring pixels.
+4. **Recipes appear in the crafting tab**, and today that means only hand-craftable ones: torch,
+   workstationduo, ladderdown, woodboat and the rest of the nine `NONE`-tech recipes. Station
+   recipes are absent because bench installation is not built yet, not because anything is broken.
+5. **Crafting works from the network with nothing in your inventory.** Put 8 logs in a storage unit,
+   empty your inventory, craft a wood boat from the tab. This is verified headless already, so a
+   failure here is a UI wiring fault, not a mechanism fault.
+6. **Search filters recipes** and clears on right click.
+7. **"Only craftable" reflects the network.** Tick it with an empty network and the list should
+   empty out. It is wired to vanilla's own `filteronlycraftable` setting, so open a Workstation
+   afterwards and the checkbox there should already agree -- that shared state is deliberate.
+
+### Worth checking while you are there, and it needs no mod code
+
+The terminal sets `shouldOpenInventory()`, and vanilla's inventory crafting panel streams
+`client.getContainer().streamRecipes(NONE)` -- the *open container*, not the player's inventory. So
+the small crafting panel beside your inventory should already be crafting hand recipes from network
+contents whenever the terminal is open, and should have been doing so before this tab existed. This
+was a guess in an earlier session; the source now supports it, but it has still never been observed.
+If it is true, the crafting tab's value is entirely in the station recipes it will hold, not in the
+`NONE` ones.
