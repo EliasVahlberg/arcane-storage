@@ -39,7 +39,13 @@ public class PacketLogPatch {
       if (PacketLogPatch.ENABLED) {
          Packet packet = networkPacket.getTypePacket();
          if (packet != null) {
-            System.out.println("[PKT] " + packet.getClass().getSimpleName() + " slot=" + (client == null ? -1 : client.slot));
+            // Own timestamp rather than relying on the log's: GameLog only decorates its own
+            // streams, so a plain System.out line may arrive undecorated and unorderable.
+            System.out.println(
+               "[PKT] " + System.currentTimeMillis() % 1000000L
+                  + " " + packet.getClass().getSimpleName()
+                  + " slot=" + (client == null ? -1 : client.slot)
+            );
          }
       }
    }
