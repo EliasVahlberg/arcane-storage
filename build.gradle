@@ -178,8 +178,35 @@ tasks.register('buildModJar', Jar) {
     // Add the dependencies
     from configurations.libDepends.collect { it.isDirectory() ? it : zipTree(it) }
 
+    // The harness-facing classes must NOT be in the released jar. They reference types from an
+    // optional mod, and LoadedMod.loadClasses eagerly defines every class in the jar, turning a
+    // LinkageError into a fatal ModLoadException -- so shipping them means the mod refuses to load
+    // for anyone who does not also install the harness. No try/catch can help: the failure happens
+    // during mod loading, before any of our code runs. Verified by booting a server without it.
+    exclude "arcanestorage/harness/**"
+
     setArchiveFileName("${jarName}.jar")
     setDestinationDirectory(file(buildLocation))
+}
+
+// The same jar WITH the harness-facing classes, for testing only, in its own directory because a
+// dev mod folder may hold exactly one jar. This is the one the scenario runner dev-loads.
+tasks.register('buildTestModJar', Jar) {
+    group "necesse"
+    description "Generates a test-only mod jar, including the harness verbs, into build/testjar"
+    dependsOn "classes", "createModInfoFile"
+
+    doFirst {
+        fileTree(dir: "${buildDir}/testjar").exclude("${jarName}.jar").visit { FileVisitDetails details ->
+            delete details.file
+        }
+    }
+
+    from sourceSets.main.java.getClassesDirectory()
+    from configurations.libDepends.collect { it.isDirectory() ? it : zipTree(it) }
+
+    setArchiveFileName("${jarName}.jar")
+    setDestinationDirectory(file("${buildDir}/testjar"))
 }
 
 enum OS { WINDOWS, MAC, LINUX, UNKNOWN }

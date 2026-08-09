@@ -89,9 +89,21 @@ public class ArcaneStorage {
       // and being present in a normal game is harmless.
       // Adds this mod's verbs and assertions to the harness's command, when the harness is
       // installed. There is no command of our own any more: every verb was either generic enough to
-      // belong to the harness or specific enough to register into it. Guarded
-      // inside that class, since the harness is an optional dependency and referencing an absent type
-      // is a NoClassDefFoundError rather than something catchable at the call site.
-      arcanestorage.harness.ArcaneStorageVerbs.registerIfPresent();
+      // belong to the harness or specific enough to register into it.
+      //
+      // THE GUARD MUST BE HERE, at the call site, and not inside ArcaneStorageVerbs. The harness is
+      // an optional dependency, and when it is absent the JVM throws NoClassDefFoundError while
+      // *resolving* ArcaneStorageVerbs -- before a single line of its code runs, so a try/catch
+      // written inside it never executes. Verified by booting a server with the harness removed: the
+      // error escaped, and the mod loader then died with an unrelated-looking NullPointerException
+      // about a null dispose method, which is what this failure looks like from the outside.
+      //
+      // Throwable rather than Exception, because NoClassDefFoundError is an Error.
+      try {
+         arcanestorage.harness.ArcaneStorageVerbs.register();
+      } catch (Throwable harnessAbsent) {
+         System.out.println("Arcane Storage: headless harness not present, test verbs not registered ("
+            + harnessAbsent.getClass().getSimpleName() + ")");
+      }
    }
 }

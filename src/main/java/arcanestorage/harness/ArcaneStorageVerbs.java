@@ -33,7 +33,7 @@ import necesseheadlessharness.command.TestVerb;
  * {@code optionalDependencies} entry, so it may be absent at runtime -- and merely loading a class
  * that mentions a missing type throws {@code NoClassDefFoundError}. Keeping every kit reference
  * inside this one class means a player without the harness loses the test verbs and nothing else.
- * {@link #registerIfPresent()} is the only door in.
+ * {@link #register()} is the only door in, and <strong>its caller must wrap it in a try/catch (Throwable)</strong> -- a guard inside this class cannot work, because the JVM fails while resolving the class and no code in it runs.
  *
  * <p>What lives here is what the harness cannot know: the shape of a storage network. The harness's own
  * {@code expect item} counts one tile's inventory, which is the right answer for a chest and the
@@ -46,24 +46,11 @@ public final class ArcaneStorageVerbs {
    }
 
    /**
-    * Registers everything, or does nothing if the harness is not installed.
-    *
-    * <p>The catch is {@code Throwable} rather than {@code Exception} on purpose:
-    * {@code NoClassDefFoundError} is an {@code Error}, and it is the exact failure being guarded
-    * against.
+    * Registers everything. <strong>The caller must guard this call</strong>, because a guard cannot
+    * live in here: with the harness absent, the JVM fails while resolving this class and no code in
+    * it ever runs. See the try/catch in {@code ArcaneStorage.postInit}.
     */
-   public static void registerIfPresent() {
-      try {
-         register();
-      } catch (Throwable kitAbsent) {
-         // Deliberately quiet at info level: for a player, the harness being absent is the normal
-         // case and not a problem worth a warning.
-         System.out.println("Arcane Storage: harness not present, test verbs not registered ("
-               + kitAbsent.getClass().getSimpleName() + ")");
-      }
-   }
-
-   private static void register() {
+   public static void register() {
       // Lets scenarios read 'place unit 5 0' rather than naming full string IDs.
       Harness.registerObjectAlias("terminal", ArcaneStorage.TERMINAL_STRING_ID);
       Harness.registerObjectAlias("unit", ArcaneStorage.UNIT_STRING_ID);

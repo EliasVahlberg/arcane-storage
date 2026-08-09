@@ -31,24 +31,32 @@ build: ## Compile the mod and produce build/jar/<name>.jar
 	@time $(GRADLE) buildModJar < /dev/null 2>&1 | tee $(LOGDIR)/build.log
 	@ls -la build/jar/
 
+testjar: ## Produce build/testjar/<name>.jar: the same mod plus the harness verbs, for scenarios only
+	@mkdir -p $(LOGDIR)
+	@# A separate jar because the released one excludes the harness-facing classes: the mod loader
+	@# defines every class in a jar eagerly, so a reference to an optional mod that is not installed
+	@# is fatal rather than catchable. Scenarios dev-load this one instead.
+	@$(GRADLE) buildTestModJar < /dev/null 2>&1 | tee $(LOGDIR)/testjar.log
+	@ls -la build/testjar/
+
 test: ## Run the unit tests (game-independent logic only; no game or Steam needed)
 	@mkdir -p $(LOGDIR)
 	$(GRADLE) test < /dev/null 2>&1 | tee $(LOGDIR)/test.log
 
 scenario: ## Run one scenario against a headless server: make scenario FILE=tests/scenarios/x.txt
 	@test -n "$(FILE)" || { echo "usage: make scenario FILE=tests/scenarios/<name>.txt"; exit 2; }
-	@$(MAKE) --no-print-directory build > /dev/null
+	@$(MAKE) --no-print-directory testjar > /dev/null
 	@tools/run_scenario.sh "$(FILE)"
 
 scenarios: ## Run every scenario, plus persistence across a restart; non-zero exit on any failure
-	@$(MAKE) --no-print-directory build > /dev/null
+	@$(MAKE) --no-print-directory testjar > /dev/null
 	@# The persistence write phase runs last in this boot so nothing resets its objects, and
 	@# the shutdown save puts it on disk for the second boot to verify.
 	@tools/run_scenario.sh tests/scenarios/*.txt tests/scenarios/persistence/write.txt
 	@tools/run_scenario.sh --keep tests/scenarios/persistence/verify.txt
 
 persistence: ## Just the persistence pair: one boot writes, a second verifies after a restart
-	@$(MAKE) --no-print-directory build > /dev/null
+	@$(MAKE) --no-print-directory testjar > /dev/null
 	@tools/run_scenario.sh tests/scenarios/persistence/write.txt
 	@tools/run_scenario.sh --keep tests/scenarios/persistence/verify.txt
 

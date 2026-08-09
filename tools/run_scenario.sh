@@ -32,7 +32,10 @@ fi
 # the harness's, and so the name still contains 'harness' -- which the runner requires before it
 # will delete a world.
 export HARNESS_WORLD="${HARNESS_WORLD:-arcane_harness}"
-export MOD_UNDER_TEST="${MOD_UNDER_TEST:-$MOD_DIR/build/jar}"
+# build/testjar, not build/jar: the released jar deliberately excludes the harness-facing classes,
+# because the mod loader defines every class in a jar eagerly and a reference to an absent optional
+# mod is fatal. 'make buildtestjar' produces this one.
+export MOD_UNDER_TEST="${MOD_UNDER_TEST:-$MOD_DIR/build/testjar}"
 export SCENARIO_DIR="${SCENARIO_DIR:-$MOD_DIR/tests/scenarios}"
 
 exec "$RUNNER" "$@"
