@@ -614,6 +614,11 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
       search.setText(filter.getSearchFilter());
       search.onChange(event -> filter.setSearchFilter(search.getText()));
 
+      // Sits over the top of the list area rather than in the flow, because it is only ever visible
+      // when the list is empty -- and an empty list leaves that space blank anyway.
+      FormLabel emptyHint = form.addComponent(
+            new FormLabel("", new FontOptions(16), 0, FORM_WIDTH / 2, flow.next(0) + 24, FORM_WIDTH - PADDING * 4));
+
       int controlHeight = 16 + PADDING;
       int listY = flow.next(0);
       int listHeight = FORM_HEIGHT - listY - controlHeight - PADDING;
@@ -626,10 +631,23 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
 
                @Override
                public Stream<ContainerRecipe> streamAllRecipes() {
-                  return filter
-                     .getFilteredRecipes(
-                        container.streamRecipes(RecipeTechRegistry.ALL).collect(Collectors.toList()), container)
-                     .stream();
+                  List<ContainerRecipe> registered =
+                        container.streamRecipes(RecipeTechRegistry.ALL).collect(Collectors.toList());
+                  List<ContainerRecipe> shown = filter.getFilteredRecipes(registered, container);
+
+                  // An empty crafting list is ambiguous in a way an empty storage grid is not: it
+                  // could mean the filter hid everything, or that no bench is installed. Saying
+                  // which is the whole point -- a player who cannot tell assumes the tab is broken.
+                  if (!shown.isEmpty()) {
+                     emptyHint.setText("");
+                  } else if (registered.isEmpty()) {
+                     emptyHint.setText(Localization.translate("ui", "arcanestorage_no_recipes"));
+                  } else {
+                     emptyHint.setText(Localization.translate("ui", "arcanestorage_no_recipes_shown",
+                           "filter", Localization.translate("ui", "filteronlycraftable")));
+                  }
+
+                  return shown.stream();
                }
 
                @Override

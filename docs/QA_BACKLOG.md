@@ -289,6 +289,16 @@ forty slots, because a pickaxe stacks to one.
    membership was only recomputed when the filter changed -- not when the network did. A recipe's
    own `shouldShow` never considers craftability, so it could not come back on its own.
 
+### Resolved: the crafting default is already show-all
+
+Elias asked for show-all by default so an empty list cannot be mistaken for a broken tab.
+`Settings.craftingListOnlyCraftable` already defaults to `false`, so this needed no change -- but the
+confusion is still reachable, because the setting persists: a player who ticks the box at a bench
+gets it ticked at the terminal too. So the crafting tab now explains an empty list instead of just
+being empty, naming which cause applies -- no recipes registered at all, versus a filter or search
+hiding them. Check both messages read correctly: tick only-craftable with an empty network for the
+second, which is the reachable one today.
+
 ### One thing I could not reconcile with what you said
 
 You said it was good that the filter does not stick between opens. The storage tab's search and
