@@ -246,3 +246,55 @@ contents whenever the terminal is open, and should have been doing so before thi
 was a guess in an earlier session; the source now supports it, but it has still never been observed.
 If it is true, the crafting tab's value is entirely in the station recipes it will hold, not in the
 `NONE` ones.
+
+## Round two — the three things from your first pass, August 2026
+
+### Verified headlessly (4 new tests in `tests/python/test_cursor_clicks.py`, 19 passing total)
+
+The server half of the click conventions, which is the half where a mistake costs you items: the
+whole held stack goes in, depositing one leaves the rest on the cursor, ten single deposits conserve
+the total exactly, and a **full network refuses without consuming anything**. That last one matters
+because `Inventory.addItem` decrements the item it is handed, so the code reads the leftover to
+decide what to take off the cursor -- read backwards, a full network would silently eat your stack.
+
+A new harness verb, `depositcursor [n]`, pairs with the existing `withdraw <item> <n> cursor`, and
+both go through the same `executePacket` the form calls, so nothing below the click is bypassed.
+
+One of these tests was wrong on its first run and is worth remembering: 40 stone occupies *one*
+slot, not forty, so filling a unit with stone and asserting it is full fails. 40 iron pickaxes fill
+forty slots, because a pickaxe stacks to one.
+
+### Needs your eyes -- none of this can be tested headlessly
+
+1. **Left click on an item while holding something inserts it.** Holding a stack turns any left
+   click into an insert, whatever it landed on, which is the inventory convention.
+2. **Left click on empty grid space while holding something also inserts.** This is the one with a
+   real risk of stealing clicks: it runs only when the event was not already used by an item, a
+   scroll button or anything else, so check that clicking items, scrolling and the header still
+   behave.
+3. **Right click with an empty cursor takes half a stack.** Half of *one stack*, not half the
+   network -- 500 stone with a 100 stack gives you 50, and 7 stone gives you 3. Deliberate: the
+   cursor cannot hold more than a stack, so "half" is measured against what one click could take.
+4. **Right click on a non-stackable behaves like a left click.** Its stack is one, so half of it is
+   one. Nothing special-cases this.
+5. **Right click while holding deposits exactly one.**
+6. **The capacity bar's fill now changes colour** in four quarters -- green, yellow, orange, red --
+   and the number inside it stays a neutral colour. Colouring both said the same thing twice. Note
+   the fill colours are literals rather than interface-style colours, because the style has only
+   three text colours and none of them are a ramp; if you switch UI themes and it looks wrong
+   against the panel, that is the trade-off to revisit.
+7. **The craftable-only filter now re-applies while the tab is open.** Tick it, then add or remove
+   the missing ingredient from a unit, and recipes should appear and disappear without reopening.
+   The cause was that craftable-only filtering happens where list *membership* is decided, and
+   membership was only recomputed when the filter changed -- not when the network did. A recipe's
+   own `shouldShow` never considers craftability, so it could not come back on its own.
+
+### One thing I could not reconcile with what you said
+
+You said it was good that the filter does not stick between opens. The storage tab's search and
+category genuinely do not persist -- they are per-form state. But the **crafting** tab's search and
+craftable-only *do* persist for the session, because they live in vanilla's `RecipeFilter`, which
+`Settings.getRecipeFilterSetting` keeps in a map keyed per object. That is how a vanilla bench
+behaves. So either you were describing the storage tab, or you have not noticed the crafting search
+persisting yet and will dislike it. Worth a deliberate look, because making the two tabs agree is a
+small change in either direction.

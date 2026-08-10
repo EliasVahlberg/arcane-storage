@@ -8,6 +8,13 @@ import java.util.List;
 import necesse.engine.gameLoop.tickManager.TickManager;
 import necesse.engine.input.Control;
 import necesse.engine.input.InputEvent;
+import necesse.engine.input.InputID;
+import necesse.engine.achievements.Achievement;
+import necesse.engine.util.GameMath;
+import necesse.gfx.gameTooltips.GameTooltipManager;
+import necesse.gfx.gameTooltips.GameTooltips;
+import necesse.gfx.gameTooltips.TooltipLocation;
+import necesse.inventory.container.slots.ContainerSlot;
 import necesse.engine.localization.Localization;
 import necesse.engine.localization.message.GameMessage;
 import necesse.engine.localization.message.LocalMessage;
@@ -130,6 +137,31 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
 
    private static final int PADDING = 4;
    private static final int SEARCH_WIDTH = 220;
+
+   private static final int CAPACITY_BAR_WIDTH = 180;
+
+   /**
+    * Fill colours for the capacity bar, in quarters, where fuller is worse.
+    *
+    * <p>Four steps rather than the interface style's three text colours, because the style has no
+    * fourth and the point of the fill is a glance-readable ramp. Literal colours are a deliberate
+    * exception to preferring style colours: these are a bar, not text, and they have to read as a
+    * ramp against each other rather than match the theme's text palette.
+    */
+   private static final Color CAPACITY_EMPTY = new Color(96, 186, 96);
+   private static final Color CAPACITY_FILLING = new Color(214, 202, 88);
+   private static final Color CAPACITY_HIGH = new Color(224, 148, 62);
+   private static final Color CAPACITY_FULL = new Color(206, 78, 70);
+
+   private static Color capacityFillColor(float used) {
+      if (used < 0.25F) {
+         return CAPACITY_EMPTY;
+      } else if (used < 0.5F) {
+         return CAPACITY_FILLING;
+      } else {
+         return used < 0.75F ? CAPACITY_HIGH : CAPACITY_FULL;
+      }
+   }
 
    private static final int FORM_WIDTH = PADDING * 2 + COLUMNS * CELL_SIZE;
 
@@ -321,12 +353,66 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
 
                @Override
                public void onItemClicked(InventoryItem item, InputEvent event) {
-                  // Follow normal inventory conventions: plain click picks up onto the
-                  // cursor, INV_QUICK_MOVE (shift by default) transfers into the inventory.
+                  // Right clicks reach here as well as left: FormGeneralList dispatches any
+                  // isMouseClickEvent to the element under the mouse, so the button has to be
+                  // read rather than assumed.
+                  boolean rightClick = event.getID() == InputID.RIGHT_CLICK;
+
+                  // Holding something means the click is an insert, whatever it landed on. That is
+                  // the inventory convention -- clicking a slot while holding a stack puts it down
+                  // -- and it means a player never has to find empty space to deposit into.
+                  if (StorageTerminalContainerForm.this.isHoldingItem()) {
+                     container.depositCursorAction.runAndSend(rightClick ? 1 : -1);
+                     event.use();
+                     return;
+                  }
+
+                  if (rightClick) {
+                     // Half a stack, not half the network's supply. The cursor cannot hold more
+                     // than one stack, so "half" is measured against what one click could pick up.
+                     // A non-stackable item has a stack of one, which makes this a whole item and
+                     // left and right identical -- as they are on any vanilla slot.
+                     int oneStack = Math.min(item.getAmount(), item.item.getStackSize());
+                     container.withdrawAction.runAndSend(item, Math.max(1, oneStack / 2), true);
+                     event.use();
+                     return;
+                  }
+
+                  // Plain click picks up onto the cursor, INV_QUICK_MOVE (shift by default)
+                  // transfers into the inventory.
                   boolean quickMove = Control.INV_QUICK_MOVE.isDown();
                   container.withdrawAction
                      .runAndSend(item, Math.min(item.getAmount(), item.item.getStackSize()), !quickMove);
                   event.use();
+               }
+
+               @Override
+               public void handleInputEvent(InputEvent event, TickManager tickManager, PlayerMob perspective) {
+                  super.handleInputEvent(event, tickManager, perspective);
+
+                  // Deposit when the click landed on the grid but not on an item. super runs first
+                  // and marks the event used if an element or a scroll button took it, so this only
+                  // sees genuinely empty space -- which is what makes "click anywhere" safe to add
+                  // without stealing clicks from anything.
+                  if (event.isUsed() || !event.isMouseClickEvent() || !event.state) {
+                     return;
+                  }
+
+                  if (!StorageTerminalContainerForm.this.isHoldingItem() || !this.isMouseWithin(event)) {
+                     return;
+                  }
+
+                  container.depositCursorAction.runAndSend(event.getID() == InputID.RIGHT_CLICK ? 1 : -1);
+                  event.use();
+               }
+
+               private boolean isMouseWithin(InputEvent event) {
+                  // hudX/hudY rather than window coordinates, because that is the space component
+                  // positions and hitboxes are expressed in -- see FormComponent.isMouseOver.
+                  return event.pos.hudX >= this.getX()
+                        && event.pos.hudX < this.getX() + this.width
+                        && event.pos.hudY >= this.getY()
+                        && event.pos.hudY < this.getY() + this.height;
                }
             }
          );
@@ -422,7 +508,7 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
       // Its colours have to be inverted, though. The component calls full "complete" and paints it
       // with successTextColor, which is correct for a crafting requirement and exactly backwards
       // for storage: a full network is the bad outcome. See getTextColor below.
-      this.capacityBar = this.mainForm.addComponent(new FormProgressBarText(PADDING, controlY + 4, 1, 180) {
+      this.capacityBar = this.mainForm.addComponent(new FormProgressBarText(PADDING, controlY + 4, 1, CAPACITY_BAR_WIDTH) {
          @Override
          public String getText() {
             return Localization.translate("ui", "arcanestorage_capacity",
@@ -431,18 +517,34 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
 
          @Override
          public Color getTextColor() {
-            // Deliberately not the inherited comparison. Nearly full is the state worth noticing,
-            // and it is worth noticing before it is too late to act on, hence the 90% step.
-            if (this.totalProgress <= 0) {
-               return this.getInterfaceStyle().activeTextColor;
-            }
+            // The bar carries the signal now, so the number stays readable rather than competing
+            // with it. Colouring both said the same thing twice and made the text harder to read.
+            return this.getInterfaceStyle().activeTextColor;
+         }
 
-            float used = (float) this.currentProgress / this.totalProgress;
-            if (used >= 1.0F) {
-               return this.getInterfaceStyle().errorTextColor;
-            }
+         @Override
+         public void draw(TickManager tickManager, PlayerMob perspective, Rectangle renderBox) {
+            // Reimplemented rather than extended because FormProgressBarText hardcodes
+            // Settings.UI.progressBarFill for the fill and exposes no hook, and its width field is
+            // private -- hence CAPACITY_BAR_WIDTH being a constant rather than read back.
+            //
+            // The colours are ours but the drawing is not: this is the same Achievement call the
+            // component makes, one overload deeper, where completeCol is the fill.
+            float progress = this.totalProgress <= 0
+                  ? 0.0F
+                  : GameMath.limit((float) this.currentProgress / this.totalProgress, 0.0F, 1.0F);
 
-            return used >= 0.9F ? this.getInterfaceStyle().warningTextColor : this.getInterfaceStyle().activeTextColor;
+            Achievement.drawProgressbarText(
+                  this.getX(), this.getY(), CAPACITY_BAR_WIDTH, 5, progress,
+                  Settings.UI.progressBarOutline, capacityFillColor(progress),
+                  this.getText(), new FontOptions(16).color(this.getTextColor()));
+
+            if (this.isHovering()) {
+               GameTooltips tooltips = this.getTooltips();
+               if (tooltips != null) {
+                  GameTooltipManager.addTooltip(tooltips, TooltipLocation.FORM_FOCUS);
+               }
+            }
          }
       });
       this.capacityBar.setTooltip(new LocalMessage("ui", "arcanestorage_capacity_tip"));
@@ -520,6 +622,7 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
             new FormContainerCraftingListContentBox(
                   PADDING, listY, FORM_WIDTH - PADDING * 2, listHeight, client, false, false, false) {
                private final Supplier<Boolean> filterChanged = filter.addMonitor(this);
+               private boolean craftabilityChanged;
 
                @Override
                public Stream<ContainerRecipe> streamAllRecipes() {
@@ -530,12 +633,29 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
                }
 
                @Override
+               public void updateCraftable() {
+                  // The base class recomputes each recipe's canCraft here, but list *membership* is
+                  // fixed at updateRecipes time -- and craftable-only filtering happens there, in
+                  // RecipeFilter.getFilteredRecipes. So when the network's contents changed while
+                  // the tab was open, a recipe that became craftable had no way to reappear: its
+                  // shouldShow is only showHidden || doesShowRecipe, which craftability never
+                  // enters. That is the bug Elias hit. A full rebuild is the honest fix, since the
+                  // filter is what decides membership.
+                  this.craftabilityChanged = true;
+                  super.updateCraftable();
+               }
+
+               @Override
                public void draw(TickManager tickManager, PlayerMob perspective, Rectangle renderBox) {
                   // Polled in draw for the same reason the base class polls its own craftable flag
                   // here: a filter change can arrive from the search box, the checkbox, or the
                   // settings listener, and rebuilding at the point of change would do it repeatedly
-                  // for one keystroke.
-                  if (this.filterChanged.get()) {
+                  // for one keystroke. Coalescing to one rebuild per frame also means a burst of
+                  // inventory updates costs one rebuild rather than one each.
+                  boolean membershipMayHaveChanged = this.craftabilityChanged && filter.craftableOnly();
+                  this.craftabilityChanged = false;
+
+                  if (this.filterChanged.get() || membershipMayHaveChanged) {
                      this.updateRecipes();
                   }
 
@@ -658,6 +778,17 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
     * ambiguous between them. When a filter is hiding something the total is shown alongside, so an
     * empty grid is legible: "0 of 37 kinds" is a filter, "0 kinds" is an empty network.
     */
+   /**
+    * Whether the player is holding something on the cursor.
+    *
+    * <p>Read from the container's own dragging slot rather than from the player's drag inventory,
+    * so the client asks the same question the server will answer when the action arrives.
+    */
+   private boolean isHoldingItem() {
+      ContainerSlot cursor = this.getContainer().getClientDraggingSlot();
+      return cursor != null && !cursor.isClear();
+   }
+
    private void updateSummary(List<InventoryItem> shown) {
       long items = 0L;
       for (InventoryItem item : shown) {

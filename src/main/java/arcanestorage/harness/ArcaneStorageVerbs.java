@@ -63,6 +63,7 @@ public final class ArcaneStorageVerbs {
       Harness.registerVerb(new WithdrawVerb());
       Harness.registerVerb(new DepositVerb());
       Harness.registerVerb(new DepositAllVerb());
+      Harness.registerVerb(new DepositCursorVerb());
       Harness.registerVerb(new BenchVerb());
 
       Harness.registerExpectation(new UnitsExpectation());
@@ -222,6 +223,48 @@ public final class ArcaneStorageVerbs {
 
          context.info("withdrew up to " + amount + " " + itemID
                + (toCursor ? " to the cursor" : " to the inventory"));
+         return true;
+      }
+   }
+
+   /**
+    * {@code depositcursor [amount]} -- puts what the player is holding into the network.
+    *
+    * <p>Exists so the click conventions added for the storage panel are testable without a mouse.
+    * Pair it with {@code withdraw <item> <n> cursor}, which already fills the cursor, and the pair
+    * covers the interesting case: a partial deposit must leave the remainder on the cursor and must
+    * not change how many items exist in total.
+    */
+   private static final class DepositCursorVerb implements TestVerb {
+      public String name() {
+         return "depositcursor";
+      }
+
+      public String usage() {
+         return "depositcursor [amount]  (default: everything held)";
+      }
+
+      public boolean needsPlayer() {
+         return true;
+      }
+
+      public boolean run(TestContext context) {
+         StorageTerminalContainer container = requireTerminalContainer(context, "depositcursor");
+         if (container == null) {
+            return false;
+         }
+
+         int amount = context.argCount() > 1 ? context.intArg(1) : -1;
+
+         // Through the same executePacket the click path uses, for the same reason the withdraw
+         // verb does: a deposit that only works when called in-process is not a working deposit.
+         Packet content = new Packet();
+         PacketWriter writer = new PacketWriter(content);
+         writer.putNextInt(amount);
+         container.depositCursorAction.executePacket(new PacketReader(content));
+         container.markFullDirty();
+
+         context.info("deposited " + (amount <= 0 ? "everything held" : String.valueOf(amount)) + " from the cursor");
          return true;
       }
    }

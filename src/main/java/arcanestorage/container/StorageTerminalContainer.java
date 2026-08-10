@@ -60,6 +60,7 @@ public class StorageTerminalContainer extends Container {
 
    public final StorageTerminalContainer.WithdrawAction withdrawAction;
    public final StorageTerminalContainer.DepositAllAction depositAllAction;
+   public final StorageTerminalContainer.DepositCursorAction depositCursorAction;
 
    /**
     * The units backing {@link #NETWORK_START}..{@link #NETWORK_END}, in the same order the
@@ -97,6 +98,7 @@ public class StorageTerminalContainer extends Container {
 
       this.withdrawAction = this.registerAction(new StorageTerminalContainer.WithdrawAction());
       this.depositAllAction = this.registerAction(new StorageTerminalContainer.DepositAllAction());
+      this.depositCursorAction = this.registerAction(new StorageTerminalContainer.DepositCursorAction());
    }
 
    /** True when no units are linked. The grid is then simply empty. */
@@ -363,6 +365,76 @@ public class StorageTerminalContainer extends Container {
       @Override
       public void executePacket(PacketReader reader) {
          StorageTerminalContainer.this.depositAll();
+      }
+   }
+
+   /**
+    * Puts what the player is holding into the network.
+    *
+    * <p>The cursor is reached through {@link #getClientDraggingSlot()} rather than through the
+    * player's drag inventory, and the move runs here on the server, because a client that edited
+    * its own inventory would be inventing state the server never agreed to. That is the mistake
+    * this project's notes warn about specifically: singleplayer is a real server, so a shortcut
+    * here would work locally and desync in multiplayer.
+    *
+    * <p>Insertion reuses {@link Inventory#addItem}, the same call {@link #depositAll()} uses, so a
+    * deposited stack tops up partial stacks before it takes an empty slot without this having to
+    * know how stacking works.
+    */
+   public class DepositCursorAction extends ContainerCustomAction {
+
+      /**
+       * @param amount how much of the held stack to insert, or a non-positive value for all of it.
+       */
+      public void runAndSend(int amount) {
+         Packet content = new Packet();
+         PacketWriter writer = new PacketWriter(content);
+         writer.putNextInt(amount);
+         this.runAndSendAction(content);
+      }
+
+      @Override
+      public void executePacket(PacketReader reader) {
+         int requestedAmount = reader.getNextInt();
+         ContainerSlot cursor = StorageTerminalContainer.this.getClientDraggingSlot();
+         InventoryItem held = cursor == null ? null : cursor.getItem();
+         if (held == null) {
+            return;
+         }
+
+         // The client asked for an amount; it does not get to ask for more than it holds.
+         int requested = requestedAmount <= 0 ? held.getAmount() : Math.min(requestedAmount, held.getAmount());
+         if (requested <= 0) {
+            return;
+         }
+
+         Level level = StorageTerminalContainer.this.terminal.getLevel();
+         PlayerMob player = StorageTerminalContainer.this.client.playerMob;
+         InventoryItem moving = held.copy(requested);
+
+         for (InventoryRange target : StorageTerminalContainer.this.networkTargets()) {
+            target.inventory.addItem(level, player, moving, target.startSlot, target.endSlot, DEPOSIT_PURPOSE, null);
+            if (moving.getAmount() <= 0) {
+               break;
+            }
+         }
+
+         // addItem decrements what it consumed from the item it was given, so what is left on the
+         // copy is what the network refused -- a full network therefore leaves the cursor untouched
+         // rather than eating the stack.
+         int moved = requested - moving.getAmount();
+         if (moved <= 0) {
+            return;
+         }
+
+         int remaining = held.getAmount() - moved;
+         if (remaining <= 0) {
+            cursor.setItem(null);
+         } else {
+            cursor.setAmount(remaining);
+         }
+
+         cursor.markDirty();
       }
    }
 
