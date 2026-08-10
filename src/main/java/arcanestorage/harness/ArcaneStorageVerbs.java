@@ -64,6 +64,7 @@ public final class ArcaneStorageVerbs {
       Harness.registerVerb(new DepositVerb());
       Harness.registerVerb(new DepositAllVerb());
       Harness.registerVerb(new DepositCursorVerb());
+      Harness.registerVerb(new InstallVerb());
       Harness.registerVerb(new BenchVerb());
 
       Harness.registerExpectation(new UnitsExpectation());
@@ -223,6 +224,46 @@ public final class ArcaneStorageVerbs {
 
          context.info("withdrew up to " + amount + " " + itemID
                + (toCursor ? " to the cursor" : " to the inventory"));
+         return true;
+      }
+   }
+
+   /**
+    * {@code install <item>} -- installs a crafting station into the open terminal.
+    *
+    * <p>Goes through {@code Inventory.addItem}, so the terminal's own {@code isItemValid} decides
+    * whether the item is a station. Refusing is reported as a failure, which is what lets a test
+    * assert that a rock is not a workbench.
+    */
+   private static final class InstallVerb implements TestVerb {
+      public String name() {
+         return "install";
+      }
+
+      public String usage() {
+         return "install <item>";
+      }
+
+      public boolean needsPlayer() {
+         return true;
+      }
+
+      public boolean run(TestContext context) {
+         StorageTerminalContainer container = requireTerminalContainer(context, "install");
+         if (container == null) {
+            return false;
+         }
+
+         StorageTerminalObjectEntity terminal = container.terminal;
+         InventoryItem item = new InventoryItem(context.arg(1), 1);
+         boolean added = terminal.inventory.addItem(terminal.getLevel(), context.client.playerMob, item, "arcanestorageinstall", null);
+         if (!added || item.getAmount() > 0) {
+            context.fail("the terminal refused to install " + context.arg(1));
+            return false;
+         }
+
+         container.markFullDirty();
+         context.info("installed " + context.arg(1));
          return true;
       }
    }

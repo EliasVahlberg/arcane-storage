@@ -16,7 +16,14 @@ import necesse.engine.registries.ContainerRegistry;
 import necesse.entity.mobs.PlayerMob;
 import necesse.inventory.InventoryRange;
 import necesse.inventory.Inventory;
+import necesse.inventory.Inventory;
 import necesse.inventory.InventoryItem;
+import necesse.inventory.recipe.Recipe;
+import necesse.inventory.recipe.Recipes;
+import necesse.inventory.recipe.Tech;
+import necesse.engine.registries.RecipeTechRegistry;
+import java.util.Collection;
+import java.util.LinkedHashSet;
 import necesse.inventory.container.Container;
 import necesse.inventory.container.ContainerActionResult;
 import necesse.inventory.container.ContainerAction;
@@ -48,6 +55,11 @@ public class StorageTerminalContainer extends Container {
    public static final String AGGREGATE_PURPOSE = "arcanestorageaggregate";
 
    /** First container index belonging to a linked unit, or -1 when nothing is linked. */
+   /** First and last slot holding an installed crafting station. Always present, always ten wide. */
+   public final int STATION_START;
+
+   public final int STATION_END;
+
    public int NETWORK_START = -1;
    /** Last container index belonging to a linked unit, or -1 when nothing is linked. */
    public int NETWORK_END = -1;
@@ -69,6 +81,8 @@ public class StorageTerminalContainer extends Container {
     */
    public final List<StorageUnitObjectEntity> linkedUnits;
 
+   private final LinkedHashSet<Inventory> craftPool;
+
    public StorageTerminalContainer(NetworkClient client, int uniqueSeed, StorageTerminalObjectEntity terminal) {
       super(client, uniqueSeed);
       this.terminal = terminal;
@@ -76,6 +90,18 @@ public class StorageTerminalContainer extends Container {
       if (client.isServer()) {
          terminal.startUser(client.playerMob);
       }
+
+      // Station slots come first, and deliberately before the network, so their indices are the same
+      // on both sides no matter what either side thinks the network contains. Slot indices *are*
+      // sent by the client when it moves an item, and network membership is discovered
+      // independently per side, so a station slot placed after the network could resolve to a unit
+      // slot on the server if the two disagreed about unit count.
+      this.STATION_START = this.addSlot(new OEInventoryContainerSlot(terminal, 0));
+      for (int i = 1; i < terminal.inventory.getSize(); i++) {
+         this.addSlot(new OEInventoryContainerSlot(terminal, i));
+      }
+
+      this.STATION_END = this.STATION_START + terminal.inventory.getSize() - 1;
 
       this.linkedUnits = terminal.getLinkedUnits();
 
@@ -95,6 +121,25 @@ public class StorageTerminalContainer extends Container {
       if (this.NETWORK_START != -1) {
          this.addInventoryQuickTransfer(this.NETWORK_START, this.NETWORK_END);
       }
+
+      // Every recipe in the game is registered, not just the installed stations' recipes, because a
+      // recipe ID is an index into this list and applyCraftingAction resolves it by index on both
+      // sides. Registering the installed subset would move every index whenever a bench was
+      // installed, and vanilla's own answer to that problem is to *close* the container
+      // (CraftingStationContainer does exactly that after a station upgrade) -- which would throw
+      // the player out of the interface for the crime of installing a bench.
+      //
+      // With the list fixed for the container's lifetime, installing a bench cannot desync
+      // anything: what changes is which recipes the tab *shows*, and the server refuses the rest in
+      // applyCraftingAction below. The list is never shown in full, so its size is not a UI concern.
+      Recipes.streamRecipes().filter(recipe -> !recipe.matchTech(RecipeTechRegistry.NONE)).forEach(this::addRecipe);
+
+      // Excludes the terminal's own inventory, so an installed bench is not an ingredient. Several
+      // upgrade recipes take the base station as a material, and without this, crafting a Demonic
+      // Workstation would quietly eat the Workstation installed in the terminal. Computed once:
+      // getCraftInventories is called per recipe per craftability check, so it must not allocate.
+      this.craftPool = new LinkedHashSet<>(this.craftInventories);
+      this.craftPool.remove(terminal.inventory);
 
       this.withdrawAction = this.registerAction(new StorageTerminalContainer.WithdrawAction());
       this.depositAllAction = this.registerAction(new StorageTerminalContainer.DepositAllAction());
@@ -160,6 +205,58 @@ public class StorageTerminalContainer extends Container {
       }
 
       return targets;
+   }
+
+   /**
+    * The network and the player, never the station slots.
+    *
+    * <p>{@code Container.addSlot} adds every slot's inventory to the crafting pool, which is how the
+    * network became a crafting source for free -- but it would also make an installed bench an
+    * ingredient.
+    */
+   @Override
+   public Collection<Inventory> getCraftInventories() {
+      return this.craftPool;
+   }
+
+   /**
+    * Refuses recipes whose station is not installed.
+    *
+    * <p>This is the gate that makes registering every recipe safe. The client only ever shows
+    * recipes it believes are available, so a request for anything else is either a stale view or a
+    * crafted packet; both are refused the same way, and the check runs against the server's own
+    * copy of the station slots rather than anything the client sent.
+    */
+   @Override
+   public int applyCraftingAction(int recipeID, int recipeHash, int craftAmount, boolean transferToInventory) {
+      Recipe recipe = this.getRecipe(recipeID);
+      if (recipe != null && !this.isRecipeAvailable(recipe)) {
+         return 0;
+      }
+
+      return super.applyCraftingAction(recipeID, recipeHash, craftAmount, transferToInventory);
+   }
+
+   /**
+    * Whether the terminal can currently build this recipe's kind at all -- a question about
+    * stations, not about materials.
+    *
+    * <p>Hand recipes always qualify: a recipe needing no station needs no permission, and letting
+    * them through is also what keeps the crafting tab from being empty before the first bench is
+    * installed.
+    */
+   public boolean isRecipeAvailable(Recipe recipe) {
+      if (recipe.matchTech(RecipeTechRegistry.NONE)) {
+         return true;
+      }
+
+      for (Tech tech : this.terminal.getInstalledTechs()) {
+         if (recipe.matchTech(tech)) {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    /**

@@ -1,12 +1,19 @@
 package arcanestorage.objectentity;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
 
 import arcanestorage.ArcaneStorage;
 import arcanestorage.network.UnitNetwork;
 import necesse.entity.objectEntity.InventoryObjectEntity;
 import necesse.entity.objectEntity.ObjectEntity;
+import necesse.inventory.recipe.Tech;
+import necesse.inventory.InventoryItem;
+import necesse.inventory.item.placeableItem.objectItem.ObjectItem;
+import necesse.level.gameObject.GameObject;
+import necesse.level.gameObject.container.CraftingStationObject;
 import necesse.level.maps.Level;
 
 /**
@@ -50,6 +57,70 @@ public class StorageTerminalObjectEntity extends InventoryObjectEntity {
     * reach" — reach is now bounded by this rather than by unit count.
     */
    public static final int MAX_CONDUITS = 256;
+
+   /**
+    * How many crafting stations one terminal may hold.
+    *
+    * <p>Ten because that is one row at vanilla's slot pitch, and because the game has eight
+    * station <i>families</i> -- workstation, anvil, carpenter, alchemy, cooking pot, roasting
+    * station, forge, landscaping -- so ten covers every family at once with headroom. Tiers cost
+    * nothing extra: an upgraded bench reports the lower techs as well as its own, so a Demonic
+    * Workstation occupies one slot and answers for both.
+    */
+   public static final int STATION_SLOTS = 10;
+
+   /**
+    * Only crafting stations may be installed, one per slot.
+    *
+    * <p>Asked of the item rather than checked against a list of known benches:
+    * {@link ObjectItem#getObject()} reaches the object, and every station in the game -- 26 of
+    * them -- is a {@link CraftingStationObject}. A modded bench that extends it therefore works
+    * here without this mod knowing it exists.
+    */
+   @Override
+   public boolean isItemValid(int slot, InventoryItem item) {
+      return getCraftingStation(item) != null;
+   }
+
+   /** One bench per slot, so the slots read as an install list rather than as storage. */
+   @Override
+   public int getItemStackLimit(int slot, InventoryItem item) {
+      return 1;
+   }
+
+   /**
+    * The station an item would install, or null if it is not a station at all.
+    */
+   public static CraftingStationObject getCraftingStation(InventoryItem item) {
+      if (item == null || !(item.item instanceof ObjectItem)) {
+         return null;
+      }
+
+      GameObject object = ((ObjectItem) item.item).getObject();
+      return object instanceof CraftingStationObject ? (CraftingStationObject) object : null;
+   }
+
+   /**
+    * The techs the installed stations provide, in slot order.
+    *
+    * <p>Recomputed on each call rather than cached: the set changes whenever a slot does, and a
+    * cache would be one more thing to invalidate for a loop over ten slots. Both sides can call
+    * this and get the same answer, because {@code InventoryObjectEntity} already syncs its
+    * inventory to the client in its content packet -- which is what lets the client show the right
+    * recipes without a packet of our own.
+    */
+   public LinkedHashSet<Tech> getInstalledTechs() {
+      LinkedHashSet<Tech> techs = new LinkedHashSet<>();
+
+      for (int slot = 0; slot < this.inventory.getSize(); slot++) {
+         CraftingStationObject station = getCraftingStation(this.inventory.getItem(slot));
+         if (station != null) {
+            techs.addAll(Arrays.asList(station.getCraftingTechs()));
+         }
+      }
+
+      return techs;
+   }
 
    public StorageTerminalObjectEntity(Level level, int x, int y, int slots) {
       super(level, x, y, slots);

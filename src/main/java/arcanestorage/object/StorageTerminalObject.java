@@ -18,11 +18,15 @@ import necesse.level.maps.Level;
 public class StorageTerminalObject extends StorageBoxInventoryObject {
 
    /**
-    * The terminal stores nothing itself. All capacity is in the linked Storage Units, and
-    * the terminal is purely a window onto them — so breaking one drops no items, and
-    * "the network" is unambiguously the set of units.
+    * The terminal stores no <i>items</i> of its own: all capacity is in the linked Storage Units,
+    * and "the network" is unambiguously the set of units.
+    *
+    * <p>Its slots are crafting station installs instead, which is why this is no longer zero.
+    * Breaking the terminal therefore drops the benches installed in it -- that comes free from the
+    * chest base class, and it is the behaviour a player would expect, since a bench committed to a
+    * terminal should not be destroyed by moving the terminal.
     */
-   public static final int SLOTS = 0;
+   public static final int SLOTS = StorageTerminalObjectEntity.STATION_SLOTS;
 
    public StorageTerminalObject() {
       super(ArcaneStorage.TERMINAL_STRING_ID, SLOTS, new Color(126, 88, 176), "objects", "furniture");

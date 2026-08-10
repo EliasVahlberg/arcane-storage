@@ -317,3 +317,38 @@ craftable-only *do* persist for the session, because they live in vanilla's `Rec
 behaves. So either you were describing the storage tab, or you have not noticed the crafting search
 persisting yet and will dislike it. Worth a deliberate look, because making the two tabs agree is a
 small change in either direction.
+
+## Crafting station installation — the Stations tab, never drawn
+
+Verified headlessly (`tests/python/test_stations.py`, 26 pytest tests total): a Workstation recipe is
+refused with no bench installed and consumes nothing, installing a Workstation makes it craftable
+from network materials, an installed bench is neither network contents nor network capacity, hand
+recipes need no bench, and stone, a pickaxe and a log are all refused installation -- three kinds
+because the check has three ways to be wrong.
+
+None of the interface below has been drawn once. In particular the Stations tab's layout is arithmetic
+I have not seen rendered.
+
+1. Open a terminal. There should now be **three tabs**: Storage, Crafting, Stations.
+2. The Stations tab should show **ten empty slots in one row**, and three sentences explaining them.
+   Check the text is not clipped and the row is not wider than the panel.
+3. Drop a Workstation into a slot. It should go in. Try a stack of stone: the slot should refuse it.
+4. Try to put **two** Workstations in one slot -- it should hold one.
+5. With the terminal still open, switch to Crafting. Workstation recipes should be there **without
+   reopening**; the tab polls the installed set each frame.
+6. The **bench selector** (next to the crafting search) should now offer "Any bench" plus one entry
+   per installed tech. Pick the Workstation entry and the list should narrow to its recipes.
+7. Install a **Demonic Workstation** and the selector should gain **two** entries, because an
+   upgraded bench reports the lower tech as well as its own. Its Workstation recipes should be
+   craftable with only the Demonic Workstation installed -- that is tiering coming free.
+8. Uninstall a bench while the tab is open. Its recipes should vanish, and the selector should fall
+   back to "Any bench" rather than keeping a selection that no longer exists.
+9. **Break the terminal with benches installed.** They should drop -- the chest base class handles it,
+   but this is worth confirming, because losing an installed bench to a pickaxe would be unforgivable.
+10. Confirm the terminal does **not** pick up a bench merely placed next to it. Only installed ones
+    count, by design.
+
+One consequence worth a look: the terminal registers every recipe in the game to keep recipe IDs
+stable, and the player's inventory panel is on screen while the terminal is open. That panel streams
+only NONE-tech recipes, so it should look exactly as it always does -- if it suddenly lists station
+recipes, that is a real bug and I have read `MainGameFormManager:722` wrongly.

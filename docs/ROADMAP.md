@@ -329,7 +329,7 @@ would live.
 - [x] Recipe search against network-wide availability *(code complete, awaiting in-game
       QA)* — `FormContainerCraftingList` already
       carries search, so this arrives with the tab rather than as separate work
-- [ ] Station requirements satisfied by **installing the station into the terminal**
+- [x] Station requirements satisfied by **installing the station into the terminal**
       — **final, Aug 2026.** Not to be reopened without a really good reason. Each
       bench has its own dedicated slot, the slots live on their own tab, and the
       recipes an installed bench holds appear once it is added. The terminal does
@@ -337,12 +337,20 @@ would live.
       bench to, which makes the terminal's capabilities visible instead of depending
       on what happens to sit within an invisible radius, and gives that access a real
       cost. Deliberately *not* vanilla's proximity rule
-- [ ] **A recipe selector by source bench**, the same shape as the category picker but
-      keyed on which installed station a recipe comes from
-- [ ] **A show-all-recipes toggle**, so the list can be everything or only what the
-      network can currently build. Reuses vanilla's own `filteronlycraftable` setting
-      rather than adding a private one, so the choice carries between a vanilla bench
-      and the terminal. Magic Storage ships the same option defaulted to only-craftable
+- [x] **A recipe selector by source bench** *(code complete, awaiting in-game QA)* —
+      keyed on `Tech` rather than on the bench item, because that is what a recipe carries,
+      and it makes tiering read correctly: a Demonic Workstation installs two techs and so
+      offers two entries
+- [x] **A show-all-recipes toggle**, so the list can be everything or only what the
+      network can currently build. Uses vanilla's `filteronlycraftable` *label* but its own
+      transient state: an earlier version shared vanilla's `craftingListOnlyCraftable`
+      setting so the choice would carry between a bench and the terminal, and that was
+      reversed on Elias's instruction (Aug 2026). Two reasons, both good: the storage tab
+      already forgets its search and category on close, so a crafting tab that remembered
+      them would be inconsistent inside one interface; and sharing meant the terminal wrote
+      a preference belonging to benches. **Defaults to show-all**, unlike Magic Storage,
+      because a list narrowed to what the network can build is indistinguishable from a tab
+      that does not work yet — which is exactly what a player sees before their first bench
 
 **The crafting pool is the network and nothing else.** No nearby chests, ever. Vanilla's
 "use nearby inventories" would undermine the entire point of a self-contained system, and
@@ -373,12 +381,22 @@ needs no research when it starts:
   `streamAllRecipes()`, and computes per-recipe can-craft state against the container's craft
   inventories itself.
 
-**The one real constraint to respect:** recipe IDs are indices into the container's own list
-and `applyCraftingAction` resolves them by index on both sides, so client and server must
-build the same list. The installed set therefore has to come from the terminal's persisted
-state, and installing a bench while the terminal is open has to rebuild both lists rather
-than let them drift. Vanilla changes recipes under an open container when a station upgrades,
-so there is a pattern to follow
+**How the index constraint was resolved, Aug 2026.** Recipe IDs are indices into the
+container's own list and `applyCraftingAction` resolves them by index on both sides. Vanilla's
+own answer to a recipe list that changes under an open container is to **close** it —
+`CraftingStationContainer` closes after a station upgrade — which would have thrown the player
+out of the interface for installing a bench.
+
+Instead the container registers **every** recipe in the game once, so the list is fixed for the
+container's lifetime and installing a bench cannot desync anything. What changes is which
+recipes the tab *shows*, and `applyCraftingAction` is overridden to refuse recipes whose station
+is not installed, checked against the server's own copy of the station slots. Two supporting
+facts made this safe: the player's inventory crafting panel streams only
+`RecipeTechRegistry.NONE` (`MainGameFormManager:722`), so the extra registrations cannot leak
+into it; and the terminal's own inventory is dropped from the craft pool, because
+`Container.addSlot` adds every slot's inventory to it and an installed bench must not be a
+material. Verified headlessly: `tests/python/test_stations.py`, 5 tests including a refused
+station recipe that consumes nothing, and three kinds of non-station being refused installation
 
 **Be honest about what is new here.** Necesse already lets a crafting station
 consume from nearby containers — it is a player-facing per-station checkbox with a

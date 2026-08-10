@@ -15,6 +15,8 @@ import necesse.gfx.gameTooltips.GameTooltipManager;
 import necesse.gfx.gameTooltips.GameTooltips;
 import necesse.gfx.gameTooltips.TooltipLocation;
 import necesse.inventory.container.slots.ContainerSlot;
+import necesse.gfx.forms.components.containerSlot.FormContainerSlot;
+import necesse.inventory.recipe.Tech;
 import necesse.engine.localization.Localization;
 import necesse.engine.localization.message.GameMessage;
 import necesse.engine.localization.message.LocalMessage;
@@ -136,6 +138,13 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
    private static final int PADDING = 4;
    private static final int SEARCH_WIDTH = 220;
 
+   /** Vanilla's slot pitch: FormContainerSlot draws 32px of slot with a 40px stride. */
+   private static final int SLOT_PITCH = 40;
+
+   private static final int BENCH_MENU_X = 200;
+
+   private static final int BENCH_MENU_WIDTH = 170;
+
    private static final int CAPACITY_BAR_WIDTH = 180;
 
    /**
@@ -198,6 +207,8 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
    public final FormTextInput searchInput;
    public final TabbedFormPreset tabs;
    public final Form craftingForm;
+
+   public final Form stationsForm;
    public final FormProgressBarText capacityBar;
    public final FormLabel summaryLabel;
    public FormContentIconButton sortButton;
@@ -557,6 +568,7 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
       }
 
       this.craftingForm = this.buildCraftingTab(client, container);
+      this.stationsForm = this.buildStationsTab(client, container);
       this.makeCurrent(this.tabs);
 
       // Primed here because refreshList() reads it, and the first draw has not happened yet.
@@ -567,6 +579,55 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
       // null from construction until the first updateList — and input events are handled
       // earlier in the frame than any draw, so a click on the first frame would hit null.
       this.refreshList();
+   }
+
+   /**
+    * Refills the bench selector from the installed stations.
+    *
+    * <p>Resets the selection to "any bench" whenever the set changes, rather than trying to keep a
+    * selection that may refer to a bench that has just been removed. A selector pointing at a bench
+    * that is no longer installed would show an empty list and look broken.
+    */
+   private static void rebuildBenchOptions(FormDropdownSelectionButton<Tech> button, List<Tech> installed) {
+      button.options.clear();
+      button.options.add(null, new LocalMessage("ui", "arcanestorage_bench_all"));
+
+      for (Tech tech : installed) {
+         button.options.add(tech, tech.displayName);
+      }
+
+      button.setSelected(null, new LocalMessage("ui", "arcanestorage_bench_all"));
+   }
+
+   /**
+    * The stations tab: ten slots, and an explanation.
+    *
+    * <p>Plain container slots, so installing a bench is dragging an item into a slot -- the same
+    * gesture as any other inventory in the game, with the engine moving the item and the terminal's
+    * own {@code isItemValid} refusing anything that is not a station. Nothing here validates
+    * anything, which is the point: a slot that rejects the wrong item without a special case cannot
+    * disagree with the server about what is installed.
+    */
+   private Form buildStationsTab(Client client, T container) {
+      Form form = this.tabs.addLocalizedTab(new LocalMessage("ui", "arcanestorage_tab_stations"), null);
+
+      FormFlow flow = new FormFlow(PADDING);
+      int headerY = flow.next(FormInputSize.SIZE_24.height + PADDING);
+      form.addComponent(new FormLocalLabel("ui", "arcanestorage_tab_stations", new FontOptions(20), -1,
+            PADDING, headerY + 4, FORM_WIDTH - PADDING * 2));
+
+      int slotsY = flow.next(SLOT_PITCH + PADDING);
+      for (int i = 0; i < container.terminal.inventory.getSize(); i++) {
+         form.addComponent(new FormContainerSlot(client, container, container.STATION_START + i,
+               PADDING + i * SLOT_PITCH, slotsY));
+      }
+
+      // Wrapped over the width of the form rather than sized to the text, because the explanation is
+      // three sentences and the tab is otherwise empty -- there is no layout pressure to save space.
+      form.addComponent(new FormLocalLabel("ui", "arcanestorage_stations_help", new FontOptions(16), -1,
+            PADDING, flow.next(64), FORM_WIDTH - PADDING * 2));
+
+      return form;
    }
 
    /**
@@ -583,10 +644,10 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
     * {@code getFilteredRecipes} evaluating craftability against the container's own inventories.
     * Writing a filter here would have duplicated it and diverged from how a bench behaves.
     *
-    * <p>Recipes are streamed with {@link RecipeTechRegistry#ALL}, which {@code Recipe.matchTech}
-    * treats as matching everything. So the tab shows whatever the container has registered and
-    * needs no knowledge of which stations are installed -- when bench installation lands, its
-    * recipes appear here because they were registered, not because this method changed.
+    * <p>Recipes are streamed with {@link RecipeTechRegistry#ALL} and then narrowed to what the
+    * installed stations allow, because the container registers every recipe in the game to keep
+    * recipe IDs stable -- see {@code StorageTerminalContainer.applyCraftingAction}, which refuses
+    * the rest server-side. So this list is a view, and the server is the authority.
     */
    private Form buildCraftingTab(Client client, T container) {
       Form form = this.tabs.addLocalizedTab(new LocalMessage("ui", "arcanestorage_tab_crafting"), null);
@@ -614,6 +675,18 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
       search.rightClickToClear = true;
       search.onChange(event -> filter.setSearchFilter(search.getText()));
 
+      // The same shape as the storage tab's category picker, keyed on the installed station a recipe
+      // comes from. Its options are the installed techs, so an empty terminal offers only "any
+      // bench" and the control is honest about having nothing to choose between.
+      //
+      // Keyed on Tech rather than on the bench item, because that is what a recipe carries. It also
+      // makes tiering read correctly: a Demonic Workstation installs two techs and so contributes
+      // two entries, which is exactly the distinction a player wants when hunting for a recipe.
+      FormDropdownSelectionButton<Tech> benchButton = form.addComponent(
+            new FormDropdownSelectionButton<>(BENCH_MENU_X, headerY + 2, FormInputSize.SIZE_20,
+                  ButtonColor.BASE, BENCH_MENU_WIDTH));
+      benchButton.setSelected(null, new LocalMessage("ui", "arcanestorage_bench_all"));
+
       // Sits over the top of the list area rather than in the flow, because it is only ever visible
       // when the list is empty -- and an empty list leaves that space blank anyway.
       FormLabel emptyHint = form.addComponent(
@@ -628,11 +701,15 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
                   PADDING, listY, FORM_WIDTH - PADDING * 2, listHeight, client, false, false, false) {
                private final Supplier<Boolean> filterChanged = filter.addMonitor(this);
                private boolean craftabilityChanged;
+               private List<Tech> knownBenches;
 
                @Override
                public Stream<ContainerRecipe> streamAllRecipes() {
-                  List<ContainerRecipe> registered =
-                        container.streamRecipes(RecipeTechRegistry.ALL).collect(Collectors.toList());
+                  Tech bench = benchButton.getSelected();
+                  List<ContainerRecipe> registered = container.streamRecipes(RecipeTechRegistry.ALL)
+                        .filter(cr -> container.isRecipeAvailable(cr.recipe))
+                        .filter(cr -> bench == null || cr.recipe.matchTech(bench))
+                        .collect(Collectors.toList());
                   List<ContainerRecipe> shown = filter.getFilteredRecipes(registered, container);
 
                   // An empty crafting list is ambiguous in a way an empty storage grid is not: it
@@ -641,6 +718,8 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
                   if (!shown.isEmpty()) {
                      emptyHint.setText("");
                   } else if (registered.isEmpty()) {
+                     // Reachable by selecting a bench and then uninstalling it, and -- once modded
+                     // stations exist -- by a bench whose recipes are all hidden.
                      emptyHint.setText(Localization.translate("ui", "arcanestorage_no_recipes"));
                   } else {
                      emptyHint.setText(Localization.translate("ui", "arcanestorage_no_recipes_shown",
@@ -672,6 +751,19 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
                   // inventory updates costs one rebuild rather than one each.
                   boolean membershipMayHaveChanged = this.craftabilityChanged && filter.craftableOnly();
                   this.craftabilityChanged = false;
+
+                  // Polled rather than pushed. The obvious alternative -- a listener on the
+                  // terminal's inventory -- would have to be unregistered when the form is disposed,
+                  // and installing a bench is not a hot path: this is ten slot reads per frame
+                  // against a list that is almost always identical. The container's own dirty-check
+                  // cannot help here, because the station slots are deliberately kept out of the
+                  // crafting pool.
+                  List<Tech> installed = new ArrayList<>(container.terminal.getInstalledTechs());
+                  if (!installed.equals(this.knownBenches)) {
+                     this.knownBenches = installed;
+                     rebuildBenchOptions(benchButton, installed);
+                     this.updateRecipes();
+                  }
 
                   if (this.filterChanged.get() || membershipMayHaveChanged) {
                      this.updateRecipes();
