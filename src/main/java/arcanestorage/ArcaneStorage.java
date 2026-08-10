@@ -51,6 +51,19 @@ public class ArcaneStorage {
     */
    public static int TERMINAL_CONTAINER = -1;
 
+   /**
+    * The mod's client settings, handed to the loader from {@link #initSettings()} and persisted by
+    * the game. Static because the UI reads it and there is exactly one.
+    */
+   public static ArcaneStorageSettings SETTINGS = new ArcaneStorageSettings();
+
+   /**
+    * Called by name by the mod loader, which then saves and loads what is returned.
+    */
+   public ArcaneStorageSettings initSettings() {
+      return SETTINGS;
+   }
+
    public void init() {
       ObjectRegistry.registerObject(TERMINAL_STRING_ID, new StorageTerminalObject(), 10.0F, true);
       ObjectRegistry.registerObject(UNIT_STRING_ID, new StorageUnitObject(), 10.0F, true);

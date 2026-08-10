@@ -17,6 +17,17 @@ import necesse.gfx.gameTooltips.TooltipLocation;
 import necesse.inventory.container.slots.ContainerSlot;
 import necesse.gfx.forms.components.containerSlot.FormContainerSlot;
 import necesse.inventory.recipe.Tech;
+import java.util.HashSet;
+import java.util.Set;
+import necesse.gfx.forms.components.FormCheckBox;
+import necesse.gfx.forms.components.FormContentBox;
+import necesse.gfx.forms.components.FormContainerRecipe;
+import necesse.inventory.recipe.CanCraft;
+import arcanestorage.ArcaneStorage;
+import necesse.gfx.forms.components.FormTextButton;
+import necesse.engine.ItemCategoryExpandedSetting;
+import java.util.LinkedHashMap;
+import necesse.engine.window.WindowManager;
 import necesse.engine.localization.Localization;
 import necesse.engine.localization.message.GameMessage;
 import necesse.engine.localization.message.LocalMessage;
@@ -141,9 +152,18 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
    /** Vanilla's slot pitch: FormContainerSlot draws 32px of slot with a 40px stride. */
    private static final int SLOT_PITCH = 40;
 
-   private static final int BENCH_MENU_X = 200;
+   /** Two rows of source tickboxes, which is what fits above the recipe list without crowding it. */
+   private static final int BENCH_STRIP_HEIGHT = 48;
 
-   private static final int BENCH_MENU_WIDTH = 170;
+   private static final int BENCH_PANEL_WIDTH = 106;
+
+   private static final int BENCH_PANEL_HEIGHT = 24;
+
+   /** 32px recipe icon plus 2px padding either side, matching the base class's own arithmetic. */
+   private static final int RECIPE_ELEMENT_SIZE = 36;
+
+   /** Vanilla's crafting bench depth, so sections here are as broad as a bench's. */
+   private static final int CRAFTING_CATEGORY_DEPTH = 1;
 
    private static final int CAPACITY_BAR_WIDTH = 180;
 
@@ -209,6 +229,16 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
    public final Form craftingForm;
 
    public final Form stationsForm;
+
+   /**
+    * Sources the player has unticked. Transient by the same reasoning as the search and the
+    * craftable-only toggle: the interface forgets its filters when it closes.
+    */
+   private final Set<Tech> hiddenBenches = new HashSet<>();
+
+   private final List<Form> benchPanels = new ArrayList<>();
+
+   private boolean benchesChanged;
    public final FormProgressBarText capacityBar;
    public final FormLabel summaryLabel;
    public FormContentIconButton sortButton;
@@ -582,21 +612,71 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
    }
 
    /**
-    * Refills the bench selector from the installed stations.
+    * Which section a recipe belongs in, by vanilla's own rule.
     *
-    * <p>Resets the selection to "any bench" whenever the set changes, rather than trying to keep a
-    * selection that may refer to a bench that has just been removed. A selector pointing at a bench
-    * that is no longer installed would show an empty list and look broken.
+    * <p>A recipe may name its own crafting category; otherwise the category comes from the result
+    * item and is walked up to the depth a crafting bench uses. Depth 1 is what
+    * {@code CraftingStationObject.getCraftingCategoryDepth} returns, so the terminal's sections are
+    * the same breadth a bench's are -- a deeper cut would give a section per handful of recipes.
     */
-   private static void rebuildBenchOptions(FormDropdownSelectionButton<Tech> button, List<Tech> installed) {
-      button.options.clear();
-      button.options.add(null, new LocalMessage("ui", "arcanestorage_bench_all"));
-
-      for (Tech tech : installed) {
-         button.options.add(tech, tech.displayName);
+   private static ItemCategory craftingCategoryOf(ContainerRecipe recipe) {
+      ItemCategory category = recipe.recipe.getCraftingCategory();
+      if (category != null) {
+         return category;
       }
 
-      button.setSelected(null, new LocalMessage("ui", "arcanestorage_bench_all"));
+      category = ItemCategory.craftingManager.getItemsCategory(recipe.recipe.resultItem.item);
+      while (category != null && category.parent != null && category.depth > CRAFTING_CATEGORY_DEPTH) {
+         category = category.parent;
+      }
+
+      return category;
+   }
+
+   /**
+    * Rebuilds the source tickboxes from the installed stations.
+    *
+    * <p>Sources are {@code Tech}s rather than bench items, because that is what a recipe carries, and
+    * it makes tiering read correctly: a Demonic Workstation installs two techs and so contributes two
+    * tickboxes, which is the distinction a player wants when hunting for a recipe. Hand recipes get a
+    * box like any other, labelled with the game's own name for that tech -- "Inventory" -- so nothing
+    * here special-cases them.
+    *
+    * <p>New sources arrive ticked. Anything the player unticked stays unticked, so installing a
+    * second bench does not quietly undo a choice they made about the first.
+    */
+   private void rebuildBenchStrip(FormContentBox box, List<Tech> sources) {
+      for (Form panel : this.benchPanels) {
+         box.removeComponent(panel);
+      }
+
+      this.benchPanels.clear();
+      this.hiddenBenches.retainAll(sources);
+
+      int columns = Math.max(1, (box.getWidth() - box.getScrollBarWidth()) / BENCH_PANEL_WIDTH);
+      int rows = (sources.size() + columns - 1) / columns;
+
+      for (int i = 0; i < sources.size(); i++) {
+         Tech source = sources.get(i);
+         Form panel = box.addComponent(new Form(BENCH_PANEL_WIDTH - 2, BENCH_PANEL_HEIGHT - 2));
+         panel.setPosition(i % columns * BENCH_PANEL_WIDTH, i / columns * BENCH_PANEL_HEIGHT);
+
+         FormCheckBox tick = panel.addComponent(new FormCheckBox(source.displayName.translate(), 4, 3,
+               BENCH_PANEL_WIDTH - 28, !this.hiddenBenches.contains(source)));
+         tick.onClicked(event -> {
+            if (event.from.checked) {
+               this.hiddenBenches.remove(source);
+            } else {
+               this.hiddenBenches.add(source);
+            }
+
+            this.benchesChanged = true;
+         });
+
+         this.benchPanels.add(panel);
+      }
+
+      box.setContentBox(new Rectangle(box.getWidth() - box.getScrollBarWidth(), rows * BENCH_PANEL_HEIGHT));
    }
 
    /**
@@ -675,17 +755,29 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
       search.rightClickToClear = true;
       search.onChange(event -> filter.setSearchFilter(search.getText()));
 
-      // The same shape as the storage tab's category picker, keyed on the installed station a recipe
-      // comes from. Its options are the installed techs, so an empty terminal offers only "any
-      // bench" and the control is honest about having nothing to choose between.
+      // One tickbox per source, all on, in a strip above the list -- Elias's design, replacing a
+      // dropdown I had put here first. Two reasons it is better: several benches can be shown at
+      // once, which a single-select dropdown cannot express, and every source is visible without
+      // opening a menu, so the strip doubles as "what can this terminal build from".
       //
-      // Keyed on Tech rather than on the bench item, because that is what a recipe carries. It also
-      // makes tiering read correctly: a Demonic Workstation installs two techs and so contributes
-      // two entries, which is exactly the distinction a player wants when hunting for a recipe.
-      FormDropdownSelectionButton<Tech> benchButton = form.addComponent(
-            new FormDropdownSelectionButton<>(BENCH_MENU_X, headerY + 2, FormInputSize.SIZE_20,
-                  ButtonColor.BASE, BENCH_MENU_WIDTH));
-      benchButton.setSelected(null, new LocalMessage("ui", "arcanestorage_bench_all"));
+      // In a scrolling box because the count is not bounded by the ten slots: an upgraded bench
+      // reports the lower techs too, so ten benches can be twenty-odd sources.
+      // Session-scoped, exactly like vanilla's: Settings keeps these in a map that is never written
+      // to the settings file, so which sections a player left open survives reopening the terminal
+      // and not restarting the game. Keyed on our own string ID so it cannot collide with a bench's.
+      ItemCategoryExpandedSetting expanded = Settings.getItemCategoryExpandedSetting(
+            ArcaneStorage.TERMINAL_STRING_ID + "crafting", ItemCategory.craftingMasterCategory, true);
+
+      FormContentBox benchBox = form.addComponent(
+            new FormContentBox(PADDING, flow.next(BENCH_STRIP_HEIGHT + PADDING), FORM_WIDTH - PADDING * 2,
+                  BENCH_STRIP_HEIGHT));
+
+      // Filled here as well as from draw, because input is handled earlier in the frame than any
+      // draw: a strip built lazily would be unclickable on the frame it appeared.
+      List<Tech> initialSources = new ArrayList<>();
+      initialSources.add(RecipeTechRegistry.NONE);
+      initialSources.addAll(container.terminal.getInstalledTechs());
+      this.rebuildBenchStrip(benchBox, initialSources);
 
       // Sits over the top of the list area rather than in the flow, because it is only ever visible
       // when the list is empty -- and an empty list leaves that space blank anyway.
@@ -696,7 +788,7 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
       int listY = flow.next(0);
       int listHeight = FORM_HEIGHT - listY - controlHeight - PADDING;
 
-      form.addComponent(
+      FormContainerCraftingListContentBox craftingList = form.addComponent(
             new FormContainerCraftingListContentBox(
                   PADDING, listY, FORM_WIDTH - PADDING * 2, listHeight, client, false, false, false) {
                private final Supplier<Boolean> filterChanged = filter.addMonitor(this);
@@ -705,10 +797,9 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
 
                @Override
                public Stream<ContainerRecipe> streamAllRecipes() {
-                  Tech bench = benchButton.getSelected();
                   List<ContainerRecipe> registered = container.streamRecipes(RecipeTechRegistry.ALL)
                         .filter(cr -> container.isRecipeAvailable(cr.recipe))
-                        .filter(cr -> bench == null || cr.recipe.matchTech(bench))
+                        .filter(cr -> !StorageTerminalContainerForm.this.hiddenBenches.contains(cr.recipe.tech))
                         .collect(Collectors.toList());
                   List<ContainerRecipe> shown = filter.getFilteredRecipes(registered, container);
 
@@ -758,10 +849,18 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
                   // against a list that is almost always identical. The container's own dirty-check
                   // cannot help here, because the station slots are deliberately kept out of the
                   // crafting pool.
-                  List<Tech> installed = new ArrayList<>(container.terminal.getInstalledTechs());
-                  if (!installed.equals(this.knownBenches)) {
-                     this.knownBenches = installed;
-                     rebuildBenchOptions(benchButton, installed);
+                  List<Tech> sources = new ArrayList<>();
+                  sources.add(RecipeTechRegistry.NONE);
+                  sources.addAll(container.terminal.getInstalledTechs());
+
+                  if (!sources.equals(this.knownBenches)) {
+                     this.knownBenches = sources;
+                     StorageTerminalContainerForm.this.rebuildBenchStrip(benchBox, sources);
+                     this.updateRecipes();
+                  }
+
+                  if (StorageTerminalContainerForm.this.benchesChanged) {
+                     StorageTerminalContainerForm.this.benchesChanged = false;
                      this.updateRecipes();
                   }
 
@@ -770,6 +869,100 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
                   }
 
                   super.draw(tickManager, perspective, renderBox);
+               }
+
+               /**
+                * Lays the recipes out in collapsible category sections, the way a vanilla bench does.
+                *
+                * <p>Overriding {@code updateList} and nothing else is what makes this affordable.
+                * Vanilla's own categorised view lives in {@code CraftingStationContainerForm}'s
+                * {@code protected} inner classes, which cannot be instantiated from here -- but the
+                * valuable part is not the layout, it is {@link FormContainerRecipe}: can-craft state,
+                * the per-ingredient have/missing tooltip, the "3 of 5" count and click-to-craft. Those
+                * components are built exactly as the base class builds them, including the canCraft
+                * override, so everything above the positions is unchanged and
+                * {@code forceUpdateCraftable} keeps working on the list this leaves behind.
+                */
+               @Override
+               public void updateList() {
+                  if (!ArcaneStorage.SETTINGS.groupCraftingByCategory) {
+                     super.updateList();
+                     return;
+                  }
+
+                  this.clearComponents();
+                  Container c = client.getContainer();
+                  this.recipeComponents = new ArrayList<>();
+
+                  LinkedHashMap<ItemCategory, List<CraftableRecipe>> byCategory = new LinkedHashMap<>();
+                  List<CraftableRecipe> shownRecipes = new ArrayList<>();
+                  for (CraftableRecipe cr : this.allRecipes) {
+                     if (cr.shouldShow) {
+                        shownRecipes.add(cr);
+                     }
+                  }
+
+                  // Sorted so sections keep a stable order between rebuilds; ItemCategory's own
+                  // ordering is what the creative menu and the crafting benches use.
+                  List<ItemCategory> ordered = new ArrayList<>();
+                  for (CraftableRecipe cr : shownRecipes) {
+                     ItemCategory category = craftingCategoryOf(cr.recipe);
+                     if (!byCategory.containsKey(category)) {
+                        byCategory.put(category, new ArrayList<>());
+                        ordered.add(category);
+                     }
+
+                     byCategory.get(category).add(cr);
+                  }
+
+                  ordered.sort(null);
+
+                  int availableWidth = this.getWidth() - this.getScrollBarWidth();
+                  int elementWidth = RECIPE_ELEMENT_SIZE;
+                  int perRow = Math.max(1, availableWidth / elementWidth);
+                  int y = 0;
+
+                  for (ItemCategory category : ordered) {
+                     List<CraftableRecipe> recipes = byCategory.get(category);
+                     ItemCategoryExpandedSetting setting = expanded.getChild(category);
+                     boolean isExpanded = setting == null || setting.isExpanded();
+
+                     // The header carries the count, so a collapsed section still says how much is
+                     // inside -- otherwise collapsing hides the information you collapsed to find.
+                     FormTextButton header = this.addComponent(new FormTextButton(
+                           (isExpanded ? "- " : "+ ") + category.displayName.translate() + "  (" + recipes.size() + ")",
+                           0, y, availableWidth, FormInputSize.SIZE_20, ButtonColor.BASE));
+                     header.onClicked(event -> {
+                        if (setting != null) {
+                           setting.setExpanded(!setting.isExpanded());
+                        }
+
+                        this.updateList();
+                     });
+
+                     y += FormInputSize.SIZE_20.height + 2;
+                     if (!isExpanded) {
+                        continue;
+                     }
+
+                     for (int i = 0; i < recipes.size(); i++) {
+                        CraftableRecipe cr = recipes.get(i);
+                        FormContainerRecipe comp = this.addComponent(
+                              new FormContainerRecipe(client, c, cr.recipe, 0, 0) {
+                                 @Override
+                                 public CanCraft getCanCraft() {
+                                    return cr.canCraft;
+                                 }
+                              });
+                        comp.setPosition(i % perRow * elementWidth + 2, y + i / perRow * elementWidth);
+                        this.recipeComponents.add(comp);
+                     }
+
+                     y += (recipes.size() + perRow - 1) / perRow * elementWidth + 4;
+                  }
+
+                  this.setContentBox(new Rectangle(this.getWidth(), y));
+                  WindowManager.getWindow().submitNextMoveEvent();
                }
             });
 
@@ -783,6 +976,20 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
             new FormLocalCheckBox("ui", "filteronlycraftable", PADDING, FORM_HEIGHT - 16 - PADDING, false),
             100);
       onlyCraftable.onClicked(event -> filter.setCraftableOnly(event.from.checked));
+
+      // This one *does* persist, unlike the filters, because it is a preference about how the
+      // interface looks rather than a filter over what it shows -- you set it once and expect it to
+      // stay. It goes through the engine's own mod settings file; saveClientSettings writes mod
+      // settings too.
+      FormLocalCheckBox groupByCategory = form.addComponent(
+            new FormLocalCheckBox("ui", "arcanestorage_group_by_category", PADDING + 170,
+                  FORM_HEIGHT - 16 - PADDING, ArcaneStorage.SETTINGS.groupCraftingByCategory),
+            100);
+      groupByCategory.onClicked(event -> {
+         ArcaneStorage.SETTINGS.groupCraftingByCategory = event.from.checked;
+         Settings.saveClientSettings();
+         craftingList.updateList();
+      });
 
       return form;
    }

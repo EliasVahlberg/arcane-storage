@@ -352,3 +352,43 @@ One consequence worth a look: the terminal registers every recipe in the game to
 stable, and the player's inventory panel is on screen while the terminal is open. That panel streams
 only NONE-tech recipes, so it should look exactly as it always does -- if it suddenly lists station
 recipes, that is a real bug and I have read `MainGameFormManager:722` wrongly.
+
+## Round three — your station QA, August 2026
+
+Confirmed by you in game: station detection picks out the real workbenches, and their recipes display
+correctly. Two changes from that pass, plus one correction of mine.
+
+**The bench dropdown did not filter, and I have deleted it.** Not a design mismatch -- a bug. I read
+the selection when building the list but never rebuilt the list when the selection changed, so it
+could only ever have worked by accident. Replaced by your design, which is better for a reason beyond
+the bug: a dropdown is single-select, so it cannot express "show me these two benches".
+
+### Needs your eyes
+
+1. **A tickbox per source above the recipe list**, all ticked, each in its own small panel. Sources
+   are techs rather than benches, so an upgraded bench contributes two -- and hand recipes get a box
+   like any other, labelled "Inventory", which is the game's own name for that tech.
+2. Untick one and its recipes should vanish; retick and they return. Install a bench with a box
+   unticked and your choice should survive -- new sources arrive ticked, existing ones keep their
+   state.
+3. The strip is a **scrolling box two rows tall**, because ten upgraded benches can be twenty-odd
+   sources. Check it scrolls rather than clipping, and that panel width (106px, six per row) does not
+   cut off "Demonic Workstation".
+4. **Recipes are now grouped into collapsible category sections by default**, as at a bench. Headers
+   show the section name and how many recipes are inside, so a collapsed section still tells you what
+   it is hiding. Click to collapse and expand.
+5. **"Group by category" unticks to the old flat grid.** This one *does* persist across restarts,
+   unlike the filters, because it is a preference about how the interface looks rather than a filter
+   over what it shows. It goes in the mod's own settings file through the engine's `ModSettings`,
+   which the loader saves and loads -- so also worth checking it survives a game restart.
+6. Which sections you left open persists for the session but **not** across a restart. That is
+   deliberate: vanilla keeps its own expansion state in a map it never writes to disk, so a bench
+   behaves the same way.
+7. Section breadth is depth 1, the same depth a vanilla bench uses. If it feels too coarse or too
+   fine, that is one constant.
+
+Not verified by me at all: every item above is arithmetic and layout I have never seen drawn. The
+underlying recipe components are vanilla's own -- can-craft state, the have/missing tooltip, the "3 of
+5" count and click-to-craft all come from `FormContainerRecipe`, which the grouped view builds exactly
+as the flat one does. So if a recipe *entry* misbehaves in grouped mode but not flat, that is a real
+surprise and worth telling me.
