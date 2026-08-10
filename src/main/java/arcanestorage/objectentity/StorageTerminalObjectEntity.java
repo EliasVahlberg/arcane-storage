@@ -14,6 +14,7 @@ import necesse.inventory.InventoryItem;
 import necesse.inventory.item.placeableItem.objectItem.ObjectItem;
 import necesse.level.gameObject.GameObject;
 import necesse.level.gameObject.container.CraftingStationObject;
+import necesse.level.gameObject.container.FueledCraftingStationObject;
 import necesse.level.maps.Level;
 
 /**
@@ -79,7 +80,26 @@ public class StorageTerminalObjectEntity extends InventoryObjectEntity {
     */
    @Override
    public boolean isItemValid(int slot, InventoryItem item) {
-      return getCraftingStation(item) != null;
+      CraftingStationObject station = getCraftingStation(item);
+      return station != null && !isFueled(station);
+   }
+
+   /**
+    * Whether a station burns fuel, and so cannot honestly be installed yet.
+    *
+    * <p>This closes a hole rather than expressing a preference. Fuel is enforced by
+    * {@code FueledCraftingStationContainer.applyCraftingAction}, which checks {@code isFueled()} and
+    * refuses when the station is cold -- it is behaviour of the *container*, not of the object. A
+    * terminal that installs a Forge inherits its techs and none of that, so smelting would cost no
+    * fuel at all. Verified in the source Aug 2026: {@code FueledCraftingStationObject extends
+    * CraftingStationObject}, and it is the only container in the game that gates crafting, so this
+    * check is exactly as broad as the problem -- Forge, Cooking Station and the campfire addon.
+    *
+    * <p>This is also the seam where production stations belong when they are done properly: fuel,
+    * crafting time and a request queue are a feature, not a slot. See the roadmap.
+    */
+   public static boolean isFueled(CraftingStationObject station) {
+      return station instanceof FueledCraftingStationObject;
    }
 
    /** One bench per slot, so the slots read as an install list rather than as storage. */

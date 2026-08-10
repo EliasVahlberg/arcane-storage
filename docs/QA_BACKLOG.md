@@ -392,3 +392,23 @@ underlying recipe components are vanilla's own -- can-craft state, the have/miss
 5" count and click-to-craft all come from `FormContainerRecipe`, which the grouped view builds exactly
 as the flat one does. So if a recipe *entry* misbehaves in grouped mode but not flat, that is a real
 surprise and worth telling me.
+
+### Round three results, and what changed after them
+
+Your pass: the source tickboxes work, **text overflows the little panels**, and "group by
+category" persists. Both filters and the grouping confirmed.
+
+**Overflow fixed, and the cause was not what it looked like.** `FormCheckBox.setText` *wraps*
+at its max width rather than truncating, so at 106px "Demonic Workstation" became two lines
+inside a 24px panel. Panels are now 156×32 — four per row instead of six — so common names fit
+one line and the few long ones ("Caveglow Alchemy Table") wrap into a panel tall enough to hold
+two. Truncating with an ellipsis was the alternative and was rejected: the station's name is the
+entire content of the control. The strip grew from 48px to 66px, taking half a row from the
+recipe list.
+
+**A hole I shipped and then closed the same evening.** A Forge could be installed, and would
+have smelted for free: `FueledCraftingStationObject extends CraftingStationObject`, so it passed
+the station check, but fuel is enforced in `FueledCraftingStationContainer.applyCraftingAction`,
+which the terminal does not inherit. Fueled stations are now refused, the Stations tab help text
+says so, and three tests cover it (29 passing). Worth confirming in game that trying to install
+a Forge simply refuses rather than doing something stranger.

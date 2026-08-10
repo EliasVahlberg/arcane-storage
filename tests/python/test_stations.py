@@ -86,3 +86,30 @@ def test_hand_recipes_need_no_station(terminal):
     terminal.harness.do("craft", "woodboat")
 
     assert terminal.harness.held("woodboat") == 1
+
+
+@pytest.mark.parametrize("fueled", ["forge", "cookingstation"])
+def test_fueled_stations_cannot_be_installed(terminal, fueled):
+    """A hole in the first version of this feature, closed the same day.
+
+    Fuel is enforced by `FueledCraftingStationContainer.applyCraftingAction`, which refuses when the
+    station is cold -- behaviour of the container, not of the object. The terminal inherits a station's
+    techs and none of its container, so an installed Forge would smelt for free. It is refused until
+    fuel, crafting time and a request queue are built properly.
+    """
+    terminal.open()
+
+    reply = terminal.harness.call("install", fueled)
+
+    assert reply.ok is False, f"{fueled} burns fuel, which the terminal cannot honour yet"
+
+
+def test_a_fueled_station_grants_no_recipes(terminal):
+    """The consequence stated as a test: no Forge means no smelting, however the Forge got there."""
+    terminal.harness.fill(1, 0, "ironore", 10)
+    terminal.open()
+
+    reply = terminal.harness.call("craft", "ironbar")
+
+    assert reply.ok is False
+    assert terminal.count("ironore") == 10

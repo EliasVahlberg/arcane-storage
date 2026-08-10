@@ -337,10 +337,62 @@ would live.
       bench to, which makes the terminal's capabilities visible instead of depending
       on what happens to sit within an invisible radius, and gives that access a real
       cost. Deliberately *not* vanilla's proximity rule
-- [x] **A recipe selector by source bench** *(code complete, awaiting in-game QA)* —
-      keyed on `Tech` rather than on the bench item, because that is what a recipe carries,
-      and it makes tiering read correctly: a Demonic Workstation installs two techs and so
-      offers two entries
+- [x] **A source filter, one tickbox per bench, all on by default** — *confirmed working
+      in game Aug 2026.* Replaced a dropdown, which was both the wrong control and broken:
+      it read its selection when building the list and never rebuilt on change, so it could
+      only have worked by accident. Elias's design is better independent of the bug, because
+      a dropdown is single-select and cannot say "show me these two benches". Keyed on
+      `Tech` rather than on the bench item, since that is what a recipe carries, which also
+      makes tiering read correctly — a Demonic Workstation contributes two boxes. Hand
+      recipes get a box like any other, labelled with the game's own name for that tech
+- [x] **Collapsible category sections, as at a vanilla bench, with a flat-grid option** —
+      *default grouped; the toggle persists, confirmed in game.* Vanilla's categorised view
+      lives in `CraftingStationContainerForm`'s `protected` inner classes and cannot be
+      reused, but it did not need to be: overriding `updateList()` alone keeps
+      `FormContainerRecipe` — can-craft state, the have/missing tooltip, the "3 of 5" count,
+      click-to-craft — built exactly as the base class builds it, so only positions differ.
+      The toggle lives in the engine's own `ModSettings`, returned from `initSettings()`, so
+      it persists without this mod inventing a settings file. Section expansion is
+      session-scoped, matching vanilla, whose expansion map is never written to disk
+- [x] **Fueled stations are refused installation** — a hole in the first version, closed the
+      same day with tests. `FueledCraftingStationObject extends CraftingStationObject`, so a
+      Forge was installable, but fuel is enforced in
+      `FueledCraftingStationContainer.applyCraftingAction` — behaviour of the container, not
+      the object — so an installed Forge smelted for free. See the production-station review
+      under Phase 5 for where these belong instead
+- [ ] **Station slots move off the terminal onto their own unit** — *accepted from
+      Elias's design pass, Aug 2026; supersedes the ten slots currently on the terminal.*
+      A **Station Unit** carries the slots and joins the network by the same connectivity
+      rule as a Storage Unit, so station capacity becomes a placed, paid-for resource
+      rather than a constant I picked. Ladder **1 → 2 → 4 → 8** slots across vanilla's four
+      station tiers (base → Demonic → Tungsten → Fallen).
+
+      Why this is right rather than just more content: the mod already says capacity comes
+      from units and reach comes from conduits, and free station access was the one
+      capability breaking that grammar. It also deletes an arbitrary number — ten was
+      defensible ("eight station families plus headroom") but it was really "what fits in a
+      row". And it composes with tiering for free, because an upgraded bench reports the
+      lower techs too, so **upgrading a bench frees a slot**: progression that makes an
+      existing setup neater, which is the kind players value.
+
+      **The one real constraint.** Station slot indices today are the terminal's own
+      inventory: fixed count, fixed order, identical on both sides. Slots discovered
+      through the network are not — membership is discovered independently per side, and
+      the client *does* send slot indices when it moves an item. Mitigation: enumerate
+      Station Units deterministically (tileX then tileY) and keep station slots before
+      network slots, so identical membership gives identical indices. Where membership
+      differs — a client short of level data — a bench can land in a slot other than the
+      intended one: bounded, recoverable, never a duplication, and only in an
+      already-degraded state. The alternative that removes it entirely is to keep the slots
+      on the terminal and let Station Units grant *how many are usable*, which keeps
+      determinism but loses "the bench is in the block". Taking the metaphor, with the
+      fallback recorded here.
+
+      **Migration:** a terminal today holds up to ten benches in its own inventory, and
+      dropping it to zero slots would let `InventorySave` truncate them away silently.
+      Needs a load-time drop, or a warning to empty terminals first. *Elias has benches
+      installed in his current world right now.*
+
 - [x] **A show-all-recipes toggle**, so the list can be everything or only what the
       network can currently build. Uses vanilla's `filteronlycraftable` *label* but its own
       transient state: an earlier version shared vanilla's `craftingListOnlyCraftable`
@@ -450,6 +502,63 @@ scale, and haulers already move items between containers according to it.
 **Done when:** overflow of a chosen item reaches a Shipping Chest and is sold,
 with a reserve floor respected, and a settler depositing into a bussed chest shows
 up in the terminal without gaining any access to the network.
+
+### Production stations — reviewed Aug 2026, deferred deliberately
+
+Elias's proposal: furnaces, grain mills and the like reachable from the terminal, with
+auto-refuelling that takes "just enough" fuel, and a production request queue (click adds
+one, shift adds all possible, ctrl adds ten) displayed per station type. He asked whether it
+belongs in the base mod or an addon, and floated a "production connector" to placed stations
+as possibly cleaner. **It is cleaner, and the sequencing matters more than the split.**
+
+Three findings from the source drive the recommendation, and the first contradicts a premise
+of the proposal.
+
+**Fuel is time-based, not per-item.** `FueledInventoryObjectEntity.isFueled()` is literally
+`fuelBurnTime > 0`; `useFuel()` consumes one fuel item and buys a *burn duration*, and
+`serverTick` re-lights only while `alwaysOn || keepRunning`. A player's craft at a Forge is
+gated on "is it lit right now" and consumes no fuel of its own. So smelting one bar cannot
+cost 5k wood in vanilla, and metering fuel per item is not a problem that exists. The real
+goal restates as **keep it lit while a job runs and burn nothing idle** — which vanilla
+already expresses through the `keepRunning` flag its fueled container exposes as a toggle.
+
+**Player crafting at a fueled station has no crafting time.** Progress over time lives in a
+different family — `FueledProcessingInventoryObjectEntity`, `ProcessingForgeObject`, and the
+settler job path. So a queue with visible progress is either a new mechanic invented for
+player crafting, or it is surfacing the processing family, which already has fuel, progress,
+an input inventory and a server tick. Building on that family is the difference between
+composing and simulating.
+
+**Which means most of the proposal is Phase 5, not a new subsystem.** Feeding a placed
+processing object from the network and pulling its output back is an import rule and an export
+rule aimed at that object. If the transfer-rule primitive is built well, a production
+connector is thin on top of it plus a queue UI; if it is built badly, an addon would paper
+over that instead of fixing it. Sequencing: Phase 5 first, then reassess — there may be no
+addon-sized problem left.
+
+**Why not install production stations like benches.** Fuel is enforced in
+`FueledCraftingStationContainer.applyCraftingAction`, behaviour of the *container* rather than
+the object, so a terminal that installs a Forge inherits its techs and none of its fuel. That
+was a live hole in the first version of station installation, closed the same day with tests.
+The design line worth keeping from it: **install what is stateless, connect what is
+stateful.** A workbench is a permission. A furnace is a machine with fuel, progress and
+settler access, and it should stay in the world where all of that already works.
+
+**Tinting production recipes is feasible and derivable** rather than hand-maintained: the
+grouped crafting view constructs its own `FormContainerRecipe` components, so a subclass can
+tint, and the rule is "this recipe's tech comes from a fueled station". Worth knowing that
+vanilla has no formal notion of a production recipe — the distinction would be ours, which is
+an argument for keeping it purely visual.
+
+**Base mod or addon.** Not the base mod yet, and the reason is sequencing rather than size.
+One thing the base mod should do whenever convenient, at close to zero cost: make network
+membership an extensible notion, so a new member type can be added without patching
+`UnitNetwork`. That keeps the door open for an `Arcane Productions` addon — or for Phase 6 to
+walk through it itself.
+
+**The queue's click grammar is worth keeping regardless of where production lands.** One,
+all-possible and ten on plain, shift and ctrl is the same vocabulary the storage grid now
+uses for withdrawal, and consistency across tabs is cheap here because both are ours.
 
 ## Phase 6 — Progression, content and art
 

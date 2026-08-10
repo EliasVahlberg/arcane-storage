@@ -29,4 +29,4 @@ arcanestorage_tab_storage=Storage
 arcanestorage_tab_crafting=Crafting
 arcanestorage_tab_stations=Stations
 arcanestorage_group_by_category=Group by category
-arcanestorage_stations_help=Install a crafting station here to add every recipe it knows to the Crafting tab. One station per slot. An upgraded station also covers the recipes of the station it replaced, so a Demonic Workstation is a Workstation too. The terminal never uses benches placed nearby -- only the ones installed here.
+arcanestorage_stations_help=Install a crafting station here to add every recipe it knows to the Crafting tab. One station per slot. An upgraded station also covers the recipes of the station it replaced, so a Demonic Workstation is a Workstation too. The terminal never uses benches placed nearby, only the ones installed here. Stations that burn fuel, such as the Forge and the Cooking Station, cannot be installed yet.

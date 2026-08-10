@@ -152,12 +152,23 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
    /** Vanilla's slot pitch: FormContainerSlot draws 32px of slot with a 40px stride. */
    private static final int SLOT_PITCH = 40;
 
-   /** Two rows of source tickboxes, which is what fits above the recipe list without crowding it. */
-   private static final int BENCH_STRIP_HEIGHT = 48;
+   /**
+    * Two rows of source tickboxes, which is what fits above the recipe list without crowding it.
+    * A third row scrolls.
+    */
+   private static final int BENCH_STRIP_HEIGHT = 66;
 
-   private static final int BENCH_PANEL_WIDTH = 106;
+   /**
+    * Sized for the names rather than for a tidy count. {@code FormCheckBox.setText} *wraps* at its
+    * max width rather than truncating -- which is why the first version overflowed: at 106px wide,
+    * "Demonic Workstation" became two lines inside a 24px panel. At 156 the common names fit on one
+    * line and the few long ones ("Caveglow Alchemy Table") wrap into a panel tall enough to hold two.
+    * Truncating with an ellipsis was the alternative, and rejected: a station's name is the whole
+    * content of the control.
+    */
+   private static final int BENCH_PANEL_WIDTH = 156;
 
-   private static final int BENCH_PANEL_HEIGHT = 24;
+   private static final int BENCH_PANEL_HEIGHT = 32;
 
    /** 32px recipe icon plus 2px padding either side, matching the base class's own arithmetic. */
    private static final int RECIPE_ELEMENT_SIZE = 36;
@@ -661,8 +672,8 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
          Form panel = box.addComponent(new Form(BENCH_PANEL_WIDTH - 2, BENCH_PANEL_HEIGHT - 2));
          panel.setPosition(i % columns * BENCH_PANEL_WIDTH, i / columns * BENCH_PANEL_HEIGHT);
 
-         FormCheckBox tick = panel.addComponent(new FormCheckBox(source.displayName.translate(), 4, 3,
-               BENCH_PANEL_WIDTH - 28, !this.hiddenBenches.contains(source)));
+         FormCheckBox tick = panel.addComponent(new FormCheckBox(source.displayName.translate(), 4, 4,
+               BENCH_PANEL_WIDTH - 12, !this.hiddenBenches.contains(source)));
          tick.onClicked(event -> {
             if (event.from.checked) {
                this.hiddenBenches.remove(source);
