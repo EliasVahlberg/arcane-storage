@@ -289,15 +289,24 @@ forty slots, because a pickaxe stacks to one.
    membership was only recomputed when the filter changed -- not when the network did. A recipe's
    own `shouldShow` never considers craftability, so it could not come back on its own.
 
-### Resolved: the crafting default is already show-all
+### Resolved: the crafting tab forgets its filter, and shows everything by default
 
-Elias asked for show-all by default so an empty list cannot be mistaken for a broken tab.
-`Settings.craftingListOnlyCraftable` already defaults to `false`, so this needed no change -- but the
-confusion is still reachable, because the setting persists: a player who ticks the box at a bench
-gets it ticked at the terminal too. So the crafting tab now explains an empty list instead of just
-being empty, naming which cause applies -- no recipes registered at all, versus a filter or search
-hiding them. Check both messages read correctly: tick only-craftable with an empty network for the
-second, which is the reachable one today.
+Elias, twice, because I read him wrong the first time: the crafting filter should **not persist**, and
+the default should stay show-all. Both are now true, and neither depends on a vanilla setting.
+
+The filter is a fresh `RecipeFilter` per open rather than `Settings.getRecipeFilterSetting`, which
+keeps one per key for the session. That reverses my earlier decision to share vanilla's
+`craftingListOnlyCraftable` so the choice would carry between a bench and the terminal -- that was my
+idea, not a requirement, and it was wrong twice over: the storage tab already forgets its search and
+category on close, so a crafting tab that remembered them would be inconsistent inside one
+interface; and sharing meant the terminal wrote a preference that belongs to benches.
+
+What to check: open the terminal, type a search and tick only-craftable, close, reopen -- both should
+be back to empty and unticked. Then open a Workstation and confirm *its* only-craftable checkbox is
+however you last left it, unaffected by anything you did at the terminal.
+
+An empty list also explains itself now, since the confusion is still reachable by ticking the box:
+one message for no recipes registered at all, another for a filter or search hiding them.
 
 ### One thing I could not reconcile with what you said
 

@@ -49,14 +49,12 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import necesse.engine.GameLog;
-import necesse.engine.GlobalData;
 import necesse.engine.registries.RecipeTechRegistry;
 import necesse.gfx.forms.components.FormContainerCraftingListContentBox;
 import necesse.gfx.forms.components.localComponents.FormLocalCheckBox;
 import necesse.gfx.forms.presets.TabbedFormPreset;
 import necesse.inventory.container.ContainerRecipe;
 import necesse.inventory.recipe.RecipeFilter;
-import arcanestorage.ArcaneStorage;
 
 /**
  * Client-side UI for the Storage Terminal.
@@ -593,13 +591,16 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
    private Form buildCraftingTab(Client client, T container) {
       Form form = this.tabs.addLocalizedTab(new LocalMessage("ui", "arcanestorage_tab_crafting"), null);
 
-      // Keyed by string ID rather than by the object instance, because Settings keeps these in a
-      // plain map for the session and a stable key is the only requirement.
-      RecipeFilter filter = Settings.getRecipeFilterSetting(ArcaneStorage.TERMINAL_STRING_ID);
-
-      // Vanilla's setting is the source of truth, so the choice carries between a bench and the
-      // terminal instead of being a private option a player has to find twice.
-      filter.setCraftableOnly(Settings.craftingListOnlyCraftable.get());
+      // A fresh filter per open, deliberately not Settings.getRecipeFilterSetting, which keeps one
+      // per key for the session and would therefore remember the last search and toggle.
+      //
+      // This reverses an earlier decision of mine to share vanilla's craftingListOnlyCraftable so
+      // the choice would carry between a bench and the terminal. Elias asked for the opposite, and
+      // he is right on both counts: the storage tab already forgets its search and category on
+      // close, so a crafting tab that remembered them would be inconsistent within one interface;
+      // and sharing meant the terminal wrote a preference belonging to benches. Starting clean also
+      // guarantees the show-all default, which is what stops an empty list reading as a broken tab.
+      RecipeFilter filter = new RecipeFilter();
 
       FormFlow flow = new FormFlow(PADDING);
       int headerY = flow.next(FormInputSize.SIZE_24.height + PADDING);
@@ -611,7 +612,6 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
             new FormTextInput(FORM_WIDTH - PADDING - SEARCH_WIDTH, headerY, FormInputSize.SIZE_24, SEARCH_WIDTH, -1, 100));
       search.placeHolder = new LocalMessage("ui", "searchtip");
       search.rightClickToClear = true;
-      search.setText(filter.getSearchFilter());
       search.onChange(event -> filter.setSearchFilter(search.getText()));
 
       // Sits over the top of the list area rather than in the flow, because it is only ever visible
@@ -681,22 +681,16 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
                }
             });
 
+      // Unticked on every open: showing everything is the honest default, because a list narrowed to
+      // what the network can build is indistinguishable from a tab that does not work yet -- which is
+      // exactly what a player would see before installing their first bench.
+      //
+      // The label is vanilla's, so it reads the same here as it does at a bench even though the
+      // state behind it is ours and transient.
       FormLocalCheckBox onlyCraftable = form.addComponent(
-            new FormLocalCheckBox("ui", "filteronlycraftable", PADDING, FORM_HEIGHT - 16 - PADDING,
-                  Settings.craftingListOnlyCraftable.get()),
+            new FormLocalCheckBox("ui", "filteronlycraftable", PADDING, FORM_HEIGHT - 16 - PADDING, false),
             100);
-      onlyCraftable.onClicked(event -> {
-         Settings.craftingListOnlyCraftable.set(event.from.checked);
-         Settings.saveClientSettings();
-      });
-
-      // Mirrors vanilla's own listener so the checkbox follows the setting when it is changed
-      // elsewhere -- including by a crafting bench open at the same time.
-      Settings.craftingListOnlyCraftable.addChangeListener(value -> {
-         onlyCraftable.checked = value;
-         filter.setCraftableOnly(value);
-         GlobalData.updateCraftable();
-      }, this::isDisposed);
+      onlyCraftable.onClicked(event -> filter.setCraftableOnly(event.from.checked));
 
       return form;
    }
