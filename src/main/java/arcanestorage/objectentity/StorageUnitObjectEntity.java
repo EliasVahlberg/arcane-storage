@@ -1,6 +1,8 @@
 package arcanestorage.objectentity;
 
+import arcanestorage.network.NetworkStorage;
 import necesse.entity.objectEntity.InventoryObjectEntity;
+import necesse.entity.objectEntity.ObjectEntity;
 import necesse.level.maps.Level;
 
 /**
@@ -14,7 +16,7 @@ import necesse.level.maps.Level;
  * only requirement is that {@link #TYPE} is stable across versions — a mismatch makes the
  * saved data load as invalid and the unit comes back empty.
  */
-public class StorageUnitObjectEntity extends InventoryObjectEntity {
+public class StorageUnitObjectEntity extends InventoryObjectEntity implements NetworkStorage {
 
    /** Must never change between versions. */
    public static final String TYPE = "arcanestorageunit";
@@ -38,5 +40,15 @@ public class StorageUnitObjectEntity extends InventoryObjectEntity {
     */
    public int getUsedSlots() {
       return this.inventory.getUsedSlots();
+   }
+
+   /**
+    * The network needs the entity behind a member to know whether it still exists. For an object
+    * entity that is itself, which is the whole reason {@link NetworkStorage} can be a one-line
+    * implementation for anyone else too.
+    */
+   @Override
+   public ObjectEntity getObjectEntity() {
+      return this;
    }
 }

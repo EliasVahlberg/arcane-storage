@@ -2,6 +2,7 @@ package arcanestorage.object;
 
 import java.awt.Color;
 
+import arcanestorage.network.NetworkNode;
 import arcanestorage.ArcaneStorage;
 import arcanestorage.container.StorageTerminalContainer;
 import arcanestorage.objectentity.StorageTerminalObjectEntity;
@@ -15,7 +16,7 @@ import necesse.level.maps.Level;
  * open/close sounds, collision, damage and drop-contents-on-break behaviour come for
  * free.
  */
-public class StorageTerminalObject extends StorageBoxInventoryObject {
+public class StorageTerminalObject extends StorageBoxInventoryObject implements NetworkNode {
 
    /**
     * The terminal stores no <i>items</i> of its own: all capacity is in the linked Storage Units,

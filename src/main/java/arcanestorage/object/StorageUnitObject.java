@@ -22,7 +22,9 @@ import necesse.level.maps.Level;
  * the object entity plumbing, drop-on-break and the 32x32 collision. The two overrides
  * below are what make it not a chest.
  */
-public class StorageUnitObject extends StorageBoxInventoryObject {
+import arcanestorage.network.NetworkConductor;
+
+public class StorageUnitObject extends StorageBoxInventoryObject implements NetworkConductor {
 
    /** Capacity per unit. Tiered capacity is Phase 6. */
    public static final int SLOTS = 40;

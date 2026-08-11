@@ -635,10 +635,14 @@ no tag or annotation system, it has capability interfaces, and the station gate 
 station needs to be standing somewhere rather than which class it extends — verified against all 26
 vanilla stations.
 
-- [ ] **Network membership as an interface**, so another mod's object entity can join a network without
-      a patch. Today the traversal asks `instanceof StorageUnitObjectEntity`. Worth doing *before*
-      Phase 5, because buses are the first new member type and our own code should be the first user of
-      the seam.
+- [x] **Network membership as an interface**, so another mod's object entity can join a network without
+      a patch — *done Aug 2026, before Phase 5 deliberately.* `NetworkStorage extends OEInventory`
+      (contributes slots), `NetworkConductor` (carries membership), `NetworkNode` (the network visibly
+      meets this). Extending the game's own `OEInventory` is what makes it free: vanilla's
+      `OEInventoryContainerSlot` takes that interface, so a foreign member needs no adapter and inherits
+      the vanilla quick-stack, restock and sort answers. Verified by a unit test implementing a member
+      that knows nothing else about this mod. Buses must be built through these rather than beside
+      them.
 - [ ] **A published integration API** — deliberately not yet. An interface nobody has implemented is a
       guess; make the internals general, ship, and let the first real request shape the surface.
 

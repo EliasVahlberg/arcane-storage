@@ -5,7 +5,7 @@ import java.util.List;
 
 import arcanestorage.network.NetworkContents;
 import arcanestorage.objectentity.StorageTerminalObjectEntity;
-import arcanestorage.objectentity.StorageUnitObjectEntity;
+import arcanestorage.network.NetworkStorage;
 import necesse.engine.network.NetworkClient;
 import necesse.engine.network.Packet;
 import necesse.engine.network.PacketReader;
@@ -79,7 +79,7 @@ public class StorageTerminalContainer extends Container {
     * slots were registered. Captured once here so the server resolves a slot index to the
     * same unit for as long as the container is open, even if a unit is broken meanwhile.
     */
-   public final List<StorageUnitObjectEntity> linkedUnits;
+   public final List<NetworkStorage> linkedUnits;
 
    private final LinkedHashSet<Inventory> craftPool;
 
@@ -105,8 +105,8 @@ public class StorageTerminalContainer extends Container {
 
       this.linkedUnits = terminal.getLinkedUnits();
 
-      for (StorageUnitObjectEntity unit : this.linkedUnits) {
-         for (int i = 0; i < unit.inventory.getSize(); i++) {
+      for (NetworkStorage unit : this.linkedUnits) {
+         for (int i = 0; i < unit.getInventory().getSize(); i++) {
             int index = this.addSlot(new OEInventoryContainerSlot(unit, i));
             if (this.NETWORK_START == -1) {
                this.NETWORK_START = index;
@@ -200,8 +200,8 @@ public class StorageTerminalContainer extends Container {
    private ArrayList<InventoryRange> networkTargets() {
       ArrayList<InventoryRange> targets = new ArrayList<>();
 
-      for (StorageUnitObjectEntity unit : this.linkedUnits) {
-         targets.add(new InventoryRange(unit.inventory));
+      for (NetworkStorage unit : this.linkedUnits) {
+         targets.add(new InventoryRange(unit.getInventory()));
       }
 
       return targets;
@@ -390,8 +390,8 @@ public class StorageTerminalContainer extends Container {
          return false;
       }
 
-      for (StorageUnitObjectEntity unit : this.linkedUnits) {
-         if (unit.removed()) {
+      for (NetworkStorage unit : this.linkedUnits) {
+         if (!unit.isOnNetwork()) {
             return false;
          }
       }

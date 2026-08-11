@@ -5,7 +5,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import arcanestorage.objectentity.StorageUnitObjectEntity;
+import arcanestorage.network.NetworkStorage;
 import necesse.inventory.Inventory;
 import necesse.inventory.InventoryItem;
 import necesse.level.maps.Level;
@@ -37,7 +37,7 @@ public final class NetworkContents {
     * <p>Entries are copies. Summing into a slot's own {@code InventoryItem} would edit the
     * unit's real contents.
     */
-   public static List<InventoryItem> aggregate(Level level, List<StorageUnitObjectEntity> units, String purpose) {
+   public static List<InventoryItem> aggregate(Level level, List<NetworkStorage> units, String purpose) {
       List<InventoryItem> aggregated = new ArrayList<>();
 
       // Candidates bucketed by item string ID, so merging a slot compares it only against
@@ -50,8 +50,8 @@ public final class NetworkContents {
       // IDs can never be equal, so this only skips comparisons that were always going to fail.
       Map<String, List<InventoryItem>> byStringID = new HashMap<>();
 
-      for (StorageUnitObjectEntity unit : units) {
-         Inventory inventory = unit.inventory;
+      for (NetworkStorage unit : units) {
+         Inventory inventory = unit.getInventory();
 
          for (int slot = 0; slot < inventory.getSize(); slot++) {
             InventoryItem item = inventory.getItem(slot);
@@ -91,22 +91,22 @@ public final class NetworkContents {
     * "nearly empty" by item count and completely full. Reporting stacks would tell the player
     * the comfortable number rather than the one that will stop a deposit.
     */
-   public static int usedSlots(List<StorageUnitObjectEntity> units) {
+   public static int usedSlots(List<NetworkStorage> units) {
       int used = 0;
 
-      for (StorageUnitObjectEntity unit : units) {
-         used += unit.inventory.getUsedSlots();
+      for (NetworkStorage unit : units) {
+         used += unit.getInventory().getUsedSlots();
       }
 
       return used;
    }
 
    /** Slots in total, across every unit. Zero for a network with no units. */
-   public static int totalSlots(List<StorageUnitObjectEntity> units) {
+   public static int totalSlots(List<NetworkStorage> units) {
       int total = 0;
 
-      for (StorageUnitObjectEntity unit : units) {
-         total += unit.inventory.getSize();
+      for (NetworkStorage unit : units) {
+         total += unit.getInventory().getSize();
       }
 
       return total;
@@ -120,9 +120,9 @@ public final class NetworkContents {
     * already holds. Answering this by slot count alone would refuse deposits that would in fact
     * succeed.
     */
-   public static boolean canFit(Level level, List<StorageUnitObjectEntity> units, InventoryItem item, String purpose) {
-      for (StorageUnitObjectEntity unit : units) {
-         Inventory inventory = unit.inventory;
+   public static boolean canFit(Level level, List<NetworkStorage> units, InventoryItem item, String purpose) {
+      for (NetworkStorage unit : units) {
+         Inventory inventory = unit.getInventory();
 
          for (int slot = 0; slot < inventory.getSize(); slot++) {
             InventoryItem existing = inventory.getItem(slot);
@@ -140,10 +140,10 @@ public final class NetworkContents {
    }
 
    /** The total amount of one item across the units, by string ID. */
-   public static int totalOf(List<StorageUnitObjectEntity> units, String itemStringID) {      int total = 0;
+   public static int totalOf(List<NetworkStorage> units, String itemStringID) {      int total = 0;
 
-      for (StorageUnitObjectEntity unit : units) {
-         Inventory inventory = unit.inventory;
+      for (NetworkStorage unit : units) {
+         Inventory inventory = unit.getInventory();
 
          for (int slot = 0; slot < inventory.getSize(); slot++) {
             InventoryItem item = inventory.getItem(slot);

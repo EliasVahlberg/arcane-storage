@@ -75,17 +75,57 @@ rather than to assume it.
 extending it is the only way an object can state which recipes it unlocks. Asking for it is therefore
 as general as the game allows, not a shortcut.
 
-## Where we are still asking about our own concrete types
+## Membership is a role, not a type
 
-Being honest about the remaining seam: network membership is `instanceof StorageUnitObjectEntity` and
-`instanceof StorageConduitObjectEntity` inside the traversal. That is fine while this mod is the only
-thing that can join a network, and it is the obvious place another mod would want in — a modded silo,
-a modded conduit, a bus from an addon.
+Built Aug 2026, before Phase 5 rather than after, for the reason below.
 
-The cheap version is a small interface of our own that another mod's object entity can implement, with
-the traversal asking for it instead of for our classes. It is not built yet, and the reason to do it
-before Phase 5 rather than after is that buses are the first new member type — so the seam gets
-exercised by our own code first, which is the only way to know it is usable.
+Three interfaces in `arcanestorage.network`, each mapping onto a distinction the code already made by
+recognising one of this mod's own objects:
+
+| Interface | Implemented on | Means |
+|---|---|---|
+| `NetworkStorage extends OEInventory` | an object entity | contributes its slots to the network |
+| `NetworkNode` | a placeable object | the network visibly meets this |
+| `NetworkConductor extends NetworkNode` | a placeable object | membership passes through this |
+
+`NetworkStorage` extends the game's own `OEInventory` rather than declaring a new accessor, and that is
+the load-bearing decision: `OEInventoryContainerSlot(OEInventory, int)` is what vanilla builds container
+slots from, so a foreign member's slots go straight into the terminal's container with no adapter, and
+the member inherits vanilla's answers for quick-stack, restock, sort and settlement storage instead of
+reimplementing them. The one method added is `getObjectEntity()`, because membership is recomputed from
+the world on every access and a broken member has to drop out; for an object entity the implementation
+is `return this;`. `isOnNetwork()` defaults to "as long as it exists" and is overridable, so a member
+can leave temporarily — powered down, sealed, mid-transfer — without the player breaking anything.
+
+The terminal is a `NetworkNode` and deliberately *not* a `NetworkConductor`: the network meets a
+terminal and does not pass through it, which is what stops one terminal bridging two separate groups of
+units. Units and conduits conduct.
+
+Both readers now ask the same question. The walk spreads through `NetworkConductor` and collects
+`NetworkStorage`; the conduit's drawn shape joins to `NetworkNode`. Previously the walk compared object
+IDs against `ArcaneStorage.CONDUIT` and the sprite compared three IDs of its own, so a third-party pipe
+could not have joined either, and the two could in principle have disagreed about what "adjacent"
+means.
+
+**Vanilla chests still do not join.** They implement `OEInventory` but not `NetworkStorage`, so joining
+remains something an object opts into. Silently absorbing a nearby chest would be surprising, and a unit
+is recognisable to the player precisely because it cannot be opened.
+
+**How this is verified**, because "another mod can join" is a claim that is easy to make and easy to get
+wrong: `src/test/java/arcanestorage/network/NetworkStorageTest.java` implements a `ForeignSilo` the way
+a mod author would have to — the interface, an `Inventory`, and nothing else from this mod — and asserts
+that the network counts its slots. If that test ever needs another `arcanestorage` type, the seam is not
+a seam. The 79 headless tests then confirm our own units still behave identically through the same path.
+
+## What this does not cover yet
+
+Import and export buses (Phase 5) are the first new member type, and they should be built *through*
+these interfaces rather than beside them. That is the reason the seam landed before Phase 5 instead of
+after: our own code being its first user is the only way to find out whether it is usable, and a seam
+nothing has passed through is a guess.
+
+Installed crafting stations are not part of this. A station is an item in a slot, not a member of the
+network, and its compatibility question is answered by the placement rule above.
 
 **Not yet, deliberately:** a published integration API. An interface nobody has implemented is a
 guess. The order that works is to make the internals general, ship, and let the first real request

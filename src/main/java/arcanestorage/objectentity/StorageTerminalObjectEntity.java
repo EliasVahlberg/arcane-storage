@@ -6,6 +6,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 
 import arcanestorage.ArcaneStorage;
+import arcanestorage.network.NetworkConductor;
+import arcanestorage.network.NetworkStorage;
 import arcanestorage.network.UnitNetwork;
 import necesse.entity.objectEntity.InventoryObjectEntity;
 import necesse.entity.objectEntity.ObjectEntity;
@@ -248,11 +250,17 @@ public class StorageTerminalObjectEntity extends InventoryObjectEntity {
     * cleanup. Persisted membership only becomes necessary if linking stops being a pure
     * function of layout.
     *
-    * <p>Only this mod's own units qualify. Vanilla chests are deliberately not scanned:
-    * silently absorbing a nearby chest would be surprising, and a unit is distinguishable
-    * precisely because the player cannot open it.
+    * <p>Membership is a role, not a type: any object entity implementing {@link NetworkStorage}
+    * joins, and anything whose object implements {@link NetworkConductor} carries the walk onward. So
+    * another mod's silo or pipe works here without this mod knowing it exists, and our own units are
+    * the first users of that seam rather than a special case beside it.
+    *
+    * <p>Vanilla chests are still deliberately not scanned. They implement {@code OEInventory}, not
+    * this mod's interface, so joining stays something an object opts into: silently absorbing a nearby
+    * chest would be surprising, and a unit is distinguishable precisely because the player cannot open
+    * it.
     */
-   public List<StorageUnitObjectEntity> getLinkedUnits() {
+   public List<NetworkStorage> getLinkedUnits() {
       final Level level = this.getLevel();
       if (level == null) {
          return new ArrayList<>();
@@ -260,12 +268,12 @@ public class StorageTerminalObjectEntity extends InventoryObjectEntity {
 
       return UnitNetwork.discover(this.tileX, this.tileY, (x, y) -> {
          ObjectEntity candidate = level.entityManager.getObjectEntity(x, y);
-         if (candidate instanceof StorageUnitObjectEntity && !candidate.removed()) {
-            return (StorageUnitObjectEntity)candidate;
+         if (candidate instanceof NetworkStorage) {
+            NetworkStorage member = (NetworkStorage)candidate;
+            return member.isOnNetwork() ? member : null;
          }
 
          return null;
-      }, (x, y) -> ArcaneStorage.CONDUIT != null && level.getObjectID(x, y) == ArcaneStorage.CONDUIT.getID(),
-         MAX_UNITS, MAX_CONDUITS);
+      }, (x, y) -> level.getObject(x, y) instanceof NetworkConductor, MAX_UNITS, MAX_CONDUITS);
    }
 }

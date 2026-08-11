@@ -10,7 +10,7 @@ import arcanestorage.container.StorageTerminalContainer;
 import arcanestorage.network.NetworkContents;
 import arcanestorage.object.StorageConduitObject;
 import arcanestorage.objectentity.StorageTerminalObjectEntity;
-import arcanestorage.objectentity.StorageUnitObjectEntity;
+import arcanestorage.network.NetworkStorage;
 import necesse.engine.network.Packet;
 import necesse.engine.network.PacketReader;
 import necesse.engine.network.PacketWriter;
@@ -87,7 +87,7 @@ public final class ArcaneStorageVerbs {
       return entity instanceof StorageTerminalObjectEntity ? (StorageTerminalObjectEntity)entity : null;
    }
 
-   static List<StorageUnitObjectEntity> unitsFrom(TestContext context) {
+   static List<NetworkStorage> unitsFrom(TestContext context) {
       StorageTerminalObjectEntity terminal = terminalAt(context, 2);
       return terminal == null ? null : terminal.getLinkedUnits();
    }
@@ -132,7 +132,7 @@ public final class ArcaneStorageVerbs {
             return false;
          }
 
-         List<StorageUnitObjectEntity> units = terminal.getLinkedUnits();
+         List<NetworkStorage> units = terminal.getLinkedUnits();
          context.info("network at " + context.arg(1) + "," + context.arg(2) + ": " + units.size() + " units");
 
          for (InventoryItem item : NetworkContents.aggregate(
@@ -170,7 +170,7 @@ public final class ArcaneStorageVerbs {
 
          for (ObjectEntity entity : context.level.entityManager.objectEntities) {
             if (!entity.removed()
-                  && (entity instanceof StorageUnitObjectEntity || entity instanceof StorageTerminalObjectEntity)) {
+                  && (entity instanceof NetworkStorage || entity instanceof StorageTerminalObjectEntity)) {
                ours.add(new Point(entity.tileX, entity.tileY));
             }
          }
@@ -450,15 +450,15 @@ public final class ArcaneStorageVerbs {
 
             context.level.setObject(unitX, unitY, unitObjectID);
             ObjectEntity entity = context.level.entityManager.getObjectEntity(unitX, unitY);
-            if (!(entity instanceof StorageUnitObjectEntity)) {
+            if (!(entity instanceof NetworkStorage)) {
                continue;
             }
 
-            StorageUnitObjectEntity unit = (StorageUnitObjectEntity)entity;
-            for (int slot = 0; slot < unit.inventory.getSize(); slot++) {
+            NetworkStorage unit = (NetworkStorage)entity;
+            for (int slot = 0; slot < unit.getInventory().getSize(); slot++) {
                // Distinct items are what aggregation scales on: a network holding one item type in
                // every slot is cheap no matter how large it is.
-               unit.inventory.setItem(slot, new InventoryItem(pool.get(distinct++ % pool.size()), 1));
+               unit.getInventory().setItem(slot, new InventoryItem(pool.get(distinct++ % pool.size()), 1));
             }
 
             placed++;
@@ -466,7 +466,7 @@ public final class ArcaneStorageVerbs {
 
          // Membership is recomputed from layout on every call, so this measures discovery honestly
          // rather than a cached result.
-         List<StorageUnitObjectEntity> units = terminal.getLinkedUnits();
+         List<NetworkStorage> units = terminal.getLinkedUnits();
 
          // Warm up first: the first calls pay for classloading and JIT, and reporting that as the
          // per-frame cost would overstate it by an order of magnitude.
@@ -549,7 +549,7 @@ public final class ArcaneStorageVerbs {
       }
 
       public void query(TestContext context, Json.Writer out) {
-         List<StorageUnitObjectEntity> units = unitsFrom(context);
+         List<NetworkStorage> units = unitsFrom(context);
          out.num("units", units == null ? -1 : units.size());
       }
 
@@ -558,7 +558,7 @@ public final class ArcaneStorageVerbs {
       }
 
       public boolean run(TestContext context) {
-         List<StorageUnitObjectEntity> units = unitsFrom(context);
+         List<NetworkStorage> units = unitsFrom(context);
          if (units == null) {
             return noTerminal(context);
          }
@@ -585,7 +585,7 @@ public final class ArcaneStorageVerbs {
       }
 
       public void query(TestContext context, Json.Writer out) {
-         List<StorageUnitObjectEntity> units = unitsFrom(context);
+         List<NetworkStorage> units = unitsFrom(context);
          out.str("item", context.arg(4))
             .num("count", units == null ? -1 : NetworkContents.totalOf(units, context.arg(4)));
       }
@@ -595,7 +595,7 @@ public final class ArcaneStorageVerbs {
       }
 
       public boolean run(TestContext context) {
-         List<StorageUnitObjectEntity> units = unitsFrom(context);
+         List<NetworkStorage> units = unitsFrom(context);
          if (units == null) {
             return noTerminal(context);
          }
@@ -627,7 +627,7 @@ public final class ArcaneStorageVerbs {
       }
 
       public void query(TestContext context, Json.Writer out) {
-         List<StorageUnitObjectEntity> units = unitsFrom(context);
+         List<NetworkStorage> units = unitsFrom(context);
          out.num("used", units == null ? -1 : NetworkContents.usedSlots(units))
             .num("total", units == null ? -1 : NetworkContents.totalSlots(units));
       }
@@ -637,7 +637,7 @@ public final class ArcaneStorageVerbs {
       }
 
       public boolean run(TestContext context) {
-         List<StorageUnitObjectEntity> units = unitsFrom(context);
+         List<NetworkStorage> units = unitsFrom(context);
          if (units == null) {
             return noTerminal(context);
          }
@@ -665,7 +665,7 @@ public final class ArcaneStorageVerbs {
 
       public void query(TestContext context, Json.Writer out) {
          StorageTerminalObjectEntity terminal = terminalAt(context, 2);
-         List<StorageUnitObjectEntity> units = unitsFrom(context);
+         List<NetworkStorage> units = unitsFrom(context);
          out.str("item", context.arg(4)).bool("fits", units != null && NetworkContents.canFit(
             context.level, units, new InventoryItem(context.arg(4)),
             StorageTerminalContainer.DEPOSIT_PURPOSE));
@@ -676,7 +676,7 @@ public final class ArcaneStorageVerbs {
       }
 
       public boolean run(TestContext context) {
-         List<StorageUnitObjectEntity> units = unitsFrom(context);
+         List<NetworkStorage> units = unitsFrom(context);
          if (units == null) {
             return noTerminal(context);
          }
@@ -758,12 +758,12 @@ public final class ArcaneStorageVerbs {
       }
    }
 
-   static List<StorageUnitObjectEntity> allUnits(Level level) {
-      java.util.ArrayList<StorageUnitObjectEntity> units = new java.util.ArrayList<>();
+   static List<NetworkStorage> allUnits(Level level) {
+      java.util.ArrayList<NetworkStorage> units = new java.util.ArrayList<>();
 
       for (ObjectEntity entity : level.entityManager.objectEntities) {
-         if (entity instanceof StorageUnitObjectEntity && !entity.removed()) {
-            units.add((StorageUnitObjectEntity)entity);
+         if (entity instanceof NetworkStorage && !entity.removed()) {
+            units.add((NetworkStorage)entity);
          }
       }
 

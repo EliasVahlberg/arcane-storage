@@ -6,6 +6,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import arcanestorage.network.NetworkConductor;
+import arcanestorage.network.NetworkNode;
 import arcanestorage.ArcaneStorage;
 import necesse.engine.localization.Localization;
 import necesse.engine.registries.ObjectRegistry;
@@ -36,7 +38,7 @@ import necesse.level.maps.light.GameLight;
  * inventory object would give it a container the player could open, which is exactly what a
  * conduit must not have.
  */
-public class StorageConduitObject extends FurnitureObject {
+public class StorageConduitObject extends FurnitureObject implements NetworkConductor {
 
    /**
     * Which neighbours a conduit is joined to, as a 4-bit mask.
@@ -64,20 +66,17 @@ public class StorageConduitObject extends FurnitureObject {
    /**
     * Whether a tile is something the network flows through: a conduit, a unit, or a terminal.
     *
+    * <p>Asked as a role rather than by object ID, so a conduit joins visibly to another mod's silo or
+    * pipe for the same reason it joins to ours — and the drawn shape cannot disagree with the walk,
+    * which reads the same interfaces.
+    *
     * <p>Joining to units and terminals as well as to other conduits means the drawn shape
     * reports actual connectivity rather than merely "another pipe is next to me". A pipe that
     * visibly fails to meet a unit is then a real signal that the unit is not on the network,
     * which is the sort of mistake that is otherwise invisible until the terminal comes up short.
     */
    private static boolean carriesNetwork(Level level, int tileX, int tileY) {
-      int objectID = level.getObjectID(tileX, tileY);
-      if (objectID == 0) {
-         return false;
-      }
-
-      return objectID == objectID(ArcaneStorage.CONDUIT_STRING_ID)
-         || objectID == objectID(ArcaneStorage.UNIT_STRING_ID)
-         || objectID == objectID(ArcaneStorage.TERMINAL_STRING_ID);
+      return level.getObject(tileX, tileY) instanceof NetworkNode;
    }
 
    /**
