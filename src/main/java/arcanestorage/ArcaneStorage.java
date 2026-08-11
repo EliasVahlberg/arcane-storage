@@ -3,6 +3,8 @@ package arcanestorage;
 import arcanestorage.container.StorageTerminalContainer;
 import arcanestorage.container.StorageTerminalContainerForm;
 import arcanestorage.object.StorageTerminalObject;
+import arcanestorage.object.ExportBusObject;
+import arcanestorage.object.ImportBusObject;
 import arcanestorage.object.StorageConduitObject;
 import arcanestorage.object.StorageUnitObject;
 import arcanestorage.objectentity.StorageTerminalObjectEntity;
@@ -34,6 +36,12 @@ public class ArcaneStorage {
 
    /** Registry string ID of the conduit object; also its texture and locale key. */
    public static final String CONDUIT_STRING_ID = "arcanestorageconduit";
+
+   /** Registry string ID of the import bus: a neighbouring container's contents flow into the network. */
+   public static final String IMPORT_BUS_STRING_ID = "arcanestorageimportbus";
+
+   /** Registry string ID of the export bus: the network's contents flow out, on a rule. */
+   public static final String EXPORT_BUS_STRING_ID = "arcanestorageexportbus";
 
    /**
     * The registered conduit, kept so the traversal can match it by object ID.
@@ -69,6 +77,8 @@ public class ArcaneStorage {
       ObjectRegistry.registerObject(UNIT_STRING_ID, new StorageUnitObject(), 10.0F, true);
       CONDUIT = new StorageConduitObject();
       ObjectRegistry.registerObject(CONDUIT_STRING_ID, CONDUIT, 4.0F, true);
+      ObjectRegistry.registerObject(IMPORT_BUS_STRING_ID, new ImportBusObject(), 8.0F, true);
+      ObjectRegistry.registerObject(EXPORT_BUS_STRING_ID, new ExportBusObject(), 8.0F, true);
 
       TERMINAL_CONTAINER = ContainerRegistry.registerOEContainer(
          (client, uniqueSeed, objectEntity, content) -> new StorageTerminalContainerForm<>(
@@ -96,6 +106,14 @@ public class ArcaneStorage {
       );
       Recipes.registerModRecipe(
          new Recipe(CONDUIT_STRING_ID, 4, RecipeTechRegistry.NONE, new Ingredient[]{new Ingredient("anylog", 2)})
+      );
+      Recipes.registerModRecipe(
+         new Recipe(IMPORT_BUS_STRING_ID, 1, RecipeTechRegistry.NONE,
+            new Ingredient[]{new Ingredient("anylog", 4), new Ingredient("ironbar", 2)})
+      );
+      Recipes.registerModRecipe(
+         new Recipe(EXPORT_BUS_STRING_ID, 1, RecipeTechRegistry.NONE,
+            new Ingredient[]{new Ingredient("anylog", 4), new Ingredient("ironbar", 2)})
       );
 
       // Drives the scenario harness. Registered unconditionally: it needs owner permission,

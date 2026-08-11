@@ -428,3 +428,24 @@ are not integer multiples of 128.
 | 1 | `objects/arcanestorageterminal.png` + `_open` + `items/arcanestorageterminal.png` | 32×48 or 32×64 |
 | 2 | `objects/arcanestorageunit.png` + `items/arcanestorageunit.png` | 32×32 |
 | 3 | conduit object + item | 32×32, or 128×32 for four facings |
+
+
+## Requested: the two buses (Phase 5, Aug 2026)
+
+`objects/arcanestorageimportbus.png` and `objects/arcanestorageexportbus.png`, plus matching
+`items/` icons. Currently **placeholders**: the Storage Unit's sprite recoloured green and amber by
+`tools/tint_sprite.py`, which is honest enough to test with and reads as "a unit in another colour".
+
+What they need to communicate, in order of importance:
+
+1. **Direction.** An import bus takes from a container and gives to the network; an export bus does the
+   reverse. Two objects that differ only in hue will be placed the wrong way round constantly. An arrow,
+   or an asymmetric silhouette, matters more than the palette.
+2. **That they are not storage.** A bus holds nothing and cannot be opened. It should read as a fitting
+   or a valve rather than as a box — the Storage Unit is the box.
+3. **That they belong to the conduit family**, since they conduct like one. The conduit's palette
+   (96, 74, 140) is the anchor.
+
+32x32, one frame, bottom-anchored like the other objects. Facing frames would be welcome later — a bus
+knows which neighbour is its container, so it could draw itself pointing at it — but nothing depends on
+that yet, and one frame is what the code expects.

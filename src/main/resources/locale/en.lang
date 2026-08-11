@@ -2,10 +2,18 @@
 arcanestorageterminal=Storage Terminal
 arcanestorageunit=Storage Unit
 arcanestorageconduit=Storage Conduit
+arcanestorageimportbus=Arcane Import Bus
+arcanestorageexportbus=Arcane Export Bus
 
 [ui]
 arcanestorage_unittip=Access with a Storage Terminal
 arcanestorage_conduittip=Extends a storage network
+arcanestorage_importbustip=Moves a neighbouring container's contents into the network
+arcanestorage_exportbustip=Moves items out of the network into a neighbouring container
+arcanestorage_busstatus=Network: <units> units. Container: <container>. Rules: <rules>
+arcanestorage_bus_container=attached
+arcanestorage_bus_nocontainer=none next to it
+arcanestorage_bus_norules=none, so everything an import bus can move moves, and an export bus moves nothing
 arcanestorage_unitstatus=Storage Unit: <used>/<total> slots used
 arcanestorage_capacity=<used> / <total> slots
 arcanestorage_capacity_tip=Slots used across every storage unit on this network

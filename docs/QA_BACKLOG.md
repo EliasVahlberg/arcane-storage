@@ -41,6 +41,28 @@ Stated by Elias, in order of confirmation:
 4. **Fueled stations refuse installation** — try a Forge; it should simply not go in, and the Stations
    tab text should say why.
 
+### Phase 5's buses — new Aug 2026, none of it seen
+
+The mechanics are covered headlessly (`tests/python/test_buses.py`); everything here is what the harness
+cannot reach. `harness run` needs `make run HARNESS=1`; both buses cost 4 logs and 2 iron bars.
+
+13. **Both buses render and are told apart.** The sprites are **placeholders** — the Storage Unit's own
+    sprite tinted green for import and amber for export by `tools/tint_sprite.py`. They will read as
+    "unit in a different colour", which is enough to test with and not enough to ship. Real art is
+    requested in SPRITES.md.
+14. **Placing one reports what it sees.** Interact with a bus: it should name how many units it is on,
+    whether a container is attached, and its rules. Placing a bus with no chest beside it should say so
+    — that is the most likely mistake and the message is the only feedback.
+15. **An import bus actually drains a chest over time**, about one stack a second, and a conduit next to
+    a bus should draw as joined to it.
+16. **A settler depositing into a bussed chest appears in the terminal** — the whole point of the
+    indirection. Needs a settlement, so it cannot be tested headlessly.
+17. **A Shipping Chest sells what an export bus sends it.** Vanilla's behaviour above a stack threshold,
+    via trader missions, so this is a check that the two features compose rather than that either works.
+18. **Rules cannot be set in game at all yet.** A bus placed by a player has no rules, so an import bus
+    works and an export bus does nothing. That is the honest state, and the rule interface is the rest of
+    Phase 5.
+
 ### Never drawn at all
 
 5. The **Stations tab**: ten slots in a row, the help text unclipped, one bench per slot, a stack of

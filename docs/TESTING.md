@@ -3,10 +3,14 @@
 One automated suite, plus a manual backlog.
 
 ```
-make pytest      53 tests   ~46s   tests/python/*.py     the whole automated suite
-make test         unit      ~1s    src/test/java         game-independent logic only
+make pytest      90 tests   ~67s   tests/python/*.py     the whole automated suite
+make test        27 tests   ~1s    src/test/java         game-independent logic only
 docs/QA_BACKLOG.md                                       everything visual — Elias runs these by hand
 ```
+
+`make test` is worth more than its size suggests: the network walk and the transfer rule arithmetic both
+live there, and both are the kind of thing that is far easier to get right against a unit test than
+against a running world.
 
 Nothing automated touches a form. Every UI change in this mod is unverified until it is looked at, and
 a commit should say so rather than implying otherwise.
@@ -44,11 +48,13 @@ standing question about which one owns a given rule. That cost is real and the b
 | `test_stations.py` | Installed stations gate recipes; fueled stations are refused |
 | `test_cursor_clicks.py` | The server half of the click conventions, and item conservation |
 | `test_in_use.py` | The "someone is using me" state other clients render from, including its two-second expiry |
+| `test_buses.py` | Import and export buses: rules, floors, ceilings, conservation, and that a chest never joins the network |
 | `test_persistence.py` | Everything above surviving a save and a reload. Costs a boot, so it asserts four networks in one pass |
 
 ## Where to put a new test
 
-- Anything automatable → `tests/python/`.
+- Pure logic with no game types → `src/test/java/`, where it runs in a second.
+- Anything else automatable → `tests/python/`.
 - Anything about what something looks like → `docs/QA_BACKLOG.md`.
 - A throwaway script to build a scene to look at → any `.txt` file plus `make scene FILE=...`, or
   `harness run <name>` in a live game with `make run HARNESS=1`. Not a test, and not checked in.

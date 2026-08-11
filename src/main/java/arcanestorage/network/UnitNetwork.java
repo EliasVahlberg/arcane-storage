@@ -33,8 +33,14 @@ import java.util.Set;
  */
 public final class UnitNetwork {
 
-   /** Orthogonal neighbours, in a fixed order. Changing this order changes slot ordering. */
-   static final int[][] NEIGHBOURS = {{0, -1}, {1, 0}, {0, 1}, {-1, 0}};
+   /**
+    * Orthogonal neighbours, in a fixed order. Changing this order changes slot ordering.
+    *
+    * <p>Public because everything that reasons about adjacency must use this one order or the mod will
+    * contradict itself: the conduit's sprite mask indexes frames by it, and a bus looks for its container
+    * with it.
+    */
+   public static final int[][] NEIGHBOURS = {{0, -1}, {1, 0}, {0, 1}, {-1, 0}};
 
    /** Resolves a tile to a unit, or {@code null} when that tile holds none. */
    public interface UnitLookup<T> {

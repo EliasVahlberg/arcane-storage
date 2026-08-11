@@ -9,6 +9,8 @@ import arcanestorage.ArcaneStorage;
 import arcanestorage.container.StorageTerminalContainer;
 import arcanestorage.network.NetworkContents;
 import arcanestorage.object.StorageConduitObject;
+import arcanestorage.network.TransferRule;
+import arcanestorage.objectentity.BusObjectEntity;
 import arcanestorage.objectentity.StorageTerminalObjectEntity;
 import arcanestorage.network.NetworkStorage;
 import necesse.engine.network.Packet;
@@ -17,9 +19,11 @@ import necesse.engine.network.PacketWriter;
 import necesse.engine.registries.ItemRegistry;
 import necesse.engine.registries.ObjectRegistry;
 import necesse.entity.objectEntity.ObjectEntity;
+import necesse.entity.objectEntity.interfaces.OEInventory;
 import necesse.inventory.container.ContainerAction;
 import necesse.inventory.container.slots.ContainerSlot;
 import necesse.inventory.item.Item;
+import necesse.inventory.Inventory;
 import necesse.inventory.InventoryItem;
 import necesse.level.maps.Level;
 import necesseheadlessharness.Harness;
@@ -57,6 +61,8 @@ public final class ArcaneStorageVerbs {
       Harness.registerObjectAlias("terminal", ArcaneStorage.TERMINAL_STRING_ID);
       Harness.registerObjectAlias("unit", ArcaneStorage.UNIT_STRING_ID);
       Harness.registerObjectAlias("conduit", ArcaneStorage.CONDUIT_STRING_ID);
+      Harness.registerObjectAlias("importbus", ArcaneStorage.IMPORT_BUS_STRING_ID);
+      Harness.registerObjectAlias("exportbus", ArcaneStorage.EXPORT_BUS_STRING_ID);
 
       Harness.registerVerb(new ReportVerb());
       Harness.registerVerb(new ResetVerb());
@@ -66,6 +72,8 @@ public final class ArcaneStorageVerbs {
       Harness.registerVerb(new DepositCursorVerb());
       Harness.registerVerb(new InstallVerb());
       Harness.registerVerb(new BenchVerb());
+      Harness.registerVerb(new RuleVerb());
+      Harness.registerVerb(new TransferVerb());
 
       Harness.registerExpectation(new UnitsExpectation());
       Harness.registerExpectation(new InUseExpectation());
@@ -74,6 +82,8 @@ public final class ArcaneStorageVerbs {
       Harness.registerExpectation(new FitsExpectation());
       Harness.registerExpectation(new MaskExpectation());
       Harness.registerExpectation(new NetworkTotalExpectation());
+      Harness.registerExpectation(new RulesExpectation());
+      Harness.registerExpectation(new ContainerItemExpectation());
    }
 
    // ---------------------------------------------------------------------------------------
@@ -396,6 +406,202 @@ public final class ArcaneStorageVerbs {
     * measurement. Two costs were removed on the strength of reading the code, and reading the code
     * cannot tell you whether what remains fits in a frame.
     */
+   /**
+    * Writes a transfer rule onto a bus, since there is no interface for it yet.
+    *
+    * <p>{@code rule <dx> <dy> <item> [keep <n>] [limit <n>]}, and {@code rule <dx> <dy> clear} empties the
+    * list. This is how the rule primitive is tested at all, and it will stay useful after the interface
+    * exists: a test should not have to drive a form to set a threshold.
+    */
+   private static final class RuleVerb implements TestVerb {
+      public String name() {
+         return "rule";
+      }
+
+      public String usage() {
+         return "rule <dx> <dy> <item|clear> [keep <n>] [limit <n>]";
+      }
+
+      public int coordinateArgIndex() {
+         return 1;
+      }
+
+      public boolean run(TestContext context) {
+         BusObjectEntity bus = busAt(context, 1);
+         if (bus == null) {
+            context.fail("rule: no bus at " + context.arg(1) + "," + context.arg(2));
+            return false;
+         }
+
+         String item = context.arg(3);
+         if ("clear".equals(item)) {
+            bus.rules.clear();
+            context.info("cleared the rules on the bus at " + context.arg(1) + "," + context.arg(2));
+            return true;
+         }
+
+         int keep = 0;
+         int limit = TransferRule.NO_LIMIT;
+         for (int i = 4; i + 1 < context.argCount(); i += 2) {
+            String key = context.arg(i);
+            if ("keep".equals(key)) {
+               keep = context.intArg(i + 1);
+            } else if ("limit".equals(key)) {
+               limit = context.intArg(i + 1);
+            } else {
+               context.fail("rule: expected 'keep <n>' or 'limit <n>', got " + key);
+               return false;
+            }
+         }
+
+         if (ItemRegistry.getItemID(item) == -1) {
+            context.fail("rule: no such item " + item);
+            return false;
+         }
+
+         TransferRule rule = new TransferRule(item, keep, limit);
+         bus.rules.add(rule);
+         context.info("added rule " + rule);
+         return true;
+      }
+   }
+
+   /**
+    * Runs a bus's transfer immediately, instead of waiting out its interval.
+    *
+    * <p>A bus moves at most one stack per second on its own, which is right for a player watching a chest
+    * empty and wrong for a test: waiting is slow, and a test that slept would be measuring the clock
+    * rather than the transfer. This calls exactly what the tick calls.
+    *
+    * <p>{@code transfer <dx> <dy> [times]} — repeated, because one call moves one item type, so emptying
+    * a mixed chest takes as many calls as it has kinds of thing in it.
+    */
+   private static final class TransferVerb implements TestVerb {
+      // Deliberately not a TestQuery. 'query' is for reading a value, and a query that performed a
+      // transfer to report how much it moved would be a question that changes the answer -- which is
+      // exactly the kind of test tooling that produces results nobody can reproduce. What moved is
+      // observable: read both sides.
+      public String name() {
+         return "transfer";
+      }
+
+      public String usage() {
+         return "transfer <dx> <dy> [times]";
+      }
+
+      public int coordinateArgIndex() {
+         return 1;
+      }
+
+      public boolean run(TestContext context) {
+         BusObjectEntity bus = busAt(context, 1);
+         if (bus == null) {
+            context.fail("transfer: no bus at " + context.arg(1) + "," + context.arg(2));
+            return false;
+         }
+
+         int times = context.argCount() > 3 ? context.intArg(3) : 1;
+         int moved = 0;
+         for (int i = 0; i < times; i++) {
+            moved += bus.transferOnce();
+         }
+
+         context.info("moved " + moved);
+         return true;
+      }
+   }
+
+   /** How many rules a bus holds, so a test can assert that loading a world brought them back. */
+   /**
+    * How many rules a bus holds, and what they say.
+    *
+    * <p>Note the coordinate index is 2, not 1: an expectation's arguments are shifted by the word
+    * {@code expect}. Getting this wrong makes coordinates land on the wrong tile only when a scenario is
+    * run from a world whose spawn is not the origin, which is the kind of bug that hides.
+    */
+   private static final class RulesExpectation implements TestVerb, TestQuery {
+      public String name() {
+         return "rules";
+      }
+
+      public String usage() {
+         return "expect rules <dx> <dy> <count>";
+      }
+
+      public int coordinateArgIndex() {
+         return 2;
+      }
+
+      public void query(TestContext context, Json.Writer out) {
+         BusObjectEntity bus = busAt(context, 2);
+         out.num("rules", bus == null ? -1 : bus.rules.size());
+         out.str("description", bus == null ? "" : bus.rules.all().toString());
+      }
+
+      public boolean run(TestContext context) {
+         BusObjectEntity bus = busAt(context, 2);
+         if (bus == null) {
+            context.fail("expect rules: no bus at " + context.arg(2) + "," + context.arg(3));
+            return false;
+         }
+
+         int wanted = context.intArg(4);
+         return context.check(bus.rules.size() == wanted, "rules = " + wanted,
+               "expected " + wanted + ", found " + bus.rules.size() + " " + bus.rules.all());
+      }
+   }
+
+   /**
+    * How many of an item an ordinary container at a tile holds.
+    *
+    * <p>Exists because this mod replaces the harness's generic {@code expect item} with a network-wide
+    * reading, which is right for the terminal and leaves no way to look inside a plain chest — and the
+    * buses are precisely about what crosses between a chest and the network, so both sides have to be
+    * readable. Asks for {@code OEInventory}, so it works on any container in the game.
+    */
+   private static final class ContainerItemExpectation implements TestVerb, TestQuery {
+      public String name() {
+         return "container";
+      }
+
+      public String usage() {
+         return "expect container <dx> <dy> <item> <count>";
+      }
+
+      public int coordinateArgIndex() {
+         return 2;
+      }
+
+      public void query(TestContext context, Json.Writer out) {
+         out.num("count", count(context, 2, context.arg(4)));
+      }
+
+      public boolean run(TestContext context) {
+         int found = count(context, 2, context.arg(4));
+         int wanted = context.intArg(5);
+         return context.check(found == wanted, "container " + context.arg(4) + " = " + wanted,
+               "expected " + wanted + ", found " + found);
+      }
+
+      private static int count(TestContext context, int argIndex, String itemStringID) {
+         ObjectEntity entity = context.level.entityManager.getObjectEntity(
+            context.tileX(context.intArg(argIndex)), context.tileY(context.intArg(argIndex + 1)));
+         if (!(entity instanceof OEInventory)) {
+            return -1;
+         }
+
+         Inventory inventory = ((OEInventory)entity).getInventory();
+         return inventory == null ? -1 : BusObjectEntity.countIn(inventory, itemStringID);
+      }
+   }
+
+   /** The bus at a tile, or null with no message: callers report their own verb's name. */
+   private static BusObjectEntity busAt(TestContext context, int argIndex) {
+      ObjectEntity entity = context.level.entityManager.getObjectEntity(
+         context.tileX(context.intArg(argIndex)), context.tileY(context.intArg(argIndex + 1)));
+      return entity instanceof BusObjectEntity ? (BusObjectEntity)entity : null;
+   }
+
    private static final class BenchVerb implements TestVerb {
       /** A frame has 16.67ms for everything, so the interface's own share must be a small part of it. */
       private static final double BUDGET_MS = 2.0;

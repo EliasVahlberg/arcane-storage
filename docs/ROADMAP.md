@@ -473,13 +473,20 @@ currently craftable.
 
 Where the mod stops being a port. One primitive does most of the work.
 
-- [ ] **Condition-based transfer rules** — a rule is a threshold, not just an item
-      filter: move X when more than N, accept X only when fewer than N, never
-      drain below N
-- [ ] **Import bus** — attaches to an ordinary container and moves its contents
-      into the network
-- [ ] **Export bus** — pushes items out of the network into a target container on
-      a rule
+- [x] **Condition-based transfer rules** — *mechanics done Aug 2026; no interface yet.* One immutable
+      `TransferRule` per item with two optional bounds: `keep` (never take the source below this) and
+      `limit` (never take the destination above this). The roadmap's three readings really are one
+      calculation — "send the surplus", "top it up to N", "never drain below N" — which is asserted in
+      `src/test/java/arcanestorage/network/TransferRuleTest.java` rather than claimed. Rules are a
+      whitelist once any exist, and the first match decides, so order is meaningful
+- [x] **Import bus** — *done Aug 2026.* Attaches to any neighbouring container and moves its contents
+      into the network. With no rules it moves everything, because importing only adds
+- [x] **Export bus** — *done Aug 2026.* Pushes items out of the network into a neighbouring container on
+      a rule, and is **inert until it has one** — the opposite default to the import bus, because
+      exporting removes from storage and a bus that emptied the network on placement would be a trap
+- [ ] **A rule interface**, so rules can be set without a console. This is the phase's remaining work
+      and it is entirely UI: a bus has no container form yet, so `harness rule ...` is the only way to
+      write one. Everything behind it is tested
 
 The rule primitive is deliberately introduced once and reused. Overflow control,
 defence against settler overproduction, and reserve floors are the same idea read
@@ -498,6 +505,29 @@ scale, and haulers already move items between containers according to it.
 **Done when:** overflow of a chosen item reaches a Shipping Chest and is sold,
 with a reserve floor respected, and a settler depositing into a bussed chest shows
 up in the terminal without gaining any access to the network.
+
+**Where that stands:** the transfer half is verified headlessly in `tests/python/test_buses.py` — a
+chosen item's surplus leaves the network into an ordinary container with the floor held across units
+rather than per unit, and a chest's contents arrive in the network without the chest joining it. Two
+parts are not verified: that a Shipping Chest then *sells* what it receives, which is vanilla's
+behaviour and needs a trader mission in a real world, and that a settler depositing into the bussed
+chest behaves as expected, which needs a settlement. Both are in-game QA rather than code.
+
+**Design notes worth keeping.** Two decisions here were wrong first and are recorded because the
+reasoning matters more than the outcome:
+
+- **A bus conducts.** The first version made a bus a plain node like the terminal, on the stated
+  reasoning that a chest should not bridge two networks — which was empty, because a chest is not a
+  conductor and never could. What it actually did was sever a run of units wherever a bus was placed. A
+  test caught it. Everything this mod places conducts except the terminal, which is a window rather than
+  infrastructure.
+- **Both sides of a transfer are lists of inventories.** The tempting alternative was an `Inventory`
+  subclass spanning the network, which would have been a subtle liar: `Inventory` carries dirty
+  tracking, filters and locked slots, and a view reimplementing some of that would be wrong in ways
+  nothing would notice for a while.
+
+Items are added first and removed by exactly what the destination accepted, so a full destination is a
+no-op rather than a hole — the same ordering the cursor deposit uses, and for the same reason.
 
 ### Production stations — reviewed Aug 2026, deferred deliberately
 
