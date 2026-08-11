@@ -1,54 +1,61 @@
-# Testing layout — two suites, and why
+# Testing layout
 
-There are two automated suites plus a manual backlog. The split is deliberate, but it was only
-recorded in one docstring until now, which is why it looked like drift.
+One automated suite, plus a manual backlog.
 
 ```
-make pytest      32 tests   ~29s   tests/python/*.py
-make scenarios    8 + 1     ~35s   tests/scenarios/*.txt
-docs/QA_BACKLOG.md                 everything visual — Elias runs these by hand
+make pytest      53 tests   ~46s   tests/python/*.py     the whole automated suite
+make test         unit      ~1s    src/test/java         game-independent logic only
+docs/QA_BACKLOG.md                                       everything visual — Elias runs these by hand
 ```
 
-Neither suite touches a form. Every UI change in this mod is unverified until it is looked at.
+Nothing automated touches a form. Every UI change in this mod is unverified until it is looked at, and
+a commit should say so rather than implying otherwise.
 
-## What each is for
+## There used to be two suites, and that was a mistake
 
-**pytest** is for anything that needs to compute, parametrise, or wait. It gets a real server, a real
-player and the mod's own container, and it reads state back through query verbs. Prefer it by default:
-its failure messages name which side was wrong, and `@pytest.mark.parametrize` covers three kinds of
-non-station in three lines.
+Until Aug 2026 there was also a bash suite of eight scenario files under `tests/scenarios/`, run by
+`tools/run_scenario.sh`. It is gone; everything it asserted is now in `tests/python/`.
 
-**Scenario files** are for the three things pytest cannot do here:
+The reasons given for keeping both did not survive being questioned:
 
-1. **They run in a live game.** `harness run <name>` executes one from a server console or from
-   in-game chat, so a scenario doubles as a setup script for visual QA — `make run HARNESS=1`, then
-   run one to build the scene you want to look at. A pytest file cannot be handed to a running game.
-2. **They survive a restart.** The pytest server is a session fixture: one boot for the whole suite,
-   so save-and-reload cannot be expressed in it. `tests/scenarios/persistence/` is two files across
-   two boots — write last in the first boot so the shutdown save catches it, then verify in a second.
-3. **They need no venv.** `tools/run_scenario.sh` is bash and the harness jar. Useful when the Python
-   environment is the thing under suspicion.
+- *"Persistence needs two boots and pytest has a session-scoped server."* True of how the fixture was
+  written, not of pytest. The Python client can restart a server now — `harness.restart()` stops it
+  cleanly, so the world is saved, and boots it again on the same world — and `test_persistence.py` is
+  one readable test instead of two files whose numbers had to be kept in step by hand.
+- *"The bash runner needs no venv."* Bash has its own failure modes; this was a preference dressed up
+  as a constraint.
+- *"Scenario files can be run inside a live game."* This one is real, but it argues for keeping the
+  *file format*, not a parallel assertion suite. `harness run <name>` still exists, and
+  `make scenario FILE=...` still runs an ad-hoc file, so a throwaway script to set up a scene for
+  visual QA is still one command. What is gone is a second set of assertions to keep in step.
 
-## The overlap is intentional, in two files
+Two suites means two places to update when behaviour changes, two failure formats to read, and a
+standing question about which one owns a given rule. That cost is real and the benefits were not.
 
-`capacity.txt` and `container_roundtrip.txt` are now largely covered by `tests/python/test_network.py`.
-They are kept rather than deleted because of reason 1 above: they are the scripts to run in a live
-world when checking the same behaviour by eye. `container_transfers.txt` is only *partly* covered —
-deposit-all is in pytest, quick-stack and restock are not.
+## What the suite covers
 
-Unique to scenarios: `topology.txt`, `multipath.txt`, `conduits.txt`, `performance.txt` (which asserts
-a per-call budget against the largest network the mod allows), the persistence pair, and quick-stack
-and restock.
+| File | What it pins |
+|---|---|
+| `test_topology.py` | What counts as one network: rows, gaps, diagonals, breaks, two terminals, and a block that must not be double-counted |
+| `test_conduits.py` | Reach without capacity, and the frame mask (bit0=N, bit1=E, bit2=S, bit3=W) |
+| `test_network.py` | Capacity accounting, aggregation, deposit and withdraw round trips |
+| `test_transfers.py` | Quick-stack, deposit-all, restock, and the aggregation budget at 64 units |
+| `test_crafting.py` | Crafting from network contents, including through a conduit run, and refusing to part-craft |
+| `test_stations.py` | Installed stations gate recipes; fueled stations are refused |
+| `test_cursor_clicks.py` | The server half of the click conventions, and item conservation |
+| `test_in_use.py` | The "someone is using me" state other clients render from, including its two-second expiry |
+| `test_persistence.py` | Everything above surviving a save and a reload. Costs a boot, so it asserts four networks in one pass |
 
 ## Where to put a new test
 
-- Needs a number computed, several cases, or a wait → pytest.
-- Needs to be run inside a live game, or across a restart → scenario.
-- Is about what something looks like → `docs/QA_BACKLOG.md`, and say so in the commit rather than
-  implying it was verified.
+- Anything automatable → `tests/python/`.
+- Anything about what something looks like → `docs/QA_BACKLOG.md`.
+- A throwaway script to build a scene to look at → any `.txt` file plus `make scenario FILE=...`, or
+  `harness run <name>` in a live game with `make run HARNESS=1`. Not a test, and not checked in.
 
-## Known gap
+## The one thing to know about isolation
 
-Nothing in pytest covers persistence, because the server fixture is session-scoped. Fixing that means
-teaching the Python client to restart a server, which is on the harness's own backlog. Until then the
-scenario pair is the only save/reload coverage, and it is worth keeping green for that reason alone.
+The `harness` fixture clears a radius around spawn and empties the player between tests; the `storage`
+fixture also walks the object entities and removes every storage object, wherever it is. A test that
+places something far from spawn should use `storage`, not `harness` — the radius will not reach it, and
+the level-wide totals will notice.

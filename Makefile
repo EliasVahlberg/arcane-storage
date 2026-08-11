@@ -21,7 +21,7 @@ SHELL := /bin/bash
 GRADLE := ./gradlew --console=plain
 LOGDIR := build/logs
 
-.PHONY: persistence help build test scenario scenarios run dev server appid textures clean stop tasks doctor
+.PHONY: help build test scenario run dev server appid textures clean stop tasks doctor
 
 help: ## Show available targets
 	@grep -hE '^[a-z-]+:.*##' $(MAKEFILE_LIST) \
@@ -44,22 +44,10 @@ test: ## Run the unit tests (game-independent logic only; no game or Steam neede
 	@mkdir -p $(LOGDIR)
 	$(GRADLE) test < /dev/null 2>&1 | tee $(LOGDIR)/test.log
 
-scenario: ## Run one scenario against a headless server: make scenario FILE=tests/scenarios/x.txt
-	@test -n "$(FILE)" || { echo "usage: make scenario FILE=tests/scenarios/<name>.txt"; exit 2; }
+scenario: ## Run an ad-hoc scenario file against a headless server: make scenario FILE=path/to/x.txt
+	@test -n "$(FILE)" || { echo "usage: make scenario FILE=<file>.txt"; exit 2; }
 	@$(MAKE) --no-print-directory testjar > /dev/null
 	@tools/run_scenario.sh "$(FILE)"
-
-scenarios: ## Run every scenario, plus persistence across a restart; non-zero exit on any failure
-	@$(MAKE) --no-print-directory testjar > /dev/null
-	@# The persistence write phase runs last in this boot so nothing resets its objects, and
-	@# the shutdown save puts it on disk for the second boot to verify.
-	@tools/run_scenario.sh tests/scenarios/*.txt tests/scenarios/persistence/write.txt
-	@tools/run_scenario.sh --keep tests/scenarios/persistence/verify.txt
-
-persistence: ## Just the persistence pair: one boot writes, a second verifies after a restart
-	@$(MAKE) --no-print-directory testjar > /dev/null
-	@tools/run_scenario.sh tests/scenarios/persistence/write.txt
-	@tools/run_scenario.sh --keep tests/scenarios/persistence/verify.txt
 
 run: ## Launch the game with the in-development mod (needs Steam running). PACKETLOG=1 logs packets, HARNESS=1 enables /harness in-game
 	@mkdir -p $(LOGDIR)
