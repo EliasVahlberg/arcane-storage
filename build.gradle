@@ -268,6 +268,12 @@ tasks.named('runClient') {
     if (project.hasProperty('packetlog')) {
         systemProperty 'arcanestorage.packetlog', '1'
     }
+    // -Pharness wakes the headless harness inside this client, so '/harness fill 1 0 stone 2000'
+    // works in your own world for setting up a scene to look at. Off by default: the harness is
+    // dormant in a client since it coincided with a keyboard hang while hosting (Aug 2026).
+    if (project.hasProperty('harness')) {
+        args '-harness'
+    }
 }
 
 // The dedicated server builds a Swing window (ServerJFrame, in Server.jar) before any mod

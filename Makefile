@@ -61,9 +61,9 @@ persistence: ## Just the persistence pair: one boot writes, a second verifies af
 	@tools/run_scenario.sh tests/scenarios/persistence/write.txt
 	@tools/run_scenario.sh --keep tests/scenarios/persistence/verify.txt
 
-run: ## Launch the game with the in-development mod (needs Steam running). PACKETLOG=1 logs inbound packets
+run: ## Launch the game with the in-development mod (needs Steam running). PACKETLOG=1 logs packets, HARNESS=1 enables /harness in-game
 	@mkdir -p $(LOGDIR)
-	$(GRADLE) runClient $(if $(PACKETLOG),-Ppacketlog,) < /dev/null 2>&1 | tee $(LOGDIR)/runClient.log
+	$(GRADLE) runClient $(if $(PACKETLOG),-Ppacketlog,) $(if $(HARNESS),-Pharness,) < /dev/null 2>&1 | tee $(LOGDIR)/runClient.log
 
 dev: ## Launch a second client with a different auth ID, for multiplayer testing
 	@mkdir -p $(LOGDIR)
