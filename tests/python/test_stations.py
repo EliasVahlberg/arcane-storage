@@ -113,3 +113,46 @@ def test_a_fueled_station_grants_no_recipes(terminal):
 
     assert reply.ok is False
     assert terminal.count("ironore") == 10
+
+
+#: Every vanilla station whose techs an installed item can answer for: `CraftingStationObject`
+#: subclasses, taken from `RecipeTechRegistry`'s own itemStringIDs so the list cannot drift from the
+#: game's.
+INSTALLABLE_STATIONS = [
+    "workstation", "demonicworkstation", "tungstenworkstation", "fallenworkstation",
+    "ironanvil", "demonicanvil", "tungstenanvil", "fallenanvil",
+    "carpentersbench", "tungstencarpentersbench", "fallencarpentersbench",
+    "alchemytable", "voidalchemytable", "caveglowalchemytable", "fallenalchemytable",
+    "landscapingstation", "tungstenlandscapingstation", "fallenlandscapingstation",
+    "transmutationstation",
+]
+
+#: Stations that need their tile. The first three burn fuel; the rest process over time and are not
+#: `CraftingStationObject` at all -- they are `GameObject implements SettlementWorkstationObject`, so
+#: they are refused one step earlier, for having no techs to offer.
+PLACEMENT_DEPENDENT_STATIONS = [
+    "forge", "cookingstation", "cookingpot", "roastingstation",
+    "compostbin", "grainmill", "cheesepress",
+]
+
+
+@pytest.mark.parametrize("station", INSTALLABLE_STATIONS)
+def test_every_stateless_vanilla_station_installs(terminal, station):
+    """The rule is behavioural -- "does this station need to be somewhere?" -- so the value of this
+    test is that it runs the rule over the whole vanilla set rather than over the two cases that
+    prompted it. A rule that refuses a legitimate bench is as much a bug as one that admits a Forge."""
+    terminal.open()
+
+    terminal.harness.do("install", station)  # raises unless the terminal accepted it
+
+
+@pytest.mark.parametrize("station", PLACEMENT_DEPENDENT_STATIONS)
+def test_a_station_that_needs_its_tile_is_refused(terminal, station):
+    """Fuel and processing time are enforced by the *container*, not by the object, so an installed one
+    would craft for free. Asserted over every such station in the game, not just the Forge that
+    exposed it."""
+    terminal.open()
+
+    reply = terminal.harness.call("install", station)
+
+    assert not reply.ok, f"{station} was installed, and would then craft with no fuel or no processing"

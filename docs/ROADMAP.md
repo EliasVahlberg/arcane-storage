@@ -622,6 +622,26 @@ early game, and no tier is dead content.
 
 **Done when:** it works on a real server, not just in singleplayer.
 
+## Working with other mods
+
+Raised as a priority Aug 2026, and the reasoning is Magic Storage's and AE2's: a storage mod earns its
+keep in a heavily modded game, so third-party stations and items working here is a feature rather than a
+courtesy. The stance is to get it by asking the game's own questions instead of recognising the game's
+own classes, so that compatibility is a property of how the mod is written and not a compatibility layer
+bolted on later.
+
+Findings and the rule that came out of it are in [MOD_COMPAT.md](MOD_COMPAT.md). In short: Necesse has
+no tag or annotation system, it has capability interfaces, and the station gate now asks whether a
+station needs to be standing somewhere rather than which class it extends — verified against all 26
+vanilla stations.
+
+- [ ] **Network membership as an interface**, so another mod's object entity can join a network without
+      a patch. Today the traversal asks `instanceof StorageUnitObjectEntity`. Worth doing *before*
+      Phase 5, because buses are the first new member type and our own code should be the first user of
+      the seam.
+- [ ] **A published integration API** — deliberately not yet. An interface nobody has implemented is a
+      guess; make the internals general, ship, and let the first real request shape the surface.
+
 ## Decisions required
 
 Not blocked on code. Both are recorded because inheriting them silently would be

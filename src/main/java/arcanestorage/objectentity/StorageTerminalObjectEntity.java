@@ -10,11 +10,14 @@ import arcanestorage.network.UnitNetwork;
 import necesse.entity.objectEntity.InventoryObjectEntity;
 import necesse.entity.objectEntity.ObjectEntity;
 import necesse.inventory.recipe.Tech;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import necesse.engine.GameLog;
 import necesse.inventory.InventoryItem;
 import necesse.inventory.item.placeableItem.objectItem.ObjectItem;
 import necesse.level.gameObject.GameObject;
 import necesse.level.gameObject.container.CraftingStationObject;
-import necesse.level.gameObject.container.FueledCraftingStationObject;
+import necesse.level.maps.levelData.settlementData.SettlementWorkstationObject;
 import necesse.level.maps.Level;
 
 /**
@@ -71,35 +74,119 @@ public class StorageTerminalObjectEntity extends InventoryObjectEntity {
    public static final int STATION_SLOTS = 10;
 
    /**
-    * Only crafting stations may be installed, one per slot.
+    * Only crafting stations may be installed, one per slot, and only ones that do not need to be
+    * placed to work.
     *
     * <p>Asked of the item rather than checked against a list of known benches:
-    * {@link ObjectItem#getObject()} reaches the object, and every station in the game -- 26 of
-    * them -- is a {@link CraftingStationObject}. A modded bench that extends it therefore works
-    * here without this mod knowing it exists.
+    * {@link ObjectItem#getObject()} reaches the object, and {@code getCraftingTechs()} is declared on
+    * {@link CraftingStationObject}, so extending it is the only way an object can say which recipes it
+    * unlocks. A modded bench therefore works here without this mod knowing it exists, and the check is
+    * as general as the game itself allows.
     */
    @Override
    public boolean isItemValid(int slot, InventoryItem item) {
       CraftingStationObject station = getCraftingStation(item);
-      return station != null && !isFueled(station);
+      return station != null && !needsItsPlacement(station);
    }
 
    /**
-    * Whether a station burns fuel, and so cannot honestly be installed yet.
+    * The hooks a station overrides only because it needs to know where it is.
     *
-    * <p>This closes a hole rather than expressing a preference. Fuel is enforced by
-    * {@code FueledCraftingStationContainer.applyCraftingAction}, which checks {@code isFueled()} and
-    * refuses when the station is cold -- it is behaviour of the *container*, not of the object. A
+    * <p>{@link SettlementWorkstationObject} is the game's own interface for "an object settlers can
+    * craft at", and its default methods are a description of what a station needs from its tile:
+    * whether it can craft right now, where its fuel lives, whether it processes over time. Every
+    * default is the answer of a station that needs nothing -- {@code canCurrentlyCraft} returns true,
+    * the fuel accessors return null, {@code isProcessingInventory} returns false. So a station that
+    * overrides any of them is telling us, in the game's own vocabulary, that it cannot be reduced to an
+    * item in a slot.
+    *
+    * <p>{@code getMaxCraftsAtOnce} is deliberately absent: a station may batch without caring where it
+    * is, and refusing it would cost a capability for no correctness gain.
+    */
+   private static final String[][] PLACEMENT_HOOKS = {
+      {"canCurrentlyCraft", "necesse.level.maps.Level", "int", "int", "necesse.inventory.recipe.Recipe"},
+      {"getFuelRequestOptions", "necesse.level.maps.Level", "int", "int"},
+      {"getFuelInventoryRange", "necesse.level.maps.Level", "int", "int"},
+      {"isProcessingInventory", "necesse.level.maps.Level", "int", "int"},
+      {"tickCrafting", "necesse.level.maps.Level", "int", "int", "necesse.inventory.recipe.Recipe"},
+   };
+
+   /** Reflection is stable for a class, and this is asked once per slot on every inventory change. */
+   private static final Map<Class<?>, Boolean> PLACEMENT_DEPENDENT = new ConcurrentHashMap<>();
+
+   /**
+    * Whether a station's crafting depends on the tile it stands on, and so cannot be installed.
+    *
+    * <p>This closes a hole rather than expressing a preference, and the first version closed it too
+    * narrowly. Fuel is enforced by {@code FueledCraftingStationContainer.applyCraftingAction}, which
+    * refuses when the station is cold -- behaviour of the <i>container</i>, not of the object. A
     * terminal that installs a Forge inherits its techs and none of that, so smelting would cost no
-    * fuel at all. Verified in the source Aug 2026: {@code FueledCraftingStationObject extends
-    * CraftingStationObject}, and it is the only container in the game that gates crafting, so this
-    * check is exactly as broad as the problem -- Forge, Cooking Station and the campfire addon.
+    * fuel. The first fix asked {@code instanceof FueledCraftingStationObject}, which is correct for
+    * vanilla and worthless for a mod: a modded smelter that keeps its own fuel without extending that
+    * class would have installed and smelted for free.
+    *
+    * <p>So the question asked here is behavioural — does this station need to be somewhere? — and it
+    * is answered from two places the game already maintains:
+    *
+    * <ul>
+    *   <li>the {@link SettlementWorkstationObject} hooks above, because a station that keeps state has
+    *       to override them or settlers could not use it correctly either; and
+    *   <li>{@link GameObject#getNewObjectEntity}, because placed state <i>is</i> an object entity in
+    *       this engine. Verified Aug 2026: all eight installable vanilla stations inherit the base
+    *       implementation, which returns null, while {@code FueledCraftingStationObject} overrides it
+    *       to create an {@code AnyLogFueledInventoryObjectEntity} -- so every fueled station in the
+    *       game is caught by that half alone, including the Cooking Station, which overrides nothing
+    *       itself.
+    * </ul>
+    *
+    * <p>The honest limit: a modded station could keep placed state without touching either, and would
+    * slip through. It would also be broken for settlers, which is the reason to expect the overlap
+    * rather than to assume it.
     *
     * <p>This is also the seam where production stations belong when they are done properly: fuel,
     * crafting time and a request queue are a feature, not a slot. See the roadmap.
     */
-   public static boolean isFueled(CraftingStationObject station) {
-      return station instanceof FueledCraftingStationObject;
+   public static boolean needsItsPlacement(CraftingStationObject station) {
+      return PLACEMENT_DEPENDENT.computeIfAbsent(station.getClass(),
+            StorageTerminalObjectEntity::computePlacementDependent);
+   }
+
+   private static boolean computePlacementDependent(Class<?> type) {
+      if (declaresBelow(type, GameObject.class, "getNewObjectEntity",
+            "necesse.level.maps.Level", "int", "int")) {
+         return true;
+      }
+
+      for (String[] hook : PLACEMENT_HOOKS) {
+         String[] params = Arrays.copyOfRange(hook, 1, hook.length);
+         if (declaresBelow(type, SettlementWorkstationObject.class, hook[0], params)) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Whether {@code type} overrides {@code name} somewhere below {@code base}.
+    *
+    * <p>A missing method is reported as an override rather than ignored: it means this mod is compiled
+    * against a different version of the game than it is running on, and in that case refusing to
+    * install is the safe direction -- a refused bench is a visible annoyance, free smelting is not.
+    */
+   private static boolean declaresBelow(Class<?> type, Class<?> base, String name, String... params) {
+      try {
+         Class<?>[] types = new Class<?>[params.length];
+         for (int i = 0; i < params.length; i++) {
+            types[i] = "int".equals(params[i]) ? int.class : Class.forName(params[i]);
+         }
+
+         return !type.getMethod(name, types).getDeclaringClass().equals(base);
+      } catch (ReflectiveOperationException e) {
+         GameLog.warn.println("arcane storage: cannot tell whether " + type.getName() + " needs its "
+               + "placement (" + name + " not found), refusing to install it: " + e);
+         return true;
+      }
    }
 
    /** One bench per slot, so the slots read as an install list rather than as storage. */
