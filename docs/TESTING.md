@@ -4,7 +4,7 @@ One automated suite, plus a manual backlog.
 
 ```
 make pytest      90 tests   ~67s   tests/python/*.py     the whole automated suite
-make test        27 tests   ~1s    src/test/java         game-independent logic only
+make test        19 tests   ~1s    src/test/java         game-independent logic only
 docs/QA_BACKLOG.md                                       everything visual — Elias runs these by hand
 ```
 
@@ -48,7 +48,7 @@ standing question about which one owns a given rule. That cost is real and the b
 | `test_stations.py` | Installed stations gate recipes; fueled stations are refused |
 | `test_cursor_clicks.py` | The server half of the click conventions, and item conservation |
 | `test_in_use.py` | The "someone is using me" state other clients render from, including its two-second expiry |
-| `test_buses.py` | Import and export buses: rules, floors, ceilings, conservation, and that a chest never joins the network |
+| `test_buses.py` | Import and export buses: filters, floors, ceilings, conservation, that a chest never joins the network, and the rule panel's data path |
 | `test_persistence.py` | Everything above surviving a save and a reload. Costs a boot, so it asserts four networks in one pass |
 
 ## Where to put a new test

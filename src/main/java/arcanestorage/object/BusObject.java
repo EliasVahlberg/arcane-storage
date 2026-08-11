@@ -4,7 +4,8 @@ import java.awt.Color;
 import java.awt.Rectangle;
 
 import arcanestorage.network.NetworkConductor;
-import arcanestorage.network.TransferRule;
+import arcanestorage.ArcaneStorage;
+import arcanestorage.container.BusContainer;
 import arcanestorage.objectentity.BusObjectEntity;
 import necesse.engine.localization.Localization;
 import necesse.engine.network.server.ServerClient;
@@ -128,6 +129,26 @@ public abstract class BusObject extends FurnitureObject implements NetworkConduc
     * <p>Server-side only: it reads the network and the neighbouring container, and neither is authoritative
     * on a client.
     */
+   /**
+    * Right-clickable.
+    *
+    * <p>{@code GameObject.canInteract} is false by default and only {@code InventoryObject} overrides it,
+    * so a {@code FurnitureObject} that means to be opened must say so — without this, the panel below can
+    * never be reached and {@link #getInteractTip} never appears. A headless test found this, not a play
+    * session.
+    */
+   @Override
+   public boolean canInteract(Level level, int x, int y, PlayerMob player) {
+      return true;
+   }
+
+   /**
+    * Opens the rule panel, and says why nothing is happening when that is the case.
+    *
+    * <p>A missing container is the likeliest mistake when placing a bus and is invisible otherwise, so it
+    * is worth a line of chat even though the panel still opens: a player who mis-set a rule wants the
+    * panel, and a player who forgot the chest wants to be told.
+    */
    @Override
    public void interact(Level level, int x, int y, PlayerMob player) {
       if (!level.isServer()) {
@@ -141,27 +162,12 @@ public abstract class BusObject extends FurnitureObject implements NetworkConduc
       }
 
       BusObjectEntity bus = (BusObjectEntity)entity;
-      client.sendChatMessage(Localization.translate("ui", "arcanestorage_busstatus",
-         "units", String.valueOf(bus.network().size()),
-         "container", bus.attachedContainer() == null
-            ? Localization.translate("ui", "arcanestorage_bus_nocontainer")
-            : Localization.translate("ui", "arcanestorage_bus_container"),
-         "rules", bus.rules.isEmpty()
-            ? Localization.translate("ui", "arcanestorage_bus_norules")
-            : describe(bus)));
-   }
-
-   /** The rules as one line, since there is no interface to show them properly yet. */
-   private static String describe(BusObjectEntity bus) {
-      StringBuilder out = new StringBuilder();
-      for (TransferRule rule : bus.rules.all()) {
-         if (out.length() > 0) {
-            out.append(", ");
-         }
-
-         out.append(rule);
+      if (bus.attachedContainer() == null) {
+         client.sendChatMessage(Localization.translate("ui", "arcanestorage_bus_nocontainer"));
+      } else if (bus.network().isEmpty()) {
+         client.sendChatMessage(Localization.translate("ui", "arcanestorage_bus_nonetwork"));
       }
 
-      return out.toString();
+      BusContainer.openAndSendContainer(ArcaneStorage.BUS_CONTAINER, client, level, bus);
    }
 }

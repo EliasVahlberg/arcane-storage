@@ -9,8 +9,10 @@ import arcanestorage.ArcaneStorage;
 import arcanestorage.container.StorageTerminalContainer;
 import arcanestorage.network.NetworkContents;
 import arcanestorage.object.StorageConduitObject;
-import arcanestorage.network.TransferRule;
+import arcanestorage.container.BusContainer;
 import arcanestorage.objectentity.BusObjectEntity;
+import necesse.inventory.item.ItemCategory;
+import necesse.inventory.itemFilter.ItemCategoriesFilter;
 import arcanestorage.objectentity.StorageTerminalObjectEntity;
 import arcanestorage.network.NetworkStorage;
 import necesse.engine.network.Packet;
@@ -74,6 +76,7 @@ public final class ArcaneStorageVerbs {
       Harness.registerVerb(new BenchVerb());
       Harness.registerVerb(new RuleVerb());
       Harness.registerVerb(new TransferVerb());
+      Harness.registerVerb(new BusEditVerb());
 
       Harness.registerExpectation(new UnitsExpectation());
       Harness.registerExpectation(new InUseExpectation());
@@ -82,7 +85,7 @@ public final class ArcaneStorageVerbs {
       Harness.registerExpectation(new FitsExpectation());
       Harness.registerExpectation(new MaskExpectation());
       Harness.registerExpectation(new NetworkTotalExpectation());
-      Harness.registerExpectation(new RulesExpectation());
+      Harness.registerExpectation(new BusFilterExpectation());
       Harness.registerExpectation(new ContainerItemExpectation());
    }
 
@@ -407,11 +410,12 @@ public final class ArcaneStorageVerbs {
     * cannot tell you whether what remains fits in a frame.
     */
    /**
-    * Writes a transfer rule onto a bus, since there is no interface for it yet.
+    * Writes a bus's filter, since a test should not have to drive a form to set a threshold.
     *
-    * <p>{@code rule <dx> <dy> <item> [keep <n>] [limit <n>]}, and {@code rule <dx> <dy> clear} empties the
-    * list. This is how the rule primitive is tested at all, and it will stay useful after the interface
-    * exists: a test should not have to drive a form to set a threshold.
+    * <p>{@code rule <dx> <dy> <item> [<target>]} allows an item and optionally says how much of it the
+    * network should hold; {@code deny <item>} unticks one; {@code only <item> [<target>]} clears
+    * everything first, which is what a player does with the panel's "Clear all" button before ticking one
+    * thing; {@code all} and {@code none} set the master category.
     */
    private static final class RuleVerb implements TestVerb {
       public String name() {
@@ -419,7 +423,7 @@ public final class ArcaneStorageVerbs {
       }
 
       public String usage() {
-         return "rule <dx> <dy> <item|clear> [keep <n>] [limit <n>]";
+         return "rule <dx> <dy> all|none|<item> [<target>] | deny <item> | only <item> [<target>]";
       }
 
       public int coordinateArgIndex() {
@@ -433,35 +437,93 @@ public final class ArcaneStorageVerbs {
             return false;
          }
 
-         String item = context.arg(3);
-         if ("clear".equals(item)) {
-            bus.rules.clear();
-            context.info("cleared the rules on the bus at " + context.arg(1) + "," + context.arg(2));
+         String word = context.arg(3);
+         if ("all".equals(word) || "none".equals(word)) {
+            bus.filter.master.setAllowed("all".equals(word));
+            context.info("set every item " + ("all".equals(word) ? "allowed" : "denied"));
             return true;
          }
 
-         int keep = 0;
-         int limit = TransferRule.NO_LIMIT;
-         for (int i = 4; i + 1 < context.argCount(); i += 2) {
-            String key = context.arg(i);
-            if ("keep".equals(key)) {
-               keep = context.intArg(i + 1);
-            } else if ("limit".equals(key)) {
-               limit = context.intArg(i + 1);
-            } else {
-               context.fail("rule: expected 'keep <n>' or 'limit <n>', got " + key);
-               return false;
-            }
-         }
-
-         if (ItemRegistry.getItemID(item) == -1) {
-            context.fail("rule: no such item " + item);
+         boolean allowed = !"deny".equals(word);
+         boolean exclusive = "only".equals(word);
+         int itemIndex = allowed && !exclusive ? 3 : 4;
+         String itemStringID = context.arg(itemIndex);
+         Item item = ItemRegistry.getItem(itemStringID);
+         if (item == null) {
+            context.fail("rule: no such item " + itemStringID);
             return false;
          }
 
-         TransferRule rule = new TransferRule(item, keep, limit);
-         bus.rules.add(rule);
-         context.info("added rule " + rule);
+         if (exclusive) {
+            bus.filter.master.setAllowed(false);
+         }
+
+         int target = context.argCount() > itemIndex + 1 ? context.intArg(itemIndex + 1) : 0;
+         if (target > 0) {
+            bus.filter.setItemAllowed(item, allowed, target);
+         } else {
+            bus.filter.setItemAllowed(item, allowed);
+         }
+
+         context.info((allowed ? "allowed " : "denied ") + itemStringID
+               + (target > 0 ? ", network should hold " + target : ""));
+         return true;
+      }
+   }
+
+   /**
+    * Edits an open bus panel the way the panel itself will: by sending a whole filter through the
+    * container action.
+    *
+    * <p>{@code busedit <item> <target>}, after {@code open <dx> <dy>} on a bus. The form is client-side
+    * and a headless server never builds one, so this is as far as automation can reach into the interface
+    * — but it reaches the part worth checking. It exercises the container registration, the open packet,
+    * and {@code ItemCategoriesFilter}'s own {@code writePacket}/{@code readPacket} round trip through our
+    * action, which is where a wire-format mistake would otherwise sit unnoticed until a player set a rule
+    * and watched it do nothing.
+    */
+   private static final class BusEditVerb implements TestVerb {
+      public String name() {
+         return "busedit";
+      }
+
+      public String usage() {
+         return "busedit <item> <target>  (after 'open <dx> <dy>' on a bus)";
+      }
+
+      public boolean needsPlayer() {
+         return true;
+      }
+
+      public boolean run(TestContext context) {
+         if (!(context.client.getContainer() instanceof BusContainer)) {
+            context.fail("busedit needs an open bus panel; run 'open <dx> <dy>' on a bus first");
+            return false;
+         }
+
+         BusContainer container = (BusContainer)context.client.getContainer();
+         Item item = ItemRegistry.getItem(context.arg(1));
+         if (item == null) {
+            context.fail("busedit: no such item " + context.arg(1));
+            return false;
+         }
+
+         int target = context.argCount() > 2 ? context.intArg(2) : 0;
+
+         // Built the way the client builds it: a fresh filter denying everything, then one item ticked.
+         ItemCategoriesFilter edited = new ItemCategoriesFilter(ItemCategory.masterCategory, false);
+         if (target > 0) {
+            edited.setItemAllowed(item, true, target);
+         } else {
+            edited.setItemAllowed(item, true);
+         }
+
+         Packet content = new Packet();
+         edited.writePacket(new PacketWriter(content));
+         container.setFilterAction.executePacket(new PacketReader(content));
+
+         context.info("sent a filter allowing " + context.arg(1)
+               + (target > 0 ? " with a target of " + target : ""));
          return true;
       }
    }
@@ -513,19 +575,18 @@ public final class ArcaneStorageVerbs {
 
    /** How many rules a bus holds, so a test can assert that loading a world brought them back. */
    /**
-    * How many rules a bus holds, and what they say.
+    * What a bus's filter says about one item: whether it may move, and how much the network should hold.
     *
     * <p>Note the coordinate index is 2, not 1: an expectation's arguments are shifted by the word
-    * {@code expect}. Getting this wrong makes coordinates land on the wrong tile only when a scenario is
-    * run from a world whose spawn is not the origin, which is the kind of bug that hides.
+    * {@code expect}.
     */
-   private static final class RulesExpectation implements TestVerb, TestQuery {
+   private static final class BusFilterExpectation implements TestVerb, TestQuery {
       public String name() {
-         return "rules";
+         return "busfilter";
       }
 
       public String usage() {
-         return "expect rules <dx> <dy> <count>";
+         return "expect busfilter <dx> <dy> <item> allowed|denied";
       }
 
       public int coordinateArgIndex() {
@@ -534,20 +595,29 @@ public final class ArcaneStorageVerbs {
 
       public void query(TestContext context, Json.Writer out) {
          BusObjectEntity bus = busAt(context, 2);
-         out.num("rules", bus == null ? -1 : bus.rules.size());
-         out.str("description", bus == null ? "" : bus.rules.all().toString());
+         Item item = ItemRegistry.getItem(context.arg(4));
+         if (bus == null || item == null) {
+            out.bool("allowed", false);
+            out.num("target", -1);
+            return;
+         }
+
+         out.bool("allowed", bus.filter.isItemAllowed(item));
+         out.num("target", bus.networkShouldHold(item));
       }
 
       public boolean run(TestContext context) {
          BusObjectEntity bus = busAt(context, 2);
-         if (bus == null) {
-            context.fail("expect rules: no bus at " + context.arg(2) + "," + context.arg(3));
+         Item item = ItemRegistry.getItem(context.arg(4));
+         if (bus == null || item == null) {
+            context.fail("expect busfilter: no bus or no such item at " + context.arg(2) + "," + context.arg(3));
             return false;
          }
 
-         int wanted = context.intArg(4);
-         return context.check(bus.rules.size() == wanted, "rules = " + wanted,
-               "expected " + wanted + ", found " + bus.rules.size() + " " + bus.rules.all());
+         boolean allowed = bus.filter.isItemAllowed(item);
+         boolean wanted = "allowed".equals(context.arg(5));
+         return context.check(allowed == wanted, "busfilter " + context.arg(4) + " " + context.arg(5),
+               "expected " + context.arg(5) + ", found " + (allowed ? "allowed" : "denied"));
       }
    }
 

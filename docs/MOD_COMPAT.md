@@ -130,3 +130,28 @@ network, and its compatibility question is answered by the placement rule above.
 **Not yet, deliberately:** a published integration API. An interface nobody has implemented is a
 guess. The order that works is to make the internals general, ship, and let the first real request
 shape the public surface.
+
+
+## Filters: use `ItemCategoriesFilter`, and nothing of our own
+
+Anything in this mod that asks "which items, and how many" uses
+`necesse.inventory.itemFilter.ItemCategoriesFilter`, and its editor is
+`necesse.gfx.forms.presets.ItemCategoriesFilterForm`. The buses do; per-unit filters (tier 2 in the parity
+doc) should; a station-feeding device should.
+
+Three reasons, in the order they matter for compatibility with other mods:
+
+1. **A modded item lands in the tree for free.** `ItemCategory` is a registry-backed tree and every item
+   registers into it, so a filter written against the master category covers items this mod will never
+   know about. A hand-rolled item list would have needed a decision about unknown items, and any decision
+   would have been wrong for someone.
+2. **Per-category rules work on modded items too.** A player who ticks a category gets a mod's items in
+   that category without ticking each one, and tri-state inheritance already expresses "this category
+   except that item".
+3. **The player already knows the panel**, so a mod that adds hundreds of items does not make our
+   interface harder to learn — it makes the existing tree longer, which is the same problem vanilla's own
+   panel already solves with search.
+
+The one thing to watch: `getAddAmount` and `getRemoveAmount` take an `InventoryRange`, which is a range
+within a single `Inventory`. Anything network-wide has to sum across members itself, or a per-item limit
+silently becomes per-container. See `BusObjectEntity.allowedToMove`.

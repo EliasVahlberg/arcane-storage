@@ -5,6 +5,7 @@ import java.util.List;
 
 import arcanestorage.network.NetworkStorage;
 import necesse.inventory.Inventory;
+import necesse.inventory.item.Item;
 import necesse.level.maps.Level;
 
 /**
@@ -15,13 +16,27 @@ import necesse.level.maps.Level;
  * itself is never exposed to settler access. A player who wants their hunters' meat in the terminal
  * places a bus, not a permission.
  *
- * <p>Empty rules move everything, because importing only ever adds to the network. See
- * {@link arcanestorage.network.TransferRules} for why the export bus is the opposite.
+ * <p>An unconfigured import bus moves everything, because importing only ever adds to the network. The
+ * export bus is the opposite, and that asymmetry is a safety property rather than a setting.
  */
 public class ImportBusObjectEntity extends BusObjectEntity {
 
    public ImportBusObjectEntity(Level level, int x, int y) {
       super(level, "arcanestorageimportbus", x, y, true);
+   }
+
+   /**
+    * The network is the destination here, so a number means "fill up to this much and stop" -- which is
+    * what the same number means on the same panel when a player configures a settlement chest.
+    */
+   @Override
+   protected int allowedToMove(Item item, int inSource, int inDestination) {
+      if (!this.filter.isItemAllowed(item)) {
+         return 0;
+      }
+
+      int target = this.networkShouldHold(item);
+      return target == NO_TARGET ? inSource : Math.max(0, Math.min(inSource, target - inDestination));
    }
 
    @Override

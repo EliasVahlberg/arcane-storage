@@ -6,7 +6,6 @@ import java.util.List;
 
 import arcanestorage.network.NetworkConductor;
 import arcanestorage.network.NetworkStorage;
-import arcanestorage.network.TransferRules;
 import arcanestorage.network.UnitNetwork;
 import necesse.engine.save.LoadData;
 import necesse.engine.save.SaveData;
@@ -14,15 +13,17 @@ import necesse.entity.objectEntity.ObjectEntity;
 import necesse.entity.objectEntity.interfaces.OEInventory;
 import necesse.inventory.Inventory;
 import necesse.inventory.InventoryItem;
+import necesse.inventory.item.Item;
+import necesse.inventory.item.ItemCategory;
+import necesse.inventory.itemFilter.ItemCategoriesFilter;
 import necesse.level.maps.Level;
 
 /**
  * Shared behaviour of the import and export buses: find a network, find a container, move items.
  *
  * <p><b>A bus is an entry point, exactly like a terminal.</b> It walks the network from its own tile
- * with {@link UnitNetwork}, which means it is a {@code NetworkNode} and not a {@link NetworkConductor}:
- * the network meets a bus and does not pass through it. That is not a limitation to work around — it is
- * what stops a chest becoming a bridge between two networks that a player believes are separate.
+ * with {@link UnitNetwork}, so it needed no new idea of membership. It is also a {@link NetworkConductor},
+ * because the first version was not and that silently severed a run of units wherever a bus was placed.
  *
  * <p><b>The container on the other side is found by capability, not by type.</b> Any neighbouring object
  * entity that is an {@link OEInventory} and is <i>not</i> a {@link NetworkStorage} qualifies, so every
@@ -55,13 +56,76 @@ public abstract class BusObjectEntity extends ObjectEntity {
    /** Named in item-move logs, which is how the game attributes changes for settlement bookkeeping. */
    protected static final String PURPOSE = "arcanestoragebus";
 
-   public final TransferRules rules;
+   /** Returned by {@link #networkShouldHold} when the player has set no number for an item. */
+   protected static final int NO_TARGET = -1;
+
+   /**
+    * What may cross, and how much of it, in <b>the game's own filter type</b>.
+    *
+    * <p>This started life as a hand-written rule primitive of three fields. That was a mistake found by
+    * looking for the wrong word: searching for "rule" and "threshold" finds nothing, and the game's word
+    * is <i>filter</i>. {@code ItemCategoriesFilter} already carries per-item and per-category limits, four
+    * limit modes, tri-state category inheritance, save data, {@code writePacket}/{@code readPacket},
+    * {@code copy()} and equality — and {@code ItemCategoriesFilterForm} is an editor for it that the
+    * player has already learned, because it is the panel behind "configure storage" on a settlement chest.
+    *
+    * <p>The rule a player reads off that panel is one sentence in both directions: <b>a ticked item moves,
+    * and a number is how much of it the network should end up holding.</b> An import bus fills up to that
+    * number, an export bus drains down to it, and no number means move as much as possible.
+    *
+    * <p>Public and mutable because the form edits it in place, exactly as the settlement one does.
+    */
+   public final ItemCategoriesFilter filter;
 
    private int ticksUntilTransfer = TRANSFER_INTERVAL;
 
-   protected BusObjectEntity(Level level, String stringID, int x, int y, boolean emptyMovesEverything) {
+   /**
+    * @param allowAllByDefault whether an unconfigured bus moves everything. True for an import bus, since
+    *        importing only adds and "point it at a chest" is the whole feature; false for an export bus,
+    *        because one that emptied a network the moment it was placed would be a trap. This is vanilla's
+    *        own constructor flag, not an invention of ours.
+    */
+   protected BusObjectEntity(Level level, String stringID, int x, int y, boolean allowAllByDefault) {
       super(level, stringID, x, y);
-      this.rules = new TransferRules(emptyMovesEverything);
+      this.filter = new ItemCategoriesFilter(ItemCategory.masterCategory, allowAllByDefault);
+   }
+
+   /**
+    * How much of an item may cross, given how much each side holds.
+    *
+    * <p>Ours rather than the filter's, for one concrete reason: {@code getAddAmount} and
+    * {@code getRemoveAmount} take an {@code InventoryRange}, which is a range within <i>one</i>
+    * inventory, and a network is many. Evaluating the filter per unit would silently turn "the network
+    * keeps 200" into "each unit keeps 200". The numbers still come from the filter; only the arithmetic
+    * across units is ours.
+    */
+   protected abstract int allowedToMove(Item item, int inSource, int inDestination);
+
+   /**
+    * How much of an item the player has said the network should hold, or {@link #NO_TARGET}.
+    *
+    * <p>Reads the per-item limit first, then falls back to the filter-wide number when its mode is a
+    * per-item one. The two whole-container modes are deliberately ignored: a network's total capacity is
+    * how many units it has, and a bus is not the place to cap it.
+    */
+   public int networkShouldHold(Item item) {
+      ItemCategoriesFilter.ItemLimits limits = this.filter.getItemLimits(item);
+      if (limits != null && !limits.isDefault()) {
+         return limits.getMaxItems();
+      }
+
+      if (this.filter.maxAmount != Integer.MAX_VALUE) {
+         switch (this.filter.limitMode) {
+            case TOTAL_EACH_ITEM:
+               return this.filter.maxAmount;
+            case TOTAL_STACKS_EACH_ITEM:
+               return this.filter.maxAmount * item.getStackSize();
+            default:
+               break;
+         }
+      }
+
+      return NO_TARGET;
    }
 
    /**
@@ -128,7 +192,7 @@ public abstract class BusObjectEntity extends ObjectEntity {
             }
 
             String itemID = item.item.getStringID();
-            int allowed = this.rules.allowed(itemID, countIn(from, itemID), countIn(to, itemID));
+            int allowed = this.allowedToMove(item.item, countIn(from, itemID), countIn(to, itemID));
             if (allowed <= 0) {
                continue;
             }
@@ -257,12 +321,17 @@ public abstract class BusObjectEntity extends ObjectEntity {
    @Override
    public void addSaveData(SaveData save) {
       super.addSaveData(save);
-      this.rules.addSaveData(save);
+      SaveData filterSave = new SaveData("FILTER");
+      this.filter.addSaveData(filterSave);
+      save.addSaveData(filterSave);
    }
 
    @Override
    public void applyLoadData(LoadData save) {
       super.applyLoadData(save);
-      this.rules.applyLoadData(save);
+      LoadData filterSave = save.getFirstLoadDataByName("FILTER");
+      if (filterSave != null) {
+         this.filter.applyLoadData(filterSave);
+      }
    }
 }

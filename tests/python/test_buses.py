@@ -8,6 +8,11 @@ access.
 Reading a plain chest needs `expect container`, not `expect item`: this mod replaces the harness's
 generic `item` with a network-wide reading, which is right for a terminal and blind to a chest.
 
+A bus's rules are vanilla's `ItemCategoriesFilter`, the same object behind "configure storage" on a
+settlement chest, so the vocabulary here is the game's: an item is allowed or not, and a number is how
+much of it *the network* should hold. An import bus fills up to that number; an export bus drains down to
+it. `harness rule` writes the filter directly, which is what the panel does with a click.
+
 `transfer` runs a bus's move immediately instead of waiting out its one-second interval — it calls
 exactly what the tick calls. One call moves one item type, which is why some tests call it repeatedly.
 """
@@ -41,8 +46,9 @@ def test_a_bus_is_on_the_network_it_touches(bussed):
     assert bussed.units() == 1
 
 
-def test_an_import_bus_with_no_rules_moves_everything(bussed):
-    """Empty rules are permissive in this direction, because importing only adds to the network."""
+def test_an_unconfigured_import_bus_moves_everything(bussed):
+    """An import bus starts with every item allowed, because importing only adds to the network. That is
+    vanilla's own `allowAll` constructor flag rather than a rule of ours."""
     bussed.harness.fill(3, 0, "ironbar", 30)
 
     bussed.harness.do("transfer", 2, 0)
@@ -52,21 +58,22 @@ def test_an_import_bus_with_no_rules_moves_everything(bussed):
 
 
 def test_a_rule_makes_the_import_bus_selective(bussed):
-    """Once any rule exists the list is a whitelist, so the unlisted item stays where it is."""
+    """An unticked item stays where it is."""
     bussed.harness.fill(3, 0, "ironbar", 30)
     bussed.harness.fill(3, 0, "stone", 30)
-    bussed.harness.do("rule", 2, 0, "ironbar")
+    # 'only' is the panel's "Clear all" button followed by ticking one item, which is what a player does.
+    bussed.harness.do("rule", 2, 0, "only", "ironbar")
 
     bussed.harness.do("transfer", 2, 0, 4)
 
     assert bussed.count("ironbar") == 30
-    assert bussed.count("stone") == 0, "no rule matches stone, so it does not move"
+    assert bussed.count("stone") == 0, "stone is not ticked, so it does not move"
 
 
-def test_a_ceiling_tops_the_network_up_and_stops(bussed):
-    """`limit` is the "accept X only when fewer than N" reading of the primitive."""
+def test_a_number_tops_the_network_up_and_stops(bussed):
+    """"Accept X only while the network holds fewer than N" — the number read in the import direction."""
     bussed.harness.fill(3, 0, "ironbar", 100)
-    bussed.harness.do("rule", 2, 0, "ironbar", "limit", 60)
+    bussed.harness.do("rule", 2, 0, "ironbar", 60)
 
     bussed.harness.do("transfer", 2, 0, 6)
 
@@ -103,9 +110,9 @@ def test_a_full_network_leaves_the_chest_alone(storage):
     assert storage.query("container", 3, 0, "ironbar")["count"] == 30, "nothing was consumed"
 
 
-def test_an_export_bus_with_no_rules_moves_nothing(storage):
-    """The asymmetry, and it is a safety property: an export bus is inert until told what to send, so
-    placing one cannot empty a network by surprise."""
+def test_an_unconfigured_export_bus_moves_nothing(storage):
+    """The asymmetry, and it is a safety property rather than a setting: an export bus starts with nothing
+    ticked, so placing one cannot empty a network by surprise."""
     storage.place("terminal", 0, 0)
     storage.place("unit", 1, 0)
     storage.place("exportbus", 2, 0)
@@ -122,6 +129,9 @@ def test_an_export_bus_sends_the_surplus_and_respects_the_floor(storage):
     """Phase 5's acceptance criterion, minus the selling: overflow of a chosen item leaves the network
     and a reserve floor is respected.
 
+    The floor and the ceiling are the same number seen from opposite sides, which is why one control
+    serves both: "the network should hold 100" means fill to 100 on an import bus and drain to 100 here.
+
     A Shipping Chest is the natural target in a real base — it already sells what it holds through
     trader missions above a stack, so "sell my surplus" needs no selling machinery here — but the
     transfer is the part this mod owns, so an ordinary chest is what is asserted.
@@ -134,7 +144,7 @@ def test_an_export_bus_sends_the_surplus_and_respects_the_floor(storage):
     terminal = Terminal(storage, 0, 0)
     storage.fill(1, 0, "ironbar", 60)
     storage.fill(1, 1, "ironbar", 60)
-    storage.do("rule", 2, 0, "ironbar", "keep", 100)
+    storage.do("rule", 2, 0, "ironbar", 100)
 
     storage.do("transfer", 2, 0, 4)
 
@@ -177,21 +187,49 @@ def test_a_bus_conducts_and_does_not_move_items_inside_its_own_network(storage):
     assert Terminal(storage, 0, 0).count("ironbar") == 30, "the network is unchanged"
 
 
-def test_rules_survive_a_restart(storage):
-    """A bus is configured once and expected to keep working, so its rules have to be saved. Costs the
-    boot the persistence test already pays for, in the same run."""
+def test_the_panel_opens_and_its_edits_reach_the_bus(storage):
+    """As far as automation can reach into the interface, and it is the half that can be wrong quietly.
+
+    The panel is `ItemCategoriesFilterForm` — the game's own, the one behind "configure storage" on a
+    settlement chest — so it is client-side and a headless server never builds it. What this covers is
+    everything underneath: the container is registered and opens, and a whole filter written by the client
+    survives `writePacket` -> our container action -> `readPacket` and lands on the bus.
+
+    Drawing is item 13 in QA_BACKLOG and only Elias can sign that off.
+    """
     storage.place("terminal", 0, 0)
     storage.place("unit", 1, 0)
     storage.place("exportbus", 2, 0)
     storage.place("storagebox", 3, 0)
     storage.fill(1, 0, "ironbar", 60)
-    storage.do("rule", 2, 0, "ironbar", "keep", 50)
-    assert storage.query("rules", 2, 0)["rules"] == 1
+    assert storage.query("busfilter", 2, 0, "ironbar")["allowed"] is False, "nothing ticked to begin with"
+
+    storage.do("open", 2, 0)
+    storage.do("busedit", "ironbar", 40)
+
+    assert storage.query("busfilter", 2, 0, "ironbar") == {"allowed": True, "target": 40}
+
+    storage.do("transfer", 2, 0, 3)
+
+    assert Terminal(storage, 0, 0).count("ironbar") == 40, "and the edit changed what the bus does"
+    assert storage.query("container", 3, 0, "ironbar")["count"] == 20
+
+
+def test_rules_survive_a_restart(storage):
+    """A bus is configured once and expected to keep working, so its filter has to be saved. Vanilla's
+    own save format does that work; this checks we nest and reload it correctly."""
+    storage.place("terminal", 0, 0)
+    storage.place("unit", 1, 0)
+    storage.place("exportbus", 2, 0)
+    storage.place("storagebox", 3, 0)
+    storage.fill(1, 0, "ironbar", 60)
+    storage.do("rule", 2, 0, "ironbar", 50)
+    assert storage.query("busfilter", 2, 0, "ironbar") == {"allowed": True, "target": 50}
 
     storage.restart()
 
-    assert storage.query("rules", 2, 0)["rules"] == 1, "the rule came back from disk"
-    assert "keep 50" in storage.query("rules", 2, 0)["description"]
+    assert storage.query("busfilter", 2, 0, "ironbar") == {"allowed": True, "target": 50}, \
+        "the rule came back from disk"
 
     storage.do("transfer", 2, 0, 2)
 

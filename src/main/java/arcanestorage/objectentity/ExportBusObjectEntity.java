@@ -5,6 +5,7 @@ import java.util.List;
 
 import arcanestorage.network.NetworkStorage;
 import necesse.inventory.Inventory;
+import necesse.inventory.item.Item;
 import necesse.level.maps.Level;
 
 /**
@@ -23,6 +24,21 @@ public class ExportBusObjectEntity extends BusObjectEntity {
 
    public ExportBusObjectEntity(Level level, int x, int y) {
       super(level, "arcanestorageexportbus", x, y, false);
+   }
+
+   /**
+    * The network is the <i>source</i> here, so the same number reads as "drain down to this much" -- the
+    * reserve floor the roadmap asks for, and the same quantity seen from the other side. With no number
+    * set, a ticked item is sent in full.
+    */
+   @Override
+   protected int allowedToMove(Item item, int inSource, int inDestination) {
+      if (!this.filter.isItemAllowed(item)) {
+         return 0;
+      }
+
+      int target = this.networkShouldHold(item);
+      return Math.max(0, inSource - Math.max(target, 0));
    }
 
    @Override

@@ -1,5 +1,7 @@
 package arcanestorage;
 
+import arcanestorage.container.BusContainer;
+import arcanestorage.container.BusContainerForm;
 import arcanestorage.container.StorageTerminalContainer;
 import arcanestorage.container.StorageTerminalContainerForm;
 import arcanestorage.object.StorageTerminalObject;
@@ -7,6 +9,8 @@ import arcanestorage.object.ExportBusObject;
 import arcanestorage.object.ImportBusObject;
 import arcanestorage.object.StorageConduitObject;
 import arcanestorage.object.StorageUnitObject;
+import arcanestorage.objectentity.BusObjectEntity;
+import arcanestorage.objectentity.ImportBusObjectEntity;
 import arcanestorage.objectentity.StorageTerminalObjectEntity;
 import necesse.engine.modLoader.annotations.ModEntry;
 import necesse.engine.registries.ContainerRegistry;
@@ -59,6 +63,9 @@ public class ArcaneStorage {
     */
    public static int TERMINAL_CONTAINER = -1;
 
+   /** Shared by both buses: the panel differs only in its two labels. */
+   public static int BUS_CONTAINER = -1;
+
    /**
     * The mod's client settings, handed to the loader from {@link #initSettings()} and persisted by
     * the game. Static because the UI reads it and there is exactly one.
@@ -86,6 +93,23 @@ public class ArcaneStorage {
          ),
          (client, uniqueSeed, objectEntity, content, serverObject) -> new StorageTerminalContainer(
             client, uniqueSeed, (StorageTerminalObjectEntity)objectEntity
+         )
+      );
+
+      // One container for both buses. They differ in which way items flow, which the entity decides, and
+      // in two labels, which the form is told -- not in anything the container does.
+      BUS_CONTAINER = ContainerRegistry.registerOEContainer(
+         (client, uniqueSeed, objectEntity, content) -> {
+            BusObjectEntity bus = (BusObjectEntity)objectEntity;
+            boolean isImport = bus instanceof ImportBusObjectEntity;
+            return new BusContainerForm<>(
+               client, new BusContainer(client.getClient(), uniqueSeed, bus, content),
+               isImport ? IMPORT_BUS_STRING_ID : EXPORT_BUS_STRING_ID,
+               isImport ? "arcanestorage_importbusrule" : "arcanestorage_exportbusrule"
+            );
+         },
+         (client, uniqueSeed, objectEntity, content, serverObject) -> new BusContainer(
+            client, uniqueSeed, (BusObjectEntity)objectEntity, content
          )
       );
    }

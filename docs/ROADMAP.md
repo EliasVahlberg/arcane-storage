@@ -473,20 +473,20 @@ currently craftable.
 
 Where the mod stops being a port. One primitive does most of the work.
 
-- [x] **Condition-based transfer rules** — *mechanics done Aug 2026; no interface yet.* One immutable
-      `TransferRule` per item with two optional bounds: `keep` (never take the source below this) and
-      `limit` (never take the destination above this). The roadmap's three readings really are one
-      calculation — "send the surplus", "top it up to N", "never drain below N" — which is asserted in
-      `src/test/java/arcanestorage/network/TransferRuleTest.java` rather than claimed. Rules are a
-      whitelist once any exist, and the first match decides, so order is meaningful
+- [x] **Condition-based transfer rules** — *done Aug 2026, using the game's own filter.* A rule is an
+      entry in vanilla's `ItemCategoriesFilter`: an item or category is ticked or not, and a number says
+      how much of it the network should hold. The three readings the roadmap asked for are that one
+      control seen from two sides — an import bus fills up to the number, an export bus drains down to
+      it, and no number means move as much as possible
 - [x] **Import bus** — *done Aug 2026.* Attaches to any neighbouring container and moves its contents
       into the network. With no rules it moves everything, because importing only adds
 - [x] **Export bus** — *done Aug 2026.* Pushes items out of the network into a neighbouring container on
       a rule, and is **inert until it has one** — the opposite default to the import bus, because
       exporting removes from storage and a bus that emptied the network on placement would be a trap
-- [ ] **A rule interface**, so rules can be set without a console. This is the phase's remaining work
-      and it is entirely UI: a bus has no container form yet, so `harness rule ...` is the only way to
-      write one. Everything behind it is tested
+- [x] **A rule interface** — *done Aug 2026, and it is the game's.* Right-clicking a bus opens
+      `ItemCategoriesFilterForm`, the same panel as "configure storage" on a settlement chest: category
+      tree, tri-state ticks, per-item numbers, search, allow-all and clear-all. Only the two header lines
+      are ours. **Drawing is unverified** — QA_BACKLOG items 13–18
 
 The rule primitive is deliberately introduced once and reused. Overflow control,
 defence against settler overproduction, and reserve floors are the same idea read
@@ -513,6 +513,22 @@ parts are not verified: that a Shipping Chest then *sells* what it receives, whi
 behaviour and needs a trader mission in a real world, and that a settler depositing into the bussed
 chest behaves as expected, which needs a settlement. Both are in-game QA rather than code.
 
+**The primitive already existed, and that is the lesson of this phase.** The rules were first written from
+scratch as a `TransferRule` of three fields, with a plan to build an editor for it. Both were unnecessary:
+`necesse/inventory/itemFilter/ItemCategoriesFilter` already carries per-item and per-category limits, four
+limit modes, tri-state inheritance, save data, `writePacket`/`readPacket` and `copy()`, and
+`ItemCategoriesFilterForm` is an 851-line editor for it that the player has already learned. The
+hand-written version was deleted the next day.
+
+The search that missed it looked for *rule* and *threshold*. The game's word is *filter*. This is the
+settlement-storage lesson from `STORAGE_AND_INVENTORY.md` repeating exactly: **search the codebase with
+its own vocabulary, and check the game has no answer before writing one.**
+
+What is genuinely ours is the arithmetic across units. `getAddAmount` and `getRemoveAmount` take an
+`InventoryRange`, which is a range within one inventory, and a network is many — evaluating the filter per
+unit would silently turn "the network keeps 200" into "each unit keeps 200". The numbers come from the
+filter; only the summing is ours.
+
 **Design notes worth keeping.** Two decisions here were wrong first and are recorded because the
 reasoning matters more than the outcome:
 
@@ -525,6 +541,11 @@ reasoning matters more than the outcome:
   subclass spanning the network, which would have been a subtle liar: `Inventory` carries dirty
   tracking, filters and locked slots, and a view reimplementing some of that would be wrong in ways
   nothing would notice for a while.
+
+- **A bus was not right-clickable.** `GameObject.canInteract` returns false by default and only
+  `InventoryObject` overrides it, so the panel was unreachable and the interact tip was dead code. The
+  headless panel test caught it; a play session would have caught it too, but slower and with less
+  certainty about the cause.
 
 Items are added first and removed by exactly what the destination accepted, so a full destination is a
 no-op rather than a hole — the same ordering the cursor deposit uses, and for the same reason.

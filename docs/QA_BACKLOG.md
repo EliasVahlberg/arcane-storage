@@ -59,9 +59,21 @@ cannot reach. `harness run` needs `make run HARNESS=1`; both buses cost 4 logs a
     indirection. Needs a settlement, so it cannot be tested headlessly.
 17. **A Shipping Chest sells what an export bus sends it.** Vanilla's behaviour above a stack threshold,
     via trader missions, so this is a check that the two features compose rather than that either works.
-18. **Rules cannot be set in game at all yet.** A bus placed by a player has no rules, so an import bus
-    works and an export bus does nothing. That is the honest state, and the rule interface is the rest of
-    Phase 5.
+18. **The rule panel, which is the one thing here that has never been drawn.** Right-click a bus: it
+    should open the same panel as "configure storage" on a settlement chest, because it is that panel —
+    `ItemCategoriesFilterForm`, with the category tree, per-item numbers and search. What to check, in
+    order of how likely it is to be wrong:
+    - it opens at all, and the two header lines fit the 340px width without overlapping the dropdown;
+    - the content box scrolls and the categories collapse and stay collapsed when reopened;
+    - ticking an item and typing a number changes what the bus does — the network should end up holding
+      that many, filling on an import bus and draining on an export bus;
+    - the limit-mode dropdown's four options behave (the two per-item ones are honoured, the two
+      whole-container ones are deliberately ignored by a bus, which may deserve hiding them instead);
+    - closing and reopening shows what was set, and a second player opening the same bus sees it too.
+
+    Everything under that panel is covered headlessly, including the filter's packet round trip through
+    the container action, so a failure here is a *drawing* or *layout* failure. That is the whole reason
+    this list exists.
 
 ### Never drawn at all
 
