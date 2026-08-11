@@ -1,0 +1,22 @@
+# A full network, for the checks that need one built.
+
+# Not a test. `docs/TESTING.md` explains the split: assertions live in tests/python, and this is a
+# scene to look at. Run it with `harness run full_network` in a game launched by
+# `make run HARNESS=1`, standing near world spawn, since coordinates are relative to the spawn tile.
+#
+# This unblocks two items in docs/QA_BACKLOG.md that are otherwise minutes of clicking:
+# the capacity bar's red state, which needs a network with no room left, and whether a large
+# network stutters when the terminal opens.
+#
+# 64 units is MAX_UNITS, the largest network the mod allows, and `bench` fills every slot it
+# creates -- so this is 2560 of 2560 used, and the bar should be at its last colour.
+#
+# Only world verbs are used here. Anything player-coupled (`open`, `install`, `give`, `click`)
+# spawns the harness's synthetic player, which is untested inside a live client -- so drive those
+# parts by hand, with your own character.
+
+harness reset
+harness clear 25
+harness place terminal 0 0
+harness bench 0 0 64 1
+harness report 0 0

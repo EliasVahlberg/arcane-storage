@@ -128,34 +128,33 @@ Two honest caveats, neither covered by the criteria above:
 
 ### Verification
 
-Two tiers, because `Container` is built from the player's inventory and so cannot exist
-without one. Both use the same command, so a check is one line either way.
+Two commands, and the second one owns almost everything.
 
 - `make test` — unit tests over game-independent logic (the network traversal). Sub-second.
-- `make scenarios` — scenario files driven against a **headless dedicated server**, all of
-  them in **one server boot**. Each file is a list of server console commands, so any prefix
-  can be pasted into a live server to investigate a failure. `make scenario FILE=...` runs
-  one. Booting dominates the wall clock — 10.4s for the suite, of which an extra scenario
-  costs about **0.3s** — so scenarios are cheap to add.
+- `make pytest` — the whole automated suite, driven against a **headless dedicated server** over a
+  JSON-per-line reply channel. 53 tests, ~46s, dominated by two JVM boots: one for the session and
+  one more for the persistence test, since a restart is the only way to prove anything survives a
+  save. Everything else is milliseconds.
 
-  They share a world, so each starts with `reset`, which removes every storage object on the
-  level wherever it is. `clear` is not sufficient for this: it only covers a radius, while
-  `expect total` scans the whole level.
-- **In a session**, `/arcanestorage run session/roundtrip` executes a scenario file line by
-  line as the player, covering open, withdraw, shift-click deposit and close. Player-coupled
-  subcommands refuse to run from the console with an explanation rather than failing
-  obscurely.
+  Tests share a world, so the `storage` fixture starts with `reset`, which removes every storage
+  object on the level wherever it is. `clear` is not sufficient: it covers a radius around spawn,
+  while a level-wide total scans everything.
 
-Both tiers use **one mechanism and one file format**: a line is a whole console command, so
-the same file runs either way, vanilla commands can be mixed in, and any single line can be
-pasted into chat or a server console to investigate a failure. The command supplies only
-primitives — `place`, `fill`, `clear`, `break`, `give`, `open`, `close`, `withdraw`,
-`deposit`, `click`, `report`, `expect` — and composition lives in the files.
+There was a second suite of bash-driven scenario files until Aug 2026. It is gone, and
+[TESTING.md](TESTING.md) records why the arguments for keeping it did not hold. What survived is the
+**file format**, because it is the one thing pytest cannot do: a line is a whole console command, so a
+file can be run inside a live game with `harness run <name>` (needs `make run HARNESS=1`) or headlessly
+with `make scene FILE=...`. `tests/scenes/` uses that to build states worth looking at — a full
+64-unit network, or a network at one quarter capacity — which turns two in-game QA items from minutes
+of clicking into one line each. Those are scenes, not tests; no assertion lives there.
 
-`clear <radius> [tile]` strips objects around spawn so a scenario does not depend on terrain;
-world generation puts roughly **2,900 objects** within 45 tiles of spawn, so this is not
-theoretical. Vanilla's own `cleararea` is more thorough but targets a `ServerClient` and so
-cannot run headless.
+The verbs supply only primitives — `place`, `fill`, `clear`, `break`, `give`, `open`, `close`,
+`withdraw`, `deposit`, `depositcursor`, `install`, `click`, `report`, `bench`, plus queries — and
+composition lives in the tests.
+
+`clear <radius> [tile]` strips objects around spawn so a test does not depend on terrain; world
+generation puts roughly **2,900 objects** within 45 tiles of spawn, so this is not theoretical.
+Vanilla's own `cleararea` is more thorough but targets a `ServerClient` and so cannot run headless.
 
 These call the methods the packet handlers call: a click is
 `Container.applyContainerAction(slot, action)` per `PacketContainerAction`, and a withdraw
@@ -170,24 +169,21 @@ unit mid-chain orphans what lies beyond; two terminals on one chain see the same
 inbound packet (`-Darcanestorage.packetlog`), which is how the packet vocabulary above was
 established.
 
-### Persistence needs two boots, and one gotcha
+### Persistence needs a restart, and there is one gotcha
 
-`make persistence` writes state in one boot and verifies it in a second after a restart, with
-`--keep` reusing the saved world. All four cases are bundled into that single restart, since
-the restart is the expensive part. The write phase also runs last inside `make scenarios`, so
-the whole suite plus persistence costs exactly two boots.
+`tests/python/test_persistence.py` builds four networks, calls `harness.restart()` — which stops the
+server cleanly, so the world is saved, and boots it again on the same world — and asserts every number
+came back. All four cases share the one restart because the boot is the expensive part.
 
 **Reads do not load regions.** Regions load on demand, and the object layer resolves a tile
 through `RegionBoundsExecutor` with `loadIfNotLoaded = false` — so an unloaded region reads as
-empty rather than as itself. Normally only a player causes regions to load, and the harness has
-no player. A freshly generated world hides this entirely because generation leaves every region
-in memory; it appears only after a restart, where a scenario sees an empty world and looks
-exactly like a persistence bug. The command now loads the regions a subcommand addresses before
-touching them.
+empty rather than as itself. Normally only a player causes regions to load. A freshly generated world
+hides this entirely because generation leaves every region in memory; it appears only after a restart,
+where a test sees an empty world and looks exactly like a persistence bug. The verbs now load the
+regions they address before touching them.
 
-Consequence worth knowing: `expect total` scans **loaded** regions, so in a fresh boot it means
-"everything in the areas the scenario has touched". Assert per-network numbers first, then
-totals.
+Consequence worth knowing: a level-wide total scans **loaded** regions, so in a fresh boot it means
+"everything in the areas the test has touched". Assert per-network numbers first, then totals.
 
 ### In-game QA
 
@@ -214,9 +210,9 @@ its own network independently, so they share it rather than competing for it.
 network never has to expose itself to settler access.
 
 **Done when:** a network survives a full game restart, and breaking it in the
-obvious ways loses nothing. **Both are now verified** — `make persistence` restarts
+obvious ways loses nothing. **Both are now verified** — `test_persistence.py` restarts
 the server and re-asserts every number, and orphaning beyond a broken unit or
-conduit is asserted by the topology and conduit scenarios.
+conduit is asserted by `tests/python/test_topology.py` and `test_conduits.py`.
 
 ## Phase 3 — Usable at scale
 
@@ -233,7 +229,7 @@ Necesse storage mods already have.
       packets
 - [x] **Capacity feedback** — the footer reports slots used out of slots
       available, counted in slots because slots are what run out. Accounting is
-      harness-verified (`tests/scenarios/capacity.txt`); the readout itself awaits
+      harness-verified (`tests/python/test_network.py`); the readout itself awaits
       in-game QA. The deposit half was **verified in game** (Aug 2026): a deposit
       that cannot fit fails visibly and leaves the items with the player
 - [x] **Deposit-all** and **quick-stack** from the interface, against the whole
@@ -275,7 +271,7 @@ Necesse storage mods already have.
       `Collections.sort`, so the network sorts the way the player's inventory-sort
       button already does. Not persisted, so it resets when the terminal reopens
 - [x] Usable with a large network without stutter — **measured, not assumed**
-      (`tests/scenarios/performance.txt`). Against the largest network the mod
+      (`tests/python/test_transfers.py`). Against the largest network the mod
       allows — 64 units, 2560 slots, 1910 distinct items, so effectively every
       stackable item in the game — one aggregation costs **0.34ms, about 2% of a
       60fps frame**. The scenario fails the build above 2ms, so this cannot

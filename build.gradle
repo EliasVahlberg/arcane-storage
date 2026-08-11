@@ -261,8 +261,10 @@ test {
 // without setting the world's own allowCheats flag — no permanent mark on the save.
 tasks.named('runClient') {
     args '-hiddencheats'
-    // Lets '/arcanestorage run <name>' find scenario files from in-game chat.
-    systemProperty 'arcanestorage.scenarios', "${projectDir}/tests/scenarios"
+    // Lets 'harness run <name>' find scene files from in-game chat, with -Pharness. The property is
+    // the harness's, not ours: this mod's verbs are contributed to the harness's own command and it
+    // never had one of its own, so the old 'arcanestorage.scenarios' name was read by nothing.
+    systemProperty 'necesseheadlessharness.scenarios', "${projectDir}/tests/scenes"
     // -Ppacketlog turns on the inbound packet log (see arcanestorage.dev.PacketLogPatch).
     // Singleplayer is a real server in the same process, so this captures there too.
     if (project.hasProperty('packetlog')) {

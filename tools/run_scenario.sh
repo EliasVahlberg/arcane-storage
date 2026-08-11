@@ -36,6 +36,6 @@ export HARNESS_WORLD="${HARNESS_WORLD:-arcane_harness}"
 # because the mod loader defines every class in a jar eagerly and a reference to an absent optional
 # mod is fatal. 'make buildtestjar' produces this one.
 export MOD_UNDER_TEST="${MOD_UNDER_TEST:-$MOD_DIR/build/testjar}"
-export SCENARIO_DIR="${SCENARIO_DIR:-$MOD_DIR/tests/scenarios}"
+export SCENARIO_DIR="${SCENARIO_DIR:-$MOD_DIR/tests/scenes}"
 
 exec "$RUNNER" "$@"

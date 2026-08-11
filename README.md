@@ -60,12 +60,15 @@ make doctor         # check that the JDK and game install are found
 
 ```bash
 make test           # unit tests over the network traversal
-make scenarios      # every scenario against a real headless server, plus a save/load restart
+make pytest         # the whole suite against a real headless server, including a save/load restart
 ```
 
-Scenarios are data files under `tests/scenarios/`, driven through a chat command, so a test
-is a list of actions rather than Java. Ones under `session/` need a live player and are run
-from chat in game: `/arcanestorage run session/roundtrip`.
+`make pytest` is the automated suite: 53 tests driving a real dedicated server, with a real
+player and this mod's own container, including one test that restarts the server to prove the
+save round-trips. `make test` is JUnit over the traversal logic alone and needs no game.
+
+Nothing automated draws a pixel, so every UI change is unverified until someone looks at it;
+those checks live in [docs/QA_BACKLOG.md](docs/QA_BACKLOG.md).
 
 Contributors should read [CONTRIBUTING.md](CONTRIBUTING.md); if you are pointing an AI
 coding agent at this repo, [AGENTS.md](AGENTS.md) is written for that.

@@ -5,6 +5,8 @@ confirmations are collapsed into one list rather than kept as prose. Elias runs 
 nothing here is marked confirmed unless he said so.
 
 Restructured 11 Aug 2026 because it had grown into a diary and he was right that it was stale.
+Revised again the same evening: the bash scenario suite it kept citing no longer exists, so every
+reference now points at the pytest file that owns the assertion. See `docs/TESTING.md`.
 
 ## Confirmed in game
 
@@ -50,18 +52,38 @@ Stated by Elias, in order of confirmation:
 8. **Breaking a terminal with benches installed should drop them.**
 9. **Collapsible sections**: headers show a count, click to collapse, and unticking "Group by
    category" returns the flat grid.
-10. The **capacity bar's four colours** — needs a nearly full network to see red.
+10. The **capacity bar's four colours** — thresholds at 25/50/75, and the number beside the bar stays
+    neutral by design. `harness run capacity_steps` starts you at 40/160; `harness run full_network`
+    is the red end.
 11. The **click conventions** in the storage grid: left click with a held stack deposits anywhere
     including empty space, right click takes half a stack, right click while holding deposits one, and
     non-stackables behave the same on both buttons.
 
-### Before any further hand testing
+### The harness in a play session — a warning, and now a use
 
 The harness was loading into your play sessions, and with it enabled the client's **keyboard** died
 once the world started hosting — mouse fine, server ticking normally, nothing in any log. It is now
-dormant in a client process, so leaving it installed is safe, but if anything strange recurs, take it
-out entirely with `make -C ../necesse-headless-harness uninstall` before blaming this mod. Note that
-disabling it in the game's Mods menu stops the Python suite from running, by design.
+dormant in a client process, so leaving it installed is safe, and it stays dormant unless you ask for
+it. Do not disable it in the game's Mods menu: that stops the Python suite from running, by design. To
+be beyond suspicion entirely, `make -C ../necesse-headless-harness uninstall`.
+
+**Asking for it is now worth doing**, because several checks below are minutes of clicking to set up
+and one line to script. `make run HARNESS=1` enables the `harness` chat command in your own world, and
+`tests/scenes/` holds two ready scenes:
+
+- `harness run full_network` — 64 units, every slot full. Covers item 10's red bar and the
+  large-network stutter check in one go.
+- `harness run capacity_steps` — a 160-slot network at 40 used, so you can deposit and watch the bar
+  cross 50% and 75%.
+
+Coordinates are relative to the world spawn tile, so stand near spawn. Both scenes use world verbs
+only. Anything player-coupled (`open`, `install`, `give`, `click`) spawns the harness's synthetic
+player, which has never been exercised inside a live client — drive those parts with your own
+character, and if you try it anyway, treat anything odd as the harness rather than the mod.
+
+Also worth knowing: if the keyboard hang recurs *with* `HARNESS=1`, that is real evidence about a thing
+I never explained. Without the flag, both of the harness's always-on behaviours are off, so a recurrence
+then would point at the class transformation itself.
 
 ### The multiplayer lighting question — now answerable without two clients
 
@@ -113,7 +135,7 @@ Real sprites are now installed, so all four of these are live rather than waitin
       expected until the 16-frame sheet requested in SPRITES.md arrives. What to check now is
       that straight runs join with no visible seam, and that the sprite switches axis as you
       face up/down versus left/right. The mask convention behind the eventual elbows and tees is
-      already asserted headlessly in `tests/scenarios/conduits.txt`.
+      already asserted headlessly in `tests/python/test_conduits.py`.
 - [x] **The terminal screen lights up while open** and goes dark when closed — *confirmed for
       yourself; the server-side state behind it is now covered by `tests/python/test_in_use.py`,
       and only what a **second** player sees is still unverified (item 12 above)*
@@ -124,7 +146,7 @@ Real sprites are now installed, so all four of these are live rather than waitin
 ## Phase 3 interface — new, none of it exercised yet
 
 The whole of Phase 3 so far is client-side or player-coupled, so the harness reaches only the
-numbers behind it. `tests/scenarios/capacity.txt` covers the capacity accounting headlessly;
+numbers behind it. `tests/python/test_network.py` covers the capacity accounting headlessly;
 everything below needs eyes or a player.
 
 - [ ] **Search filters as you type.** Type part of an item name and confirm the grid narrows
@@ -139,16 +161,16 @@ everything below needs eyes or a player.
       know is stored, then deposit and withdraw and confirm it moves.
 - [x] ~~**Quick stack, deposit all and restock**, including the quick-stack versus deposit-all
       distinction and conservation across every transfer.~~ Asserted headlessly by
-      `container_transfers`, 19 assertions.
-- [ ] **Deposit all leaves locked slots alone.** Not covered: the scenario has no locked slots,
+      `tests/python/test_transfers.py`.
+- [ ] **Deposit all leaves locked slots alone.** Not covered: no test can lock a slot,
       because locking is a client-side interaction and nothing headless can set one yet.
 - [ ] **The three buttons are present, labelled and clickable.** The behaviour behind them is
       asserted; that they are drawn at all is not.
 - [ ] **Sort cycles and the tooltip says which mode is active.** Group order should match what
       the inventory-sort button produces on your own inventory, since it is literally the same
       comparator. Name is A-Z, amount is most-numerous first.
-- [ ] **A large network does not stutter.** Fill something close to 64 units with varied items
-      and open the terminal. Two known costs were removed unmeasured -- aggregation was
+- [ ] **A large network does not stutter.** `harness run full_network` builds the 64-unit ceiling
+      for you; then open the terminal. Two known costs were removed unmeasured -- aggregation was
       quadratic in distinct items, and the draw path aggregated three times per frame -- so this
       needs a real network to confirm rather than an argument.
 - [ ] **The layout survives a small window.** The header now holds a title and a search box, and
@@ -160,9 +182,9 @@ The parts most likely to lose or duplicate items, which is the one failure class
 recovered from a save.
 
 - [x] ~~**The round trip** -- open, withdraw, deposit, close, and item conservation at every
-      step.~~ Asserted headlessly by `container_roundtrip`, 11 assertions. It was described here
+      step.~~ Asserted headlessly by `tests/python/test_network.py`. It was described here
       as the single highest-value check in this file, which is why it was worth automating first.
-- [ ] **The six click conventions individually**, via `/arcanestorage click <slot> <action>`:
+- [ ] **The six click conventions individually**, via `harness click <slot> <action>`:
       `LEFT_CLICK`, `RIGHT_CLICK`, `QUICK_MOVE`, `TAKE_ONE`, `QUICK_MOVE_ONE`, `QUICK_GET_ONE`.
       The design commitment is that these behave as they do in a vanilla chest; a subtle
       divergence here is the kind of thing players report as "feels wrong" rather than as a bug.
@@ -215,8 +237,8 @@ something to point back at.
       slots held a live reference to the removed unit's `Inventory`, so withdrawing produced
       items the world no longer contained and depositing wrote into an object that was never
       saved. Now covered mechanically as far as the harness can reach it — orphaning beyond a
-      broken unit or conduit is asserted in `tests/scenarios/topology.txt` and
-      `tests/scenarios/conduits.txt`.
+      broken unit or conduit is asserted in `tests/python/test_topology.py` and
+      `tests/python/test_conduits.py`.
 
 ## Category picker — the submitted icons went unused
 

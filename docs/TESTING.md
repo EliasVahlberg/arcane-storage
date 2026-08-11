@@ -26,7 +26,7 @@ The reasons given for keeping both did not survive being questioned:
   as a constraint.
 - *"Scenario files can be run inside a live game."* This one is real, but it argues for keeping the
   *file format*, not a parallel assertion suite. `harness run <name>` still exists, and
-  `make scenario FILE=...` still runs an ad-hoc file, so a throwaway script to set up a scene for
+  `make scene FILE=...` still runs an ad-hoc file, so a throwaway script to set up a scene for
   visual QA is still one command. What is gone is a second set of assertions to keep in step.
 
 Two suites means two places to update when behaviour changes, two failure formats to read, and a
@@ -50,7 +50,7 @@ standing question about which one owns a given rule. That cost is real and the b
 
 - Anything automatable → `tests/python/`.
 - Anything about what something looks like → `docs/QA_BACKLOG.md`.
-- A throwaway script to build a scene to look at → any `.txt` file plus `make scenario FILE=...`, or
+- A throwaway script to build a scene to look at → any `.txt` file plus `make scene FILE=...`, or
   `harness run <name>` in a live game with `make run HARNESS=1`. Not a test, and not checked in.
 
 ## The one thing to know about isolation

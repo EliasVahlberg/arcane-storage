@@ -1,0 +1,21 @@
+# A network at one quarter full, for watching the capacity bar change colour.
+
+# Not a test -- see docs/TESTING.md. Run with `harness run capacity_steps` in a game launched by
+# `make run HARNESS=1`, near world spawn.
+#
+# Four units is 160 slots, and 40 iron pickaxes is 40 of them, because pickaxes do not stack: filling
+# a unit with 40 *stone* would occupy one slot, not forty. That detail has caught a test here before.
+#
+# So this starts at 40/160 -- the first colour step -- and the point is to deposit your own items and
+# watch it cross 50% and 75%. The thresholds are at 25, 50 and 75, and the number beside the bar stays
+# neutral on purpose: the fill carries the colour, not the text.
+
+harness reset
+harness clear 20
+harness place terminal 0 0
+harness place unit 1 0
+harness place unit 2 0
+harness place unit 1 1
+harness place unit 2 1
+harness fill 1 0 ironpickaxe 40
+harness report 0 0

@@ -32,13 +32,14 @@ If a build appears to take minutes, diagnose it rather than waiting: `ps -o pid,
 
 ```bash
 make test         # JUnit over the network traversal — pure logic, no game
-make scenarios    # every scenario against a real headless server, plus a save/load restart
-make persistence  # just the two-boot restart pair
+make pytest       # the whole suite against a real headless server, including a save/load restart
 ```
 
-`make scenarios` boots the real dedicated server twice, about 30 seconds in total. Per boot that
-is roughly 3s of JVM start, mod load and world generation, 7s of commands, and 2s for a save the
-runner waits on deliberately.
+`make pytest` boots the real dedicated server twice, about 46 seconds in total: once for the session
+and once more for the persistence test, which restarts the server so that what it asserts is being
+read back from disk. Per boot that is roughly 3s of JVM start, mod load and world generation, plus a
+save the runner waits on deliberately. Everything between boots is milliseconds, so tests are cheap to
+add — the boot is the whole cost.
 
 **A run can never hang.** A deadlock does not stop the game: the engine's `ThreadFreezeMonitor`
 writes a crash log and leaves the JVM alive with its command thread no longer reading stdin. The
@@ -47,51 +48,49 @@ between commands, bounds how long it waits for a stop, and prints any crash log 
 during the run. Before that, a deadlock looked like a test run that took as long as whatever
 timeout happened to be wrapped around it — 400 seconds in one case — while reporting nothing.
 
-### Scenarios are data, not Java
+### Tests are Python, driven through the harness
 
-A scenario is a list of chat commands under `tests/scenarios/`, run by `/harness run <name>` in
-game or by the runner:
-
-```
-harness place terminal 0 0
-harness place unit 1 0
-harness fill 1 0 ironbar 100
-harness expect units 0 0 1
-harness expect item 0 0 ironbar 100
-```
-
-The command is `harness`, not `arcanestorage`, because the harness lives in its own mod:
-[necesse-headless-harness](https://github.com/EliasVahlberg/necesse-headless-harness). It has to
-be installed into `~/.config/Necesse/mods` (`make install` in its repo) rather than dev-loaded,
-because the game accepts exactly one dev mod and this one holds that slot.
-
-**Install it as a sibling checkout.** `tools/run_scenario.sh` here is a wrapper that supplies this
-mod's jar path, scenario directory and world name, then delegates; it looks for the harness at
-`../necesse-headless-harness` unless `HARNESS_DIR` says otherwise.
-
-Generic verbs come from the harness: `place fill clear break give open close click quickstack
-restock player run echo`, and `expect item total held`. This mod registers the rest —
-`report reset withdraw deposit depositall bench`, and `expect units capacity fits mask` — from
-`arcanestorage.harness.ArcaneStorageVerbs`, which is also where a new one goes. Note it
-deliberately *replaces* the harness's `expect item` and `expect total`: the generic versions read
-one tile's inventory and every inventory on the level, and here those must mean what the network
-can see.
-
-Coordinates are relative to world spawn, so scenarios are world-independent.
-
-### Or as Python, when values matter
-
-The same server, driven through the harness's request/reply protocol, with assertions in pytest:
-
-```bash
-make pytest
-```
+The suite lives in `tests/python/` and talks to a real dedicated server through the harness's
+request/reply protocol:
 
 ```python
 def test_capacity_counts_slots_not_items(terminal):
     terminal.harness.fill(1, 0, "ironbar", 40)
     assert terminal.capacity() == (1, 40)      # one slot, not forty
 ```
+
+The harness is its own mod:
+[necesse-headless-harness](https://github.com/EliasVahlberg/necesse-headless-harness). It has to
+be installed into `~/.config/Necesse/mods` (`make install` in its repo) rather than dev-loaded,
+because the game accepts exactly one dev mod and this one holds that slot. Install it as a sibling
+checkout; the tooling here looks for `../necesse-headless-harness` unless `HARNESS_DIR` says
+otherwise.
+
+Generic verbs come from the harness: `place fill clear break give open close click quickstack
+restock player run echo`, and `expect item total held`. This mod registers the rest —
+`report reset withdraw deposit depositall depositcursor install bench`, and
+`expect units capacity fits mask inuse` — from `arcanestorage.harness.ArcaneStorageVerbs`, which is
+also where a new one goes. Note it deliberately *replaces* the harness's `expect item` and
+`expect total`: the generic versions read one tile's inventory and every inventory on the level, and
+here those must mean what the network can see.
+
+Coordinates are relative to world spawn, so tests are world-independent.
+
+### Scene files, which are not tests
+
+A verb sequence is also a plain text file a running game can execute, and `tests/scenes/` uses that
+to build states worth looking at:
+
+```
+place terminal 0 0
+bench 0 0 64 1
+```
+
+`harness run full_network` in a game launched with `make run HARNESS=1`, or
+`make scene FILE=tests/scenes/full_network.txt` headlessly. This exists because the UI cannot be
+tested automatically, so the next best thing is making the state behind a visual check one line to
+produce. **No assertions belong here** — those go in `tests/python/`. There used to be a second,
+bash-driven suite of these; [docs/TESTING.md](docs/TESTING.md) records why there is now one suite.
 
 `tests/python/conftest.py` holds this mod's fixtures -- a `terminal` with a unit beside it, a
 `storage` fixture that runs `reset` so isolation does not depend on a clear radius, and the queries

@@ -21,7 +21,7 @@ SHELL := /bin/bash
 GRADLE := ./gradlew --console=plain
 LOGDIR := build/logs
 
-.PHONY: help build test scenario run dev server appid textures clean stop tasks doctor
+.PHONY: help build test scene run dev server appid textures clean stop tasks doctor
 
 help: ## Show available targets
 	@grep -hE '^[a-z-]+:.*##' $(MAKEFILE_LIST) \
@@ -44,10 +44,10 @@ test: ## Run the unit tests (game-independent logic only; no game or Steam neede
 	@mkdir -p $(LOGDIR)
 	$(GRADLE) test < /dev/null 2>&1 | tee $(LOGDIR)/test.log
 
-scenario: ## Run an ad-hoc scenario file against a headless server: make scenario FILE=path/to/x.txt
-	@test -n "$(FILE)" || { echo "usage: make scenario FILE=<file>.txt"; exit 2; }
+scene: ## Build a state to look at, headlessly: make scene FILE=tests/scenes/full_network.txt
+	@test -n "$(FILE)" || { echo "usage: make scene FILE=tests/scenes/<name>.txt"; exit 2; }
 	@$(MAKE) --no-print-directory testjar > /dev/null
-	@tools/run_scenario.sh "$(FILE)"
+	@tools/run_scenario.sh --scene "$(FILE)"
 
 run: ## Launch the game with the in-development mod (needs Steam running). PACKETLOG=1 logs packets, HARNESS=1 enables /harness in-game
 	@mkdir -p $(LOGDIR)

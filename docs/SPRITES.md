@@ -205,7 +205,7 @@ Frames 5 and 10 are the existing vertical and horizontal tiles and can be reused
 there is no remapping layer, and a misplaced frame draws the wrong shape everywhere.
 
 The harness asserts this convention against real placed objects
-(`tests/scenarios/conduits.txt`), so if the numbering here and the code ever diverge, the
+(`tests/python/test_conduits.py`), so if the numbering here and the code ever diverge, the
 tests say so rather than the game quietly drawing nonsense.
 
 ### Requirements carried over from the current sheet

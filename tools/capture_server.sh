@@ -103,7 +103,7 @@ BANNER
 ) &
 SETUP_PID=$!
 
-( cd "$GAME_DIR" && "$JAVA" -Darcanestorage.packetlog=1 -Darcanestorage.scenarios="$MOD_DIR/tests/scenarios" -jar Server.jar \
+( cd "$GAME_DIR" && "$JAVA" -Darcanestorage.packetlog=1 -Dnecesseheadlessharness.scenarios="$MOD_DIR/tests/scenes" -jar Server.jar \
       -nogui -log_debug_prints -hiddencheats \
       -world "$WORLD" \
       -mod "$MOD_DIR/build/jar/" ) < "$FIFO" 2>&1 | tee "$LOG"

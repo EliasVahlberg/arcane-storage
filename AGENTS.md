@@ -12,7 +12,8 @@ a jar the game loads at runtime. Layout:
 ```
 src/main/java/arcanestorage/{object,objectentity,container,network,command}/
 src/main/resources/{objects,items}/*.png      sprites, one per string ID
-tests/scenarios/*.txt                          harness scenarios (data, not Java)
+tests/python/*.py                              the automated suite, against a real server
+tests/scenes/*.txt                             states to look at by hand; not tests
 tools/*.sh                                     headless server runner
 docs/{ROADMAP,SPRITES,QA_BACKLOG}.md           keep these current
 ```
@@ -54,7 +55,7 @@ precisely what `InventoryObject` does.
 
 ## Verification, and reporting it honestly
 
-Build after every change. `make test` and `make scenarios` both have to pass.
+Build after every change. `make test` and `make pytest` both have to pass.
 
 **Nothing headless draws a pixel.** Compiling is not working, and a mod that compiles can still
 fail at load. When a change touches registration, resources, rendering or input, say plainly that
