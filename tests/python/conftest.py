@@ -65,6 +65,10 @@ class Terminal:
     def open(self) -> None:
         self.harness.open(self.dx, self.dy)
 
+    def users(self) -> int:
+        """How many players the terminal believes are using it -- what other clients render from."""
+        return self.harness.query("inuse", self.dx, self.dy)["users"]
+
     def deposit_all(self) -> None:
         self.harness.do("depositall")
 

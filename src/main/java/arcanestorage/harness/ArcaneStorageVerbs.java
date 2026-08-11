@@ -68,6 +68,7 @@ public final class ArcaneStorageVerbs {
       Harness.registerVerb(new BenchVerb());
 
       Harness.registerExpectation(new UnitsExpectation());
+      Harness.registerExpectation(new InUseExpectation());
       Harness.registerExpectation(new NetworkItemExpectation());
       Harness.registerExpectation(new CapacityExpectation());
       Harness.registerExpectation(new FitsExpectation());
@@ -490,6 +491,50 @@ public final class ArcaneStorageVerbs {
          return context.check(perCall <= BUDGET_MS, "bench: aggregation within budget",
                "aggregation costs " + String.format(Locale.ROOT, "%.3f", perCall)
                   + "ms, over the " + BUDGET_MS + "ms budget -- this needs caching rather than tuning");
+      }
+   }
+
+   /**
+    * {@code expect inuse <dx> <dy> <n>} -- how many players the terminal believes are using it.
+    *
+    * <p>Exists to make a multiplayer question answerable with one client. A terminal shows itself as
+    * open through vanilla's {@code OEUsers}, which the object entity writes into its content packet,
+    * so *other* players seeing it open depends entirely on this server-side count being right.
+    * Verifying the count therefore verifies everything except the sprite.
+    *
+    * <p>Worth knowing why it can go stale rather than wrong: a user entry expires after two seconds
+    * unless refreshed, so the container re-asserts it every tick, exactly as vanilla's chest
+    * container does. A test that opens and immediately asserts would pass even if that refresh were
+    * missing -- which is why the scenario waits before checking.
+    */
+   private static final class InUseExpectation implements TestVerb, TestQuery {
+      public String name() {
+         return "inuse";
+      }
+
+      public String usage() {
+         return "expect inuse <dx> <dy> <count>";
+      }
+
+      public void query(TestContext context, Json.Writer out) {
+         StorageTerminalObjectEntity terminal = terminalAt(context, 2);
+         out.num("users", terminal == null ? -1 : terminal.getTotalUsers())
+            .bool("inUse", terminal != null && terminal.isInUse());
+      }
+
+      public int coordinateArgIndex() {
+         return 2;
+      }
+
+      public boolean run(TestContext context) {
+         StorageTerminalObjectEntity terminal = terminalAt(context, 2);
+         if (terminal == null) {
+            return noTerminal(context);
+         }
+
+         int wanted = context.intArg(4);
+         return context.check(terminal.getTotalUsers() == wanted, "inuse = " + wanted,
+               "expected " + wanted + " user(s), found " + terminal.getTotalUsers());
       }
    }
 

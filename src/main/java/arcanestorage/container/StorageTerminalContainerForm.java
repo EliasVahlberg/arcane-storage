@@ -17,6 +17,7 @@ import necesse.gfx.gameTooltips.TooltipLocation;
 import necesse.inventory.container.slots.ContainerSlot;
 import necesse.gfx.forms.components.containerSlot.FormContainerSlot;
 import necesse.inventory.recipe.Tech;
+import necesse.engine.registries.ItemRegistry;
 import java.util.HashSet;
 import java.util.Set;
 import necesse.gfx.forms.components.FormCheckBox;
@@ -602,7 +603,14 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
 
       // The tab's height is fixed, so the flow cannot set it. Checked instead, because a silent
       // half-row of clipping is exactly the kind of thing that survives a review.
-      int layoutHeight = flow.next(PADDING);
+      //
+      // Read with a second, zero-height step, because FormFlow.next(add) returns the position
+      // *before* advancing -- that is what makes `int y = flow.next(rowHeight)` give a row its own
+      // top. The first version of this check read the final next() directly and so compared the
+      // last row's start against the total, reporting a 4px discrepancy that did not exist. It cried
+      // wolf in Elias's log for a day.
+      flow.next(PADDING);
+      int layoutHeight = flow.next();
       if (layoutHeight != FORM_HEIGHT) {
          GameLog.warn.println("Arcane Storage: storage tab wants " + layoutHeight
                + "px but FORM_HEIGHT is " + FORM_HEIGHT + "px; the tab will clip or leave a gap.");
@@ -645,6 +653,26 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
    }
 
    /**
+    * What to call a crafting source in the tickbox strip.
+    *
+    * <p>The station's own item name, not the tech's display name, because the tech names have gaps:
+    * the game's locale has 26 `tech` entries and no `tech/transmutation`, so a Transmutation Station
+    * logged "Translation of tech.transmutation is not found" and would have shown the raw key. That
+    * is a vanilla omission, not something to work around with a private label -- and a tech's
+    * {@code itemStringID} points at the station that provides it, whose name is in the `object`
+    * locale and complete. It is also the name the player recognises, since it is what the item in
+    * their inventory is called.
+    *
+    * <p>Falls back to the tech name for sources with no item behind them, which is how hand recipes
+    * come out as "Inventory": their tech's itemStringID is "inventory", which is not a real item.
+    */
+   private static String sourceLabel(Tech tech) {
+      return ItemRegistry.getItemID(tech.itemStringID) == -1
+            ? tech.displayName.translate()
+            : ItemRegistry.getLocalization(tech.itemStringID).translate();
+   }
+
+   /**
     * Rebuilds the source tickboxes from the installed stations.
     *
     * <p>Sources are {@code Tech}s rather than bench items, because that is what a recipe carries, and
@@ -672,7 +700,7 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
          Form panel = box.addComponent(new Form(BENCH_PANEL_WIDTH - 2, BENCH_PANEL_HEIGHT - 2));
          panel.setPosition(i % columns * BENCH_PANEL_WIDTH, i / columns * BENCH_PANEL_HEIGHT);
 
-         FormCheckBox tick = panel.addComponent(new FormCheckBox(source.displayName.translate(), 4, 4,
+         FormCheckBox tick = panel.addComponent(new FormCheckBox(sourceLabel(source), 4, 4,
                BENCH_PANEL_WIDTH - 12, !this.hiddenBenches.contains(source)));
          tick.onClicked(event -> {
             if (event.from.checked) {
