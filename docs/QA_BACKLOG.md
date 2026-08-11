@@ -55,6 +55,14 @@ Stated by Elias, in order of confirmation:
     including empty space, right click takes half a stack, right click while holding deposits one, and
     non-stackables behave the same on both buttons.
 
+### Before any further hand testing
+
+The harness was loading into your play sessions, and with it enabled the client's **keyboard** died
+once the world started hosting — mouse fine, server ticking normally, nothing in any log. It is now
+dormant in a client process, so leaving it installed is safe, but if anything strange recurs, take it
+out entirely with `make -C ../necesse-headless-harness uninstall` before blaming this mod. Note that
+disabling it in the game's Mods menu stops the Python suite from running, by design.
+
 ### The multiplayer lighting question — now answerable without two clients
 
 He could not verify that a terminal looks in use to *other* players, because Steam refuses the same

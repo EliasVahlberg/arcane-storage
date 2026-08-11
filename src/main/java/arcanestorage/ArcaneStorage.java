@@ -115,7 +115,12 @@ public class ArcaneStorage {
       try {
          arcanestorage.harness.ArcaneStorageVerbs.register();
       } catch (Throwable harnessAbsent) {
-         System.out.println("Arcane Storage: headless harness not present, test verbs not registered ("
+         // Expected for the release jar, which excludes arcanestorage/harness/** -- so this says which
+         // build is running rather than implying the harness is missing from the game. It logged
+         // "harness not present" in a session where the harness plainly had loaded, which is
+         // confusing at exactly the wrong moment.
+         System.out.println("Arcane Storage: built without the harness bridge (use 'make testjar' for the"
+               + " test build); test verbs not registered ("
             + harnessAbsent.getClass().getSimpleName() + ")");
       }
    }
