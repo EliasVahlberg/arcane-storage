@@ -59,7 +59,10 @@ cannot reach. `harness run` needs `make run HARNESS=1`; both buses cost 4 logs a
     indirection. Needs a settlement, so it cannot be tested headlessly.
 17. **A Shipping Chest sells what an export bus sends it.** Vanilla's behaviour above a stack threshold,
     via trader missions, so this is a check that the two features compose rather than that either works.
-18. **The rule panel, which is the one thing here that has never been drawn.** Right-click a bus: it
+18. **The rule panel — partly tested, and it has a known destructive bug: issue #1.** The panel opens and
+    its edits reach the server, but the client appears to start from an empty filter, so an edit can
+    unset everything that was ticked and overwrite the server's copy. Treat a bus's rules as unsafe until
+    that is fixed; the transfer mechanics are unaffected. What is left to check once it is fixed: Right-click a bus: it
     should open the same panel as "configure storage" on a settlement chest, because it is that panel —
     `ItemCategoriesFilterForm`, with the category tree, per-item numbers and search. What to check, in
     order of how likely it is to be wrong:

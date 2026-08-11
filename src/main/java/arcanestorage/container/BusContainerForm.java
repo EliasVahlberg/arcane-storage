@@ -159,6 +159,10 @@ public class BusContainerForm<T extends BusContainer> extends ContainerForm<T> {
 
    /** Pushes the edited filter to the server. See {@link BusContainer.SetFilterAction} for why in full. */
    private void send() {
+      necesse.engine.GameLog.warn.println("[bus] form sending "
+            + BusContainer.describeFilter(this.container.filter)
+            + " sameObjectAsContainer=" + (this.filterForm.filter == this.container.filter));
       this.container.setFilterAction.runAndSend(this.container.filter);
    }
+
 }

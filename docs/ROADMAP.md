@@ -486,7 +486,10 @@ Where the mod stops being a port. One primitive does most of the work.
 - [x] **A rule interface** — *done Aug 2026, and it is the game's.* Right-clicking a bus opens
       `ItemCategoriesFilterForm`, the same panel as "configure storage" on a settlement chest: category
       tree, tri-state ticks, per-item numbers, search, allow-all and clear-all. Only the two header lines
-      are ours. **Drawing is unverified** — QA_BACKLOG items 13–18
+      are ours. **Partly verified in game, and currently broken: issue #1.** It opens and its edits reach
+      the server, but the client seems to begin from an empty filter, so editing can wipe what was ticked.
+      The leading suspect is the open packet's content, which is the one hop no headless test can reach —
+      see QA_BACKLOG item 18
 
 The rule primitive is deliberately introduced once and reused. Overflow control,
 defence against settler overproduction, and reserve floors are the same idea read

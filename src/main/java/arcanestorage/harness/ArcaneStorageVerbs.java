@@ -77,6 +77,7 @@ public final class ArcaneStorageVerbs {
       Harness.registerVerb(new RuleVerb());
       Harness.registerVerb(new TransferVerb());
       Harness.registerVerb(new BusEditVerb());
+      Harness.registerVerb(new BusRoundTripVerb());
 
       Harness.registerExpectation(new UnitsExpectation());
       Harness.registerExpectation(new InUseExpectation());
@@ -529,6 +530,64 @@ public final class ArcaneStorageVerbs {
    }
 
    /**
+    * Replays the panel's whole cycle in one server-side call: open, copy, edit, send, apply.
+    *
+    * <p>{@code busroundtrip <dx> <dy> <item> [target]}. This exists because the first bus panel lost every
+    * edit in a real client while every headless test passed, and the reason the tests missed it is that
+    * they drove the server's container action directly with a <i>freshly constructed</i> filter. The client
+    * never does that. It builds its filter by reading the server's, edits <i>that</i>, and writes it back —
+    * so the round trip through {@code readPacket} before the edit is the part that was never exercised.
+    */
+   private static final class BusRoundTripVerb implements TestVerb {
+      public String name() {
+         return "busroundtrip";
+      }
+
+      public String usage() {
+         return "busroundtrip <dx> <dy> <item> [target]";
+      }
+
+      public int coordinateArgIndex() {
+         return 1;
+      }
+
+      public boolean run(TestContext context) {
+         BusObjectEntity bus = busAt(context, 1);
+         Item item = ItemRegistry.getItem(context.arg(3));
+         if (bus == null || item == null) {
+            context.fail("busroundtrip: no bus or no such item");
+            return false;
+         }
+
+         int target = context.argCount() > 4 ? context.intArg(4) : 0;
+
+         // 1. What the server sends when the panel opens.
+         Packet opened = new Packet();
+         bus.filter.writePacket(new PacketWriter(opened));
+
+         // 2. What the client builds from it -- same construction as BusContainer's client branch.
+         ItemCategoriesFilter clientCopy = new ItemCategoriesFilter(ItemCategory.masterCategory, false);
+         clientCopy.readPacket(new PacketReader(opened));
+
+         // 3. The edit the panel makes, through the same call the form's checkbox uses.
+         boolean accepted = target > 0
+            ? clientCopy.setItemAllowed(item, true, target)
+            : clientCopy.setItemAllowed(item, true);
+         context.info("the client's copy accepted the edit: " + accepted
+               + ", and now reads allowed=" + clientCopy.isItemAllowed(item));
+
+         // 4. Back to the server, as SetFilterAction does it.
+         Packet edited = new Packet();
+         clientCopy.writePacket(new PacketWriter(edited));
+         bus.filter.readPacket(new PacketReader(edited));
+
+         context.info("the bus now reads allowed=" + bus.filter.isItemAllowed(item)
+               + " target=" + bus.networkShouldHold(item));
+         return true;
+      }
+   }
+
+   /**
     * Runs a bus's transfer immediately, instead of waiting out its interval.
     *
     * <p>A bus moves at most one stack per second on its own, which is right for a player watching a chest
@@ -604,6 +663,18 @@ public final class ArcaneStorageVerbs {
 
          out.bool("allowed", bus.filter.isItemAllowed(item));
          out.num("target", bus.networkShouldHold(item));
+
+         // Everything the filter allows, not just the asked-about item. Added after a diagnostic that
+         // watched one hard-coded item twice failed to see what was actually being edited.
+         List<String> allowed = new ArrayList<>();
+         for (Item candidate : ItemRegistry.getItems()) {
+            if (candidate != null && bus.filter.isItemAllowed(candidate)) {
+               allowed.add(candidate.getStringID() + "=" + bus.networkShouldHold(candidate));
+            }
+         }
+
+         out.num("allowedcount", allowed.size());
+         out.strings("allowedlist", allowed.subList(0, Math.min(12, allowed.size())));
       }
 
       public boolean run(TestContext context) {
