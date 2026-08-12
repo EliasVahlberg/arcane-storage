@@ -80,6 +80,21 @@ public abstract class BusObjectEntity extends ObjectEntity {
    private int ticksUntilTransfer = TRANSFER_INTERVAL;
 
    /**
+    * Counters for diagnosis, not for behaviour: how much work the buses are doing.
+    *
+    * <p>They exist because "it locks up" is not a testable claim and "the move count is still climbing after
+    * the network stopped changing" is. Static because a test process runs one server, and reset between
+    * scenarios by the harness.
+    */
+   public static long moves;
+
+   public static long transfers;
+
+   public static long slotsScanned;
+
+   public static long networkWalks;
+
+   /**
     * @param allowAllByDefault whether an unconfigured bus moves everything. True for an import bus, since
     *        importing only adds and "point it at a chest" is the whole feature; false for an export bus,
     *        because one that emptied a network the moment it was placed would be a trap. This is vanilla's
@@ -257,6 +272,7 @@ public abstract class BusObjectEntity extends ObjectEntity {
       }
 
       this.ticksUntilTransfer = TRANSFER_INTERVAL;
+      transfers++;
       this.transferOnce();
    }
 
@@ -293,6 +309,7 @@ public abstract class BusObjectEntity extends ObjectEntity {
 
       for (Inventory fromInventory : from) {
          for (int slot = 0; slot < fromInventory.getSize(); slot++) {
+            slotsScanned++;
             InventoryItem item = fromInventory.getItem(slot);
             if (item == null) {
                continue;
@@ -339,6 +356,8 @@ public abstract class BusObjectEntity extends ObjectEntity {
          return 0;
       }
 
+      moves++;
+
       return from.removeItems(level, null, item.item, accepted, PURPOSE);
    }
 
@@ -374,6 +393,7 @@ public abstract class BusObjectEntity extends ObjectEntity {
     * pure function of the layout, so breaking a unit needs no cleanup anywhere.
     */
    public List<NetworkStorage> network() {
+      networkWalks++;
       final Level level = this.getLevel();
       return UnitNetwork.discover(this.tileX, this.tileY, (x, y) -> {
          ObjectEntity candidate = level.entityManager.getObjectEntity(x, y);

@@ -25,6 +25,7 @@ import necesse.entity.objectEntity.ObjectEntity;
 import necesse.entity.objectEntity.interfaces.OEInventory;
 import necesse.inventory.container.ContainerAction;
 import necesse.inventory.container.slots.ContainerSlot;
+import necesse.inventory.InventoryUpdateListener;
 import necesse.inventory.item.Item;
 import necesse.inventory.Inventory;
 import necesse.inventory.InventoryItem;
@@ -79,6 +80,9 @@ public final class ArcaneStorageVerbs {
       Harness.registerVerb(new TransferVerb());
       Harness.registerVerb(new BusEditVerb());
       Harness.registerVerb(new BusRoundTripVerb());
+      Harness.registerVerb(new BusStatsResetVerb());
+      Harness.registerExpectation(new ListenerCheckVerb());
+      Harness.registerExpectation(new BusStatsQuery());
       Harness.registerVerb(new RuleGlobalVerb());
       Harness.registerVerb(new RuleCategoryVerb());
       Harness.registerExpectation(new BusOpenPacketQuery());
@@ -529,6 +533,123 @@ public final class ArcaneStorageVerbs {
 
          context.info("sent a filter allowing " + context.arg(1)
                + (target > 0 ? " with a target of " + target : ""));
+         return true;
+      }
+   }
+
+   /**
+    * Whether the engine notifies more than one inventory listener, which decides whether an event-driven
+    * design can subscribe to vanilla inventories at all.
+    *
+    * <p>{@code listenercheck <dx> <dy>}. Read in the source first: {@code Inventory}'s notify site uses
+    * {@code if (updateIterator.hasNext())} rather than {@code while}, which would mean only the first live
+    * listener is ever told, and a disposed first listener swallows the notification entirely. That is a large
+    * claim to design around on a reading, so it is measured here: two listeners are attached to a real
+    * inventory, one slot is changed, and both counts are reported.
+    */
+   private static final class ListenerCheckVerb implements TestVerb, TestQuery {
+      public String name() {
+         return "listenercheck";
+      }
+
+      public String usage() {
+         return "query listenercheck <dx> <dy>";
+      }
+
+      public int coordinateArgIndex() {
+         return 2;
+      }
+
+      public boolean run(TestContext context) {
+         return true;
+      }
+
+      public void query(TestContext context, Json.Writer out) {
+         ObjectEntity entity = context.level.entityManager.getObjectEntity(
+            context.tileX(context.intArg(2)), context.tileY(context.intArg(3)));
+         if (!(entity instanceof OEInventory)) {
+            out.num("first", -1);
+            out.num("second", -1);
+            return;
+         }
+
+         Inventory inventory = ((OEInventory)entity).getInventory();
+         int[] counts = new int[2];
+         inventory.addSlotUpdateListener(new CountingListener(counts, 0));
+         inventory.addSlotUpdateListener(new CountingListener(counts, 1));
+
+         InventoryItem stone = new InventoryItem("stone", 1);
+         inventory.addItem(context.level, null, stone, "arcanestoragelistenercheck", null);
+
+         out.num("first", counts[0]);
+         out.num("second", counts[1]);
+      }
+   }
+
+   /** Counts notifications into a shared array, so the verb can report both without any static state. */
+   private static final class CountingListener extends InventoryUpdateListener {
+      private final int[] counts;
+      private final int index;
+
+      private CountingListener(int[] counts, int index) {
+         this.counts = counts;
+         this.index = index;
+      }
+
+      @Override
+      public void onSlotUpdate(int slot) {
+         this.counts[this.index]++;
+      }
+
+      @Override
+      public boolean isDisposed() {
+         return false;
+      }
+   }
+
+   /**
+    * How much work the buses have done, and a way to zero it.
+    *
+    * <p>{@code query busstats} -> {@code {moves, transfers, slots, walks}}; {@code busstatsreset} zeroes them.
+    * A system that has reached the state its rules describe should stop moving things; this is how a test
+    * says so.
+    */
+   private static final class BusStatsQuery implements TestVerb, TestQuery {
+      public String name() {
+         return "busstats";
+      }
+
+      public String usage() {
+         return "query busstats";
+      }
+
+      public boolean run(TestContext context) {
+         return true;
+      }
+
+      public void query(TestContext context, Json.Writer out) {
+         out.num("moves", BusObjectEntity.moves);
+         out.num("transfers", BusObjectEntity.transfers);
+         out.num("slots", BusObjectEntity.slotsScanned);
+         out.num("walks", BusObjectEntity.networkWalks);
+      }
+   }
+
+   private static final class BusStatsResetVerb implements TestVerb {
+      public String name() {
+         return "busstatsreset";
+      }
+
+      public String usage() {
+         return "busstatsreset";
+      }
+
+      public boolean run(TestContext context) {
+         BusObjectEntity.moves = 0;
+         BusObjectEntity.transfers = 0;
+         BusObjectEntity.slotsScanned = 0;
+         BusObjectEntity.networkWalks = 0;
+         context.info("counters zeroed");
          return true;
       }
    }
