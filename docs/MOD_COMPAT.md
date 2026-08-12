@@ -155,3 +155,28 @@ Three reasons, in the order they matter for compatibility with other mods:
 The one thing to watch: `getAddAmount` and `getRemoveAmount` take an `InventoryRange`, which is a range
 within a single `Inventory`. Anything network-wide has to sum across members itself, or a per-item limit
 silently becomes per-container. See `BusObjectEntity.allowedToMove`.
+
+## Opening a container with extra content: wrap it exactly once
+
+`PacketOpenContainer.ObjectEntity(containerID, oe, content)` and its `LevelObject` sibling are byte-identical
+in composition: each writes `tileX`, `tileY`, then **`putNextContentPacket(content)`**.
+`ContainerRegistry.registerOEContainer` reads the two ints and then `getNextContentPacket()`, handing the
+result to the container. So the content passed to the factory must be the payload itself, unwrapped.
+
+Wrapping it first costs a day of debugging and looks like anything but a layering mistake. The client reads a
+length prefix as the payload, and because a length under 64 KB begins with zero bytes, the first fields decode
+as plausible defaults rather than as garbage — an enum reads as its first constant, a boolean as false — so the
+symptom is a *believable empty object*, not an exception. Ours then got written back over the real one, so
+editing a bus's rules erased them.
+
+Two things follow for any future container that ships content:
+
+- **Test the hand-off through bytes.** `Packet.getPacketData()` plus the packet's `byte[]` constructor makes
+  the client's side reachable from a headless test: compose it, round-trip it, unwrap it the way
+  `registerOEContainer` does, and assert on the result. `BusContainer.openPacket` exists as a seam for this,
+  and `query busopenpacket` reports both sides' counts.
+- **Object entity state has a first-class path that is not the open packet.** `ObjectEntity.setupContentPacket`
+  / `applyContentPacket` carry it, `server.network.sendToClientsWithEntity(new PacketObjectEntity(ent), ent)`
+  pushes a change (this is what `OEInventory` does after an inventory change), and `PacketRequestObjectEntity`
+  pulls it on demand. Prefer that when state is needed outside a container — a tooltip, a sprite, a second
+  player watching. The open packet is only the right vehicle for what one client needs while a panel is open.

@@ -17,6 +17,7 @@ import arcanestorage.objectentity.StorageTerminalObjectEntity;
 import arcanestorage.network.NetworkStorage;
 import necesse.engine.network.Packet;
 import necesse.engine.network.PacketReader;
+import necesse.engine.network.packet.PacketOpenContainer;
 import necesse.engine.network.PacketWriter;
 import necesse.engine.registries.ItemRegistry;
 import necesse.engine.registries.ObjectRegistry;
@@ -78,6 +79,7 @@ public final class ArcaneStorageVerbs {
       Harness.registerVerb(new TransferVerb());
       Harness.registerVerb(new BusEditVerb());
       Harness.registerVerb(new BusRoundTripVerb());
+      Harness.registerExpectation(new BusOpenPacketQuery());
 
       Harness.registerExpectation(new UnitsExpectation());
       Harness.registerExpectation(new InUseExpectation());
@@ -527,6 +529,72 @@ public final class ArcaneStorageVerbs {
                + (target > 0 ? " with a target of " + target : ""));
          return true;
       }
+   }
+
+   /**
+    * Sends a bus's open packet through bytes and unpacks it the way the engine does, reporting the filter
+    * the client would end up editing.
+    *
+    * <p>{@code query busopenpacket <dx> <dy>} -> {@code {servercount, clientcount}}. This is the hop that a
+    * headless server cannot otherwise reach, and the one that was broken while every other test passed: the
+    * client received a filter that decoded as empty and then wrote it back, erasing the bus's rules.
+    */
+   private static final class BusOpenPacketQuery implements TestVerb, TestQuery {
+      public String name() {
+         return "busopenpacket";
+      }
+
+      public String usage() {
+         return "query busopenpacket <dx> <dy>";
+      }
+
+      public int coordinateArgIndex() {
+         return 2;
+      }
+
+      public boolean run(TestContext context) {
+         return true;
+      }
+
+      public void query(TestContext context, Json.Writer out) {
+         BusObjectEntity bus = busAt(context, 2);
+         if (bus == null) {
+            out.num("servercount", -1);
+            out.num("clientcount", -1);
+            return;
+         }
+
+         out.num("servercount", countAllowed(bus.filter));
+
+         // Exactly what leaves the server, put through bytes the way the network does.
+         PacketOpenContainer sent = BusContainer.openPacket(ArcaneStorage.BUS_CONTAINER, bus);
+         PacketOpenContainer received = new PacketOpenContainer(sent.getPacketData());
+
+         // Exactly what ContainerRegistry.registerOEContainer does before handing over to the container.
+         PacketReader reader = new PacketReader(received.content);
+         reader.getNextInt();
+         reader.getNextInt();
+         Packet forContainer = reader.getNextContentPacket();
+
+         // Exactly what BusContainer does on a client.
+         ItemCategoriesFilter clientCopy = new ItemCategoriesFilter(ItemCategory.masterCategory, false);
+         if (forContainer != null) {
+            clientCopy.readPacket(new PacketReader(forContainer));
+         }
+
+         out.num("clientcount", countAllowed(clientCopy));
+      }
+   }
+
+   private static int countAllowed(ItemCategoriesFilter filter) {
+      int count = 0;
+      for (Item item : ItemRegistry.getItems()) {
+         if (item != null && filter.isItemAllowed(item)) {
+            count++;
+         }
+      }
+
+      return count;
    }
 
    /**

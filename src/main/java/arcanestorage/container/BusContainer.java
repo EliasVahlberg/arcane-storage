@@ -64,20 +64,28 @@ public class BusContainer extends Container {
     * <p>The filter has to travel on open rather than be read from the object entity, because only the
     * server's copy of that entity has ever loaded one.
     */
+   /**
+    * The packet that opens a bus's panel, carrying the bus's filter to the client that is opening it.
+    *
+    * <p>Separate from sending it so that a test can drive the client's side of the hand-off, which is
+    * otherwise reachable only from a real client. It was not reachable, and the bug that hid there cost a
+    * day: the filter was wrapped in a content packet here <i>and</i> again by the factory, so the client
+    * began reading at a length prefix and decoded an empty filter every time -- then wrote that emptiness
+    * back over the real one. {@link PacketOpenContainer#ObjectEntity} already wraps what it is given, and
+    * {@code ContainerRegistry.registerOEContainer} unwraps exactly one layer.
+    */
+   public static PacketOpenContainer openPacket(int containerID, BusObjectEntity bus) {
+      Packet filterContent = new Packet();
+      bus.filter.writePacket(new PacketWriter(filterContent));
+      return PacketOpenContainer.ObjectEntity(containerID, bus, filterContent);
+   }
+
    public static void openAndSendContainer(int containerID, ServerClient client, Level level, BusObjectEntity bus) {
       if (!level.isServer()) {
          throw new IllegalStateException("Level must be a server level");
       }
 
-      Packet filterContent = new Packet();
-      bus.filter.writePacket(new PacketWriter(filterContent));
-      GameLog.warn.println("[bus] open at " + bus.tileX + "," + bus.tileY
-            + " sending " + describeFilter(bus.filter));
-
-      Packet packet = new Packet();
-      new PacketWriter(packet).putNextContentPacket(filterContent);
-      ContainerRegistry.openAndSendContainer(
-         client, PacketOpenContainer.LevelObject(containerID, bus.tileX, bus.tileY, packet));
+      ContainerRegistry.openAndSendContainer(client, openPacket(containerID, bus));
    }
 
    /** Temporary diagnostic: what the filter actually allows, whatever it is. */

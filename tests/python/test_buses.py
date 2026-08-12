@@ -207,7 +207,8 @@ def test_the_panel_opens_and_its_edits_reach_the_bus(storage):
     storage.do("open", 2, 0)
     storage.do("busedit", "ironbar", 40)
 
-    assert storage.query("busfilter", 2, 0, "ironbar") == {"allowed": True, "target": 40}
+    state = storage.query("busfilter", 2, 0, "ironbar")
+    assert (state["allowed"], state["target"]) == (True, 40)
 
     storage.do("transfer", 2, 0, 3)
 
@@ -224,11 +225,13 @@ def test_rules_survive_a_restart(storage):
     storage.place("storagebox", 3, 0)
     storage.fill(1, 0, "ironbar", 60)
     storage.do("rule", 2, 0, "ironbar", 50)
-    assert storage.query("busfilter", 2, 0, "ironbar") == {"allowed": True, "target": 50}
+    state = storage.query("busfilter", 2, 0, "ironbar")
+    assert (state["allowed"], state["target"]) == (True, 50)
 
     storage.restart()
 
-    assert storage.query("busfilter", 2, 0, "ironbar") == {"allowed": True, "target": 50}, \
+    state = storage.query("busfilter", 2, 0, "ironbar")
+    assert (state["allowed"], state["target"]) == (True, 50), \
         "the rule came back from disk"
 
     storage.do("transfer", 2, 0, 2)
