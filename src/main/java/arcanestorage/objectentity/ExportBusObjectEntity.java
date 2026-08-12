@@ -32,12 +32,12 @@ public class ExportBusObjectEntity extends BusObjectEntity {
     * set, a ticked item is sent in full.
     */
    @Override
-   protected int allowedToMove(Item item, int inSource, int inDestination) {
+   protected int allowedToMove(Item item, int inSource, int inDestination, BusObjectEntity.Holdings network) {
       if (!this.filter.isItemAllowed(item)) {
          return 0;
       }
 
-      int target = this.networkShouldHold(item);
+      int target = this.networkShouldHold(item, network);
       return Math.max(0, inSource - Math.max(target, 0));
    }
 

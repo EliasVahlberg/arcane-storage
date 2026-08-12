@@ -30,12 +30,12 @@ public class ImportBusObjectEntity extends BusObjectEntity {
     * what the same number means on the same panel when a player configures a settlement chest.
     */
    @Override
-   protected int allowedToMove(Item item, int inSource, int inDestination) {
+   protected int allowedToMove(Item item, int inSource, int inDestination, BusObjectEntity.Holdings network) {
       if (!this.filter.isItemAllowed(item)) {
          return 0;
       }
 
-      int target = this.networkShouldHold(item);
+      int target = this.networkShouldHold(item, network);
       return target == NO_TARGET ? inSource : Math.max(0, Math.min(inSource, target - inDestination));
    }
 

@@ -99,7 +99,7 @@ public abstract class BusObjectEntity extends ObjectEntity {
     * keeps 200" into "each unit keeps 200". The numbers still come from the filter; only the arithmetic
     * across units is ours.
     */
-   protected abstract int allowedToMove(Item item, int inSource, int inDestination);
+   protected abstract int allowedToMove(Item item, int inSource, int inDestination, BusObjectEntity.Holdings network);
 
    /**
     * How much of an item the player has said the network should hold, or {@link #NO_TARGET}.
@@ -108,24 +108,134 @@ public abstract class BusObjectEntity extends ObjectEntity {
     * per-item one. The two whole-container modes are deliberately ignored: a network's total capacity is
     * how many units it has, and a bus is not the place to cap it.
     */
-   public int networkShouldHold(Item item) {
+   /**
+    * The most the network should hold of one item, given every limit the panel can express.
+    *
+    * <p>One number, read from both directions: an import bus fills the network to it, an export bus drains
+    * the network to it. {@link #NO_TARGET} means nothing caps this item and the bus moves what it can.
+    *
+    * <p>Four kinds of limit are folded together and the tightest wins, mirroring what
+    * {@code ItemCategoriesFilter.getAddAmount} does within a single inventory: the item's own limit, a limit
+    * on any category above it (walking up parents, as vanilla does), and the panel-wide limit under each of
+    * its four modes. The two whole-container modes were ignored here at first, on the reasoning that a
+    * network's capacity is how many units it has -- which confused the network's capacity with a rule the
+    * player is deliberately setting. Since {@code TOTAL_ITEMS} is the panel's <i>default</i> mode, typing a
+    * number did nothing at all, silently, which is the worst way for a control to fail.
+    *
+    * <p>A whole-network cap becomes a ceiling on this item by subtracting what everything else already
+    * occupies, so the arithmetic in each direction stays unchanged. Stacks are measured with the moved
+    * item's stack size because that is what vanilla's own {@code StackLimitCounter} is given.
+    */
+   public int networkShouldHold(Item item, BusObjectEntity.Holdings network) {
+      int ceiling = NO_TARGET;
+
       ItemCategoriesFilter.ItemLimits limits = this.filter.getItemLimits(item);
       if (limits != null && !limits.isDefault()) {
-         return limits.getMaxItems();
+         ceiling = tighten(ceiling, limits.getMaxItems());
+      }
+
+      for (ItemCategoriesFilter.ItemCategoryFilter category = this.filter.getItemCategory(item);
+            category != null;
+            category = category.parent) {
+         if (!category.isDefault()) {
+            ceiling = tighten(ceiling, category.getMaxItems() - network.inCategoryExcept(category, item));
+         }
       }
 
       if (this.filter.maxAmount != Integer.MAX_VALUE) {
+         int othersHeld = network.total() - network.of(item);
          switch (this.filter.limitMode) {
             case TOTAL_EACH_ITEM:
-               return this.filter.maxAmount;
+               ceiling = tighten(ceiling, this.filter.maxAmount);
+               break;
             case TOTAL_STACKS_EACH_ITEM:
-               return this.filter.maxAmount * item.getStackSize();
+               ceiling = tighten(ceiling, this.filter.maxAmount * item.getStackSize());
+               break;
+            case TOTAL_ITEMS:
+               ceiling = tighten(ceiling, this.filter.maxAmount - othersHeld);
+               break;
+            case TOTAL_STACKS:
+               ceiling = tighten(ceiling, this.filter.maxAmount * item.getStackSize() - othersHeld);
+               break;
             default:
                break;
          }
       }
 
-      return NO_TARGET;
+      return ceiling;
+   }
+
+   /** The same question with the bus's live network, for diagnostics and the harness. */
+   public int networkShouldHold(Item item) {
+      return this.networkShouldHold(item, new BusObjectEntity.Holdings(inventoriesOf(this.network())));
+   }
+
+   /** Keeps the lowest ceiling seen, treating a cap already exceeded as zero rather than as a negative. */
+   private static int tighten(int ceiling, int candidate) {
+      int floored = Math.max(candidate, 0);
+      return ceiling == NO_TARGET ? floored : Math.min(ceiling, floored);
+   }
+
+   /**
+    * What one side of a transfer holds, counted the ways a filter's limits are measured.
+    *
+    * <p>Exists because a filter's limits are defined over an {@code InventoryRange} -- a range within one
+    * inventory -- and a network is many. Evaluating them per unit would quietly turn "the network keeps 200"
+    * into "each unit keeps 200". The numbers come from the filter; the summing across members is ours.
+    */
+   protected static final class Holdings {
+      private final List<Inventory> side;
+      private int total = -1;
+
+      protected Holdings(List<Inventory> side) {
+         this.side = side;
+      }
+
+      /** How many of one item the side holds. */
+      protected int of(Item item) {
+         return countIn(this.side, item.getStringID());
+      }
+
+      /** Everything the side holds, of every item, counted once and remembered. */
+      protected int total() {
+         if (this.total < 0) {
+            int sum = 0;
+
+            for (Inventory inventory : this.side) {
+               for (int slot = 0; slot < inventory.getSize(); slot++) {
+                  InventoryItem item = inventory.getItem(slot);
+                  if (item != null) {
+                     sum += item.getAmount();
+                  }
+               }
+            }
+
+            this.total = sum;
+         }
+
+         return this.total;
+      }
+
+      /**
+       * What the side holds of a category's items, excluding one item.
+       *
+       * <p>The exclusion is what turns a category's limit into a ceiling for the item being moved: the rest
+       * of the category is occupied space, and what is left is this item's room.
+       */
+      protected int inCategoryExcept(ItemCategoriesFilter.ItemCategoryFilter category, Item except) {
+         int sum = 0;
+
+         for (Inventory inventory : this.side) {
+            for (int slot = 0; slot < inventory.getSize(); slot++) {
+               InventoryItem item = inventory.getItem(slot);
+               if (item != null && item.item != except && category.category.containsItemOrInChildren(item.item)) {
+                  sum += item.getAmount();
+               }
+            }
+         }
+
+         return sum;
+      }
    }
 
    /**
@@ -184,6 +294,10 @@ public abstract class BusObjectEntity extends ObjectEntity {
       List<Inventory> from = this.sources(network, container);
       List<Inventory> to = this.destinations(network, container);
 
+      // Counted once per transfer rather than per item: a whole-network limit needs the network's totals,
+      // and the network does not change while one item is being moved.
+      BusObjectEntity.Holdings networkHoldings = new BusObjectEntity.Holdings(inventoriesOf(network));
+
       for (Inventory fromInventory : from) {
          for (int slot = 0; slot < fromInventory.getSize(); slot++) {
             InventoryItem item = fromInventory.getItem(slot);
@@ -192,7 +306,7 @@ public abstract class BusObjectEntity extends ObjectEntity {
             }
 
             String itemID = item.item.getStringID();
-            int allowed = this.allowedToMove(item.item, countIn(from, itemID), countIn(to, itemID));
+            int allowed = this.allowedToMove(item.item, countIn(from, itemID), countIn(to, itemID), networkHoldings);
             if (allowed <= 0) {
                continue;
             }

@@ -1,7 +1,6 @@
 package arcanestorage.container;
 
 import arcanestorage.objectentity.BusObjectEntity;
-import necesse.engine.GameLog;
 import necesse.engine.network.NetworkClient;
 import necesse.engine.network.Packet;
 import necesse.engine.network.PacketReader;
@@ -47,12 +46,7 @@ public class BusContainer extends Container {
             local.readPacket(new PacketReader(content));
          }
 
-         // Temporary, and the decisive line for the open bug: if this says content=null or count=0 while
-         // the server's open line said count=10, the filter never crossed and the panel is editing an
-         // empty filter that will overwrite the real one on the next edit.
-         GameLog.warn.println("[bus] client copy built, content=" + (content == null ? "null" : "present")
-               + " " + describeFilter(local));
-         this.filter = local;
+this.filter = local;
       }
 
       this.setFilterAction = this.registerAction(new BusContainer.SetFilterAction());
@@ -88,24 +82,6 @@ public class BusContainer extends Container {
       ContainerRegistry.openAndSendContainer(client, openPacket(containerID, bus));
    }
 
-   /** Temporary diagnostic: what the filter actually allows, whatever it is. */
-   static String describeFilter(ItemCategoriesFilter filter) {
-      int count = 0;
-      StringBuilder names = new StringBuilder();
-      for (necesse.inventory.item.Item item : necesse.engine.registries.ItemRegistry.getItems()) {
-         if (item != null && filter.isItemAllowed(item)) {
-            count++;
-            if (count <= 8) {
-               necesse.inventory.itemFilter.ItemCategoriesFilter.ItemLimits limits = filter.getItemLimits(item);
-               names.append(names.length() == 0 ? "" : ",").append(item.getStringID()).append("=")
-                  .append(limits == null || limits.isDefault() ? "-" : String.valueOf(limits.getMaxItems()));
-            }
-         }
-      }
-
-      return "count=" + count + " [" + names + "] mode=" + filter.limitMode
-         + " maxAmount=" + (filter.maxAmount == Integer.MAX_VALUE ? "-" : String.valueOf(filter.maxAmount));
-   }
 
 
    /**
@@ -128,11 +104,8 @@ public class BusContainer extends Container {
 
       @Override
       public void executePacket(PacketReader reader) {
-         boolean server = BusContainer.this.client.isServer();
-         GameLog.warn.println("[bus] setFilter arrived, isServer=" + server);
-         if (server) {
+         if (BusContainer.this.client.isServer()) {
             BusContainer.this.bus.filter.readPacket(reader);
-            GameLog.warn.println("[bus] applied, now " + describeFilter(BusContainer.this.bus.filter));
          }
       }
    }

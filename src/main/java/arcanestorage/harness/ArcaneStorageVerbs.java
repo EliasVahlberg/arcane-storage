@@ -79,6 +79,8 @@ public final class ArcaneStorageVerbs {
       Harness.registerVerb(new TransferVerb());
       Harness.registerVerb(new BusEditVerb());
       Harness.registerVerb(new BusRoundTripVerb());
+      Harness.registerVerb(new RuleGlobalVerb());
+      Harness.registerVerb(new RuleCategoryVerb());
       Harness.registerExpectation(new BusOpenPacketQuery());
 
       Harness.registerExpectation(new UnitsExpectation());
@@ -527,6 +529,103 @@ public final class ArcaneStorageVerbs {
 
          context.info("sent a filter allowing " + context.arg(1)
                + (target > 0 ? " with a target of " + target : ""));
+         return true;
+      }
+   }
+
+   /**
+    * Sets the panel-wide limit and its mode, which is the control a player reaches for first.
+    *
+    * <p>{@code ruleglobal <dx> <dy> total|stacks|each|eachstacks|none [amount]}. Nothing could set this
+    * headlessly before, which is why the two whole-network modes shipped as silent no-ops.
+    */
+   private static final class RuleGlobalVerb implements TestVerb {
+      public String name() {
+         return "ruleglobal";
+      }
+
+      public String usage() {
+         return "ruleglobal <dx> <dy> total|stacks|each|eachstacks|none [amount]";
+      }
+
+      public int coordinateArgIndex() {
+         return 1;
+      }
+
+      public boolean run(TestContext context) {
+         BusObjectEntity bus = busAt(context, 1);
+         if (bus == null) {
+            context.fail("ruleglobal: no bus there");
+            return false;
+         }
+
+         String mode = context.arg(3);
+         if (mode.equals("none")) {
+            bus.filter.maxAmount = Integer.MAX_VALUE;
+            context.info("cleared the panel-wide limit");
+            return true;
+         }
+
+         switch (mode) {
+            case "total":
+               bus.filter.limitMode = ItemCategoriesFilter.ItemLimitMode.TOTAL_ITEMS;
+               break;
+            case "stacks":
+               bus.filter.limitMode = ItemCategoriesFilter.ItemLimitMode.TOTAL_STACKS;
+               break;
+            case "each":
+               bus.filter.limitMode = ItemCategoriesFilter.ItemLimitMode.TOTAL_EACH_ITEM;
+               break;
+            case "eachstacks":
+               bus.filter.limitMode = ItemCategoriesFilter.ItemLimitMode.TOTAL_STACKS_EACH_ITEM;
+               break;
+            default:
+               context.fail("ruleglobal: unknown mode " + mode);
+               return false;
+         }
+
+         bus.filter.maxAmount = context.intArg(4);
+         context.info("limit " + bus.filter.maxAmount + " in mode " + bus.filter.limitMode);
+         return true;
+      }
+   }
+
+   /**
+    * Sets a limit on a whole item category, which the panel can do and which the buses ignored.
+    *
+    * <p>{@code rulecategory <dx> <dy> <category stringID> <amount>}.
+    */
+   private static final class RuleCategoryVerb implements TestVerb {
+      public String name() {
+         return "rulecategory";
+      }
+
+      public String usage() {
+         return "rulecategory <dx> <dy> <category> <amount>";
+      }
+
+      public int coordinateArgIndex() {
+         return 1;
+      }
+
+      public boolean run(TestContext context) {
+         BusObjectEntity bus = busAt(context, 1);
+         Item sample = ItemRegistry.getItem(context.arg(3));
+         if (bus == null) {
+            context.fail("rulecategory: no bus there");
+            return false;
+         }
+
+         // Named by an item in it, because a category's stringID is not something a test author knows and
+         // "the category iron bars are in" is what a rule is actually about.
+         ItemCategoriesFilter.ItemCategoryFilter category = sample == null ? null : bus.filter.getItemCategory(sample);
+         if (category == null) {
+            context.fail("rulecategory: no category for item " + context.arg(3));
+            return false;
+         }
+
+         category.setMaxItems(context.intArg(4));
+         context.info("category " + category.category.stringID + " limited to " + category.getMaxItems());
          return true;
       }
    }
