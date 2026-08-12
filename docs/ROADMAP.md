@@ -612,6 +612,36 @@ walk through it itself.
 all-possible and ten on plain, shift and ctrl is the same vocabulary the storage grid now
 uses for withdrawal, and consistency across tabs is cheap here because both are ours.
 
+## Phase 5b — Transfer resolver
+
+Specified in `docs/TRANSFER_RESOLVER.md`. Nothing built.
+
+Phase 5's transfer loop works item by item, device by device, and cannot be repaired incrementally. Elias hit
+it in play as "weird lockups"; measurement found three faults and one engine constraint:
+
+- Rules that disagree churn forever — 12 moves in 120 ticks with the network total reading a steady 20, so it
+  presents as a lockup rather than as a runaway.
+- A device that knows only its own rule **cannot** detect that. Detection has to see every constraint on an
+  item before anything moves, which is an argument about structure, not about performance.
+- Idle cost is 5 network flood fills and 200 slot scans per bus per 100 ticks, whether or not anything
+  happened.
+- `Inventory` notifies only its **first** slot-update listener, so subscribing to containers we do not own is
+  not available. The change hook has to be a patch on `Inventory.updateSlot(int)`.
+
+The design is a per-network index as the single copy of derived state, rules as constraints on
+`(network, item)` rather than instructions to a device, a resolver emitting changesets for dirty pairs only,
+and a queue drained under a per-network budget so throughput is policy rather than correctness. Contradictions
+are rejected when written — an Apply button makes the panel transactional — and a bus that finds itself in an
+unsatisfiable configuration fails closed with a reason naming the other device. Breaking hardware is reserved
+for a future throughput constraint, where it is physically motivated.
+
+Acceptance is conservation, convergence, determinism, crash equivalence, zero idle cost, prompt throughput, and
+validation. Three tests already carry `xfail(strict=True)` for convergence, idle cost and throughput, so they
+flip to passing exactly when this is real and cannot be fixed silently.
+
+This lands before Phase 6, because every later device inherits the model — and D25's wireless silos and the
+crafting queue both sit on top of it.
+
 ## Phase 6 — Progression, content and art
 
 Two ladders, progressing separately. Capacity growth sits underneath every tier;
