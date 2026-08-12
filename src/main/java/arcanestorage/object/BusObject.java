@@ -8,6 +8,7 @@ import arcanestorage.ArcaneStorage;
 import arcanestorage.container.BusContainer;
 import arcanestorage.objectentity.BusObjectEntity;
 import necesse.engine.localization.Localization;
+import necesse.gfx.GameColor;
 import necesse.engine.network.server.ServerClient;
 import necesse.entity.mobs.PlayerMob;
 import java.util.List;
@@ -53,6 +54,15 @@ public abstract class BusObject extends FurnitureObject implements NetworkConduc
     */
    public GameTexture texture;
 
+   /**
+    * The same sprite, desaturated and dimmed, drawn when the bus is not working.
+    *
+    * <p>A second texture rather than a colour multiplier: {@code color(float)} scales the channels, so a
+    * coloured sprite comes out as a darker version of its own hue rather than gray, and "dim" reads as
+    * shadow. Generated from the sprite it shadows, so it cannot drift out of step.
+    */
+   public GameTexture inactiveTexture;
+
    private final String textureName;
 
    protected BusObject(String stringID, Color mapColor) {
@@ -73,6 +83,13 @@ public abstract class BusObject extends FurnitureObject implements NetworkConduc
    public void loadTextures() {
       super.loadTextures();
       this.texture = GameTexture.fromFile("objects/" + this.textureName);
+      this.inactiveTexture = GameTexture.fromFile("objects/" + this.textureName + "_inactive");
+   }
+
+   /** Whether the bus standing here has stopped, read from the object entity's synced state. */
+   private static boolean isInactive(Level level, int tileX, int tileY) {
+      ObjectEntity entity = level.entityManager.getObjectEntity(tileX, tileY);
+      return entity instanceof BusObjectEntity && ((BusObjectEntity)entity).isInactive();
    }
 
    @Override
@@ -89,11 +106,14 @@ public abstract class BusObject extends FurnitureObject implements NetworkConduc
       GameLight light = level.getLightLevel(tileX, tileY);
       int drawX = camera.getTileDrawX(tileX);
       int drawY = camera.getTileDrawY(tileY);
-      final TextureDrawOptions options = this.texture
+      GameTexture sprite = isInactive(level, tileX, tileY) && this.inactiveTexture != null
+         ? this.inactiveTexture
+         : this.texture;
+      final TextureDrawOptions options = sprite
          .initDraw()
          .addObjectDamageOverlay(this, level, tileX, tileY)
          .light(light)
-         .pos(drawX, drawY - this.texture.getHeight() + 32);
+         .pos(drawX, drawY - sprite.getHeight() + 32);
 
       list.add(new LevelSortedDrawable(this, tileX, tileY) {
          @Override
@@ -118,9 +138,22 @@ public abstract class BusObject extends FurnitureObject implements NetworkConduc
          .draw(camera.getTileDrawX(tileX), camera.getTileDrawY(tileY) - this.texture.getHeight() + 32);
    }
 
+   /**
+    * What this bus is for, and why it has stopped when it has.
+    *
+    * <p>The reason is on the hover tip because that is the one surface a player reaches without clicking:
+    * a gray sprite says something is wrong, and this says what. Read from the object entity's synced state,
+    * so it works on a client.
+    */
    @Override
    public String getInteractTip(Level level, int x, int y, PlayerMob perspective, boolean debug) {
-      return Localization.translate("ui", this.tipKey());
+      String tip = Localization.translate("ui", this.tipKey());
+      ObjectEntity entity = level.entityManager.getObjectEntity(x, y);
+      if (entity instanceof BusObjectEntity && ((BusObjectEntity)entity).isInactive()) {
+         return tip + "\n" + GameColor.RED.getColorCode() + ((BusObjectEntity)entity).stateMessage();
+      }
+
+      return tip;
    }
 
    /**

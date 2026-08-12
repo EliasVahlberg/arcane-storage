@@ -16,27 +16,6 @@ from __future__ import annotations
 import pytest
 
 
-@pytest.fixture
-def two_buses(storage):
-    """An import bus and an export bus on one network, both attached to the same chest.
-
-        y=0:   T  U  I  C
-        y=1:      U  c  E
-
-    T terminal, U unit, I import bus, c conduit, E export bus, C chest. Both buses touch the chest, so both
-    can move the same items, and both are on the network, so each sees what the other did.
-    """
-    storage.place("terminal", 0, 0)
-    storage.place("unit", 1, 0)
-    storage.place("importbus", 2, 0)
-    storage.place("storagebox", 3, 0)
-    storage.place("unit", 1, 1)
-    storage.place("conduit", 2, 1)
-    storage.place("exportbus", 3, 1)
-    return storage
-
-
-@pytest.mark.xfail(strict=True, reason="no termination guarantee yet: contradictory rules churn forever")
 def test_two_rules_that_disagree_still_settle(two_buses):
     """The failure an event-driven rewrite would make faster rather than fix.
 
@@ -45,8 +24,9 @@ def test_two_rules_that_disagree_still_settle(two_buses):
     to a move per bus per second, which is why it reads as a lockup rather than as a runaway -- and why making
     updates event-driven without a termination rule would make it worse.
 
-    What a fix must produce: the system stops moving items, whether by hysteresis, by a single authority per
-    item, or by refusing the contradiction and telling the player.
+    Now passing, by the third of those routes: the contradiction is refused. Both buses evaluate the same
+    predicate, both stop, and each explains itself -- see test_bus_states.py for the states themselves and
+    for the layout that must *not* be refused.
     """
     two_buses.fill(3, 0, "stone", 100)
     two_buses.do("rule", 2, 0, "stone", 50)

@@ -12,6 +12,7 @@ arcanestorage_importbustip=Moves a neighbouring container's contents into the ne
 arcanestorage_exportbustip=Moves items out of the network into a neighbouring container
 arcanestorage_bus_nocontainer=This bus has no container beside it, so it has nothing to move.
 arcanestorage_bus_nonetwork=This bus is not touching a storage network.
+arcanestorage_state_conflict=Stopped: its rule for <item> cannot be met while the <other> at <x>,<y> shares this container. One fills the network, the other empties it.
 arcanestorage_buslimit=Amount of each
 arcanestorage_buslimithint=Any amount
 arcanestorage_importbusrule=Ticked items are pulled in, until the network holds the set amount of each.

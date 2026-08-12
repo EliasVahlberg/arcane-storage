@@ -41,6 +41,12 @@ public class ExportBusObjectEntity extends BusObjectEntity {
       return Math.max(0, inSource - Math.max(target, 0));
    }
 
+   /** Out of the network. */
+   @Override
+   protected boolean movesIntoNetwork() {
+      return false;
+   }
+
    @Override
    protected List<Inventory> sources(List<NetworkStorage> network, Inventory container) {
       return inventoriesOf(network);

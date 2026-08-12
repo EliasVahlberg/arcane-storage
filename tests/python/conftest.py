@@ -94,3 +94,23 @@ def terminal(storage: Harness) -> Terminal:
     storage.place("terminal", 0, 0)
     storage.place("unit", 1, 0)
     return Terminal(storage, 0, 0)
+
+@pytest.fixture
+def two_buses(storage):
+    """An import bus and an export bus on one network, both attached to the same chest.
+
+        y=0:   T  U  I  C
+        y=1:      U  c  E
+
+    T terminal, U unit, I import bus, c conduit, E export bus, C chest. Both buses touch the chest, so both
+    can move the same items, and both are on the network, so each sees what the other did. That shared
+    container is what makes a cycle: whatever one bus does, the other can undo.
+    """
+    storage.place("terminal", 0, 0)
+    storage.place("unit", 1, 0)
+    storage.place("importbus", 2, 0)
+    storage.place("storagebox", 3, 0)
+    storage.place("unit", 1, 1)
+    storage.place("conduit", 2, 1)
+    storage.place("exportbus", 3, 1)
+    return storage

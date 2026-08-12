@@ -39,6 +39,12 @@ public class ImportBusObjectEntity extends BusObjectEntity {
       return target == NO_TARGET ? inSource : Math.max(0, Math.min(inSource, target - inDestination));
    }
 
+   /** Into the network. */
+   @Override
+   protected boolean movesIntoNetwork() {
+      return true;
+   }
+
    @Override
    protected List<Inventory> sources(List<NetworkStorage> network, Inventory container) {
       return Collections.singletonList(container);

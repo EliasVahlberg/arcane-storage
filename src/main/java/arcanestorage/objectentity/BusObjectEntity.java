@@ -7,6 +7,11 @@ import java.util.List;
 import arcanestorage.network.NetworkConductor;
 import arcanestorage.network.NetworkStorage;
 import arcanestorage.network.UnitNetwork;
+import necesse.engine.localization.Localization;
+import necesse.engine.network.PacketReader;
+import necesse.engine.network.PacketWriter;
+import necesse.engine.network.server.ServerClient;
+import necesse.engine.registries.ItemRegistry;
 import necesse.engine.save.LoadData;
 import necesse.engine.save.SaveData;
 import necesse.entity.objectEntity.ObjectEntity;
@@ -78,6 +83,22 @@ public abstract class BusObjectEntity extends ObjectEntity {
    public final ItemCategoriesFilter filter;
 
    private int ticksUntilTransfer = TRANSFER_INTERVAL;
+
+   /**
+    * Whether this bus is working, and why not when it is not.
+    *
+    * <p>Derived and never saved. Synced to clients through {@link #setupContentPacket}, because the sprite
+    * that shows it is drawn client-side.
+    */
+   private DeviceState state = DeviceState.ACTIVE;
+
+   /** The item a conflict was found on, for the explanation. Null unless {@link DeviceState#RULE_CONFLICT}. */
+   private String conflictItemID;
+
+   /** Where the device this bus conflicts with stands, so the explanation can point at it. */
+   private int conflictX;
+
+   private int conflictY;
 
    /**
     * Counters for diagnosis, not for behaviour: how much work the buses are doing.
@@ -272,8 +293,226 @@ public abstract class BusObjectEntity extends ObjectEntity {
       }
 
       this.ticksUntilTransfer = TRANSFER_INTERVAL;
+
+      Level level = this.getLevel();
+      if (level == null) {
+         return;
+      }
+
+      // One walk serves both jobs. Evaluating the state needs the network and the buses on it, and so does
+      // transferring, so the walk is done here and handed down rather than repeated.
+      Inventory container = this.attachedContainer();
+      List<BusObjectEntity> peers = new ArrayList<>();
+      List<NetworkStorage> network =
+         container == null ? Collections.emptyList() : this.network(peers);
+
+      if (!this.evaluate(container, network, peers).isActive()) {
+         return;
+      }
+
       transfers++;
-      this.transferOnce();
+      this.transferOnce(level, container, network);
+   }
+
+   /**
+    * Decides whether this bus should be working, and records why not when it should not.
+    *
+    * <p>Ordered by what a player is most likely to have got wrong: no container, then no network, then rules
+    * that cannot be satisfied. The first two were previously invisible unless the panel was opened.
+    *
+    * <p><b>The cheap case stays cheap.</b> A cycle needs a bus of the opposite direction sharing this bus's
+    * container, and that is answered from the walk already performed. Only when such a bus exists is the
+    * per-item comparison done, so the overwhelmingly common layout costs one identity check per peer.
+    */
+   private DeviceState evaluate(
+      Inventory container, List<NetworkStorage> network, List<BusObjectEntity> peers
+   ) {
+      if (container == null) {
+         return this.setState(DeviceState.NO_CONTAINER, null, 0, 0);
+      }
+
+      if (network.isEmpty()) {
+         return this.setState(DeviceState.NO_NETWORK, null, 0, 0);
+      }
+
+      BusObjectEntity opposed = null;
+      for (BusObjectEntity peer : peers) {
+         if (peer != this
+               && peer.movesIntoNetwork() != this.movesIntoNetwork()
+               && peer.attachedContainer() == container) {
+            opposed = peer;
+            break;
+         }
+      }
+
+      if (opposed == null) {
+         return this.setState(DeviceState.ACTIVE, null, 0, 0);
+      }
+
+      BusObjectEntity importer = this.movesIntoNetwork() ? this : opposed;
+      BusObjectEntity exporter = this.movesIntoNetwork() ? opposed : this;
+      String contested = firstUnsatisfiableItem(importer, exporter, new Holdings(inventoriesOf(network)));
+
+      return contested == null
+         ? this.setState(DeviceState.ACTIVE, null, 0, 0)
+         : this.setState(DeviceState.RULE_CONFLICT, contested, opposed.tileX, opposed.tileY);
+   }
+
+   /**
+    * The first item, if any, whose rules on these two buses describe no state the network can rest in.
+    *
+    * <p>An import bus drives the count of an item <i>up</i> toward its ceiling C; an export bus drives it
+    * <i>down</i> toward its floor F. So:
+    *
+    * <ul>
+    *   <li>{@code C <= F} rests. The import bus fills to C and the export bus finds nothing above F.
+    *   <li>{@code C > F} never rests: every value the one side reaches, the other undoes.
+    * </ul>
+    *
+    * <p>An import bus with no number is unbounded, which is above every floor and therefore always a
+    * conflict when the other bus exports the same item. An export bus with no number has a floor of zero,
+    * which is what {@code allowedToMove} already does with {@link #NO_TARGET}.
+    *
+    * <p><b>Both buses must share a container for any of this to matter</b>, which the caller has already
+    * established. Import from one chest with export to another is {@code C > F} and perfectly well behaved:
+    * items flow from the first to the second until the first is empty, and that is a feature. Flagging it
+    * would break a legitimate and useful layout, so the shared-container test is not an optimisation.
+    */
+   private static String firstUnsatisfiableItem(
+      BusObjectEntity importer, BusObjectEntity exporter, Holdings network
+   ) {
+      for (Item item : ItemRegistry.getItems()) {
+         if (item == null
+               || !importer.filter.isItemAllowed(item)
+               || !exporter.filter.isItemAllowed(item)) {
+            continue;
+         }
+
+         int ceiling = importer.networkShouldHold(item, network);
+         int floor = exporter.networkShouldHold(item, network);
+         if (ceiling == NO_TARGET || ceiling > Math.max(floor, 0)) {
+            return item.getStringID();
+         }
+      }
+
+      return null;
+   }
+
+   /**
+    * Records the state, and tells the player when it changes.
+    *
+    * <p>{@link #markDirty()} is the engine's own push: {@code EntityManager}'s server tick sends a
+    * {@code PacketObjectEntity} for every dirty object entity and then clears the flag, so one call here
+    * reaches every client that can see this tile without a packet of our own.
+    *
+    * <p>The chat line fires once per transition into a state, never per tick, and is an alert rather than
+    * the record. A player who was elsewhere at the time will never see it, which is why the state is also
+    * on the sprite, in the hover tip, in the panel, and at the terminal.
+    */
+   private DeviceState setState(DeviceState next, String itemID, int x, int y) {
+      boolean changed = this.state != next
+         || !java.util.Objects.equals(this.conflictItemID, itemID)
+         || this.conflictX != x
+         || this.conflictY != y;
+
+      this.state = next;
+      this.conflictItemID = itemID;
+      this.conflictX = x;
+      this.conflictY = y;
+
+      if (changed) {
+         this.markDirty();
+         if (this.isServer() && !next.isActive()) {
+            this.announce();
+         }
+      }
+
+      return next;
+   }
+
+   /** Says what went wrong, to whoever is on this level to hear it. */
+   private void announce() {
+      Level level = this.getLevel();
+      if (level == null || level.getServer() == null) {
+         return;
+      }
+
+      String message = this.stateMessage();
+      for (ServerClient client : level.getServer().getClients()) {
+         if (client != null && client.getLevel() == level) {
+            client.sendChatMessage(message);
+         }
+      }
+   }
+
+   /** What this bus is doing, or why it is not. Empty when it is simply working. */
+   public String stateMessage() {
+      if (this.state.isActive()) {
+         return "";
+      }
+
+      if (this.state != DeviceState.RULE_CONFLICT) {
+         return Localization.translate("ui", this.state.localeKey);
+      }
+
+      // The locale keys under [item] are the registry string IDs, so this needs no registry lookup and
+      // works for a modded item as well as a vanilla one.
+      return Localization.translate("ui", DeviceState.RULE_CONFLICT.localeKey,
+         "item", this.conflictItemID == null
+            ? "?"
+            : Localization.translate("item", this.conflictItemID),
+         "other", Localization.translate("object",
+            this.movesIntoNetwork() ? "arcanestorageexportbus" : "arcanestorageimportbus"),
+         "x", String.valueOf(this.conflictX),
+         "y", String.valueOf(this.conflictY));
+   }
+
+   public DeviceState getState() {
+      return this.state;
+   }
+
+   public boolean isInactive() {
+      return !this.state.isActive();
+   }
+
+   /**
+    * Which way this bus moves items, which is what makes a cycle detectable.
+    *
+    * <p>A direction rather than a class check, so the predicate reads as the rule it enforces and a third
+    * kind of device would only have to answer the same question.
+    */
+   protected abstract boolean movesIntoNetwork();
+
+   @Override
+   public void setupContentPacket(PacketWriter writer) {
+      super.setupContentPacket(writer);
+      writer.putNextEnum(this.state);
+      writer.putNextString(this.conflictItemID == null ? "" : this.conflictItemID);
+      writer.putNextInt(this.conflictX);
+      writer.putNextInt(this.conflictY);
+   }
+
+   @Override
+   public void applyContentPacket(PacketReader reader) {
+      super.applyContentPacket(reader);
+      this.state = reader.getNextEnum(DeviceState.class);
+      String itemID = reader.getNextString();
+      this.conflictItemID = itemID.isEmpty() ? null : itemID;
+      this.conflictX = reader.getNextInt();
+      this.conflictY = reader.getNextInt();
+   }
+
+   /**
+    * Asks the server for this bus's state when a client first sees it.
+    *
+    * <p>Without this the push path only covers changes, so a bus that went inactive before a player logged
+    * in would draw as though it were working — {@code Level.replaceObjectEntity} consults this before
+    * queueing the request. The filter is deliberately not sent this way: it is large, only the panel needs
+    * it, and it travels in the open packet.
+    */
+   @Override
+   public boolean shouldRequestPacket() {
+      return true;
    }
 
    /**
@@ -300,6 +539,16 @@ public abstract class BusObjectEntity extends ObjectEntity {
          return 0;
       }
 
+      return this.transferOnce(level, container, network);
+   }
+
+   /**
+    * The same transfer, given what the caller has already looked up.
+    *
+    * <p>Split out so the tick pays for one network walk rather than two: the state evaluation needs the
+    * network and the buses on it, and so does this.
+    */
+   private int transferOnce(Level level, Inventory container, List<NetworkStorage> network) {
       List<Inventory> from = this.sources(network, container);
       List<Inventory> to = this.destinations(network, container);
 
@@ -393,6 +642,17 @@ public abstract class BusObjectEntity extends ObjectEntity {
     * pure function of the layout, so breaking a unit needs no cleanup anywhere.
     */
    public List<NetworkStorage> network() {
+      return this.network(null);
+   }
+
+   /**
+    * The network, and optionally the other buses standing on it.
+    *
+    * <p>Peers cost nothing extra: a bus conducts, so every bus on the network is already visited by this
+    * walk as a conducting tile. Recording them there is what lets a bus ask whether anything else is
+    * fighting it without a second traversal.
+    */
+   public List<NetworkStorage> network(List<BusObjectEntity> peersOut) {
       networkWalks++;
       final Level level = this.getLevel();
       return UnitNetwork.discover(this.tileX, this.tileY, (x, y) -> {
@@ -403,8 +663,20 @@ public abstract class BusObjectEntity extends ObjectEntity {
          }
 
          return null;
-      }, (x, y) -> level.getObject(x, y) instanceof NetworkConductor,
-         StorageTerminalObjectEntity.MAX_UNITS, StorageTerminalObjectEntity.MAX_CONDUITS);
+      }, (x, y) -> {
+         if (!(level.getObject(x, y) instanceof NetworkConductor)) {
+            return false;
+         }
+
+         if (peersOut != null) {
+            ObjectEntity at = level.entityManager.getObjectEntity(x, y);
+            if (at instanceof BusObjectEntity && !at.removed()) {
+               peersOut.add((BusObjectEntity)at);
+            }
+         }
+
+         return true;
+      }, StorageTerminalObjectEntity.MAX_UNITS, StorageTerminalObjectEntity.MAX_CONDUITS);
    }
 
    /**

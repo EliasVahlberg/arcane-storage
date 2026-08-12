@@ -14,6 +14,7 @@ import arcanestorage.objectentity.BusObjectEntity;
 import necesse.inventory.item.ItemCategory;
 import necesse.inventory.itemFilter.ItemCategoriesFilter;
 import arcanestorage.objectentity.StorageTerminalObjectEntity;
+import arcanestorage.network.NetworkConductor;
 import arcanestorage.network.NetworkStorage;
 import necesse.engine.network.Packet;
 import necesse.engine.network.PacketReader;
@@ -83,6 +84,7 @@ public final class ArcaneStorageVerbs {
       Harness.registerVerb(new BusStatsResetVerb());
       Harness.registerExpectation(new ListenerCheckVerb());
       Harness.registerExpectation(new BusStatsQuery());
+      Harness.registerExpectation(new BusStateQuery());
       Harness.registerVerb(new RuleGlobalVerb());
       Harness.registerVerb(new RuleCategoryVerb());
       Harness.registerExpectation(new BusOpenPacketQuery());
@@ -187,13 +189,41 @@ public final class ArcaneStorageVerbs {
          return -1;
       }
 
+      /** How far from spawn the sweep for objects without an object entity reaches. */
+      private static final int CONDUCTOR_SWEEP = 16;
+
       public boolean run(TestContext context) {
          ArrayList<Point> ours = new ArrayList<>();
 
          for (ObjectEntity entity : context.level.entityManager.objectEntities) {
             if (!entity.removed()
-                  && (entity instanceof NetworkStorage || entity instanceof StorageTerminalObjectEntity)) {
+                  && (entity instanceof NetworkStorage
+                     || entity instanceof StorageTerminalObjectEntity
+                     || entity instanceof BusObjectEntity)) {
                ours.add(new Point(entity.tileX, entity.tileY));
+            }
+         }
+
+         // Buses used to survive a reset, which made a test's result depend on what the previous test had
+         // configured: a stale import bus kept its ceiling, and a conflict that should have been detected was
+         // not. Conduits have no object entity at all, so they need a sweep rather than a scan -- bounded,
+         // since only a test ever places one and every test places near spawn.
+         for (int dx = -CONDUCTOR_SWEEP; dx <= CONDUCTOR_SWEEP; dx++) {
+            for (int dy = -CONDUCTOR_SWEEP; dy <= CONDUCTOR_SWEEP; dy++) {
+               int x = context.tileX(dx);
+               int y = context.tileY(dy);
+               if (context.level.getObject(x, y) instanceof NetworkConductor) {
+                  ours.add(new Point(x, y));
+                  continue;
+               }
+
+               // Containers a test placed. Not ours, but leaving them standing made results depend on test
+               // order: a chest left at a tile silently blocked the next test's bus, so the layout under test
+               // was not the layout described, and a conflict went undetected because one bus was missing.
+               ObjectEntity at = context.level.entityManager.getObjectEntity(x, y);
+               if (at instanceof OEInventory && !(at instanceof NetworkStorage)) {
+                  ours.add(new Point(x, y));
+               }
             }
          }
 
@@ -632,6 +662,66 @@ public final class ArcaneStorageVerbs {
          out.num("transfers", BusObjectEntity.transfers);
          out.num("slots", BusObjectEntity.slotsScanned);
          out.num("walks", BusObjectEntity.networkWalks);
+      }
+   }
+
+   /**
+    * Whether a bus is working, and why not when it is not.
+    *
+    * <p>{@code query busstate <dx> <dy>} -> {@code {state, reason, conflictitem}}. The state is derived on
+    * the server tick rather than on demand, so a test that wants a fresh answer should let time pass first.
+    */
+   private static final class BusStateQuery implements TestVerb, TestQuery {
+      public String name() {
+         return "busstate";
+      }
+
+      public String usage() {
+         return "query busstate <dx> <dy>";
+      }
+
+      public int coordinateArgIndex() {
+         return 2;
+      }
+
+      public boolean run(TestContext context) {
+         return true;
+      }
+
+      public void query(TestContext context, Json.Writer out) {
+         BusObjectEntity bus = busAt(context, 2);
+         if (bus == null) {
+            out.str("state", "nobus");
+            out.str("reason", "");
+            return;
+         }
+
+         out.str("state", bus.getState().name().toLowerCase(java.util.Locale.ROOT));
+         out.str("reason", bus.stateMessage());
+
+         // What the predicate had to work with. Added while diagnosing a conflict that went undetected
+         // after a restart: the state alone cannot say whether the peer walk or the comparison was at fault.
+         List<BusObjectEntity> peers = new ArrayList<>();
+         int members = bus.network(peers).size();
+         out.num("members", members);
+         out.num("peers", peers.size());
+         out.bool("container", bus.attachedContainer() != null);
+
+         // The predicate's two numbers for a probe item, when one is named: ceiling from the importer,
+         // floor from the exporter. A conflict is a ceiling strictly above a floor.
+         if (context.argCount() > 4) {
+            Item probe = ItemRegistry.getItem(context.arg(4));
+            if (probe != null) {
+               out.num("target", bus.networkShouldHold(probe));
+               out.bool("allows", bus.filter.isItemAllowed(probe));
+               for (BusObjectEntity peer : peers) {
+                  out.bool("peerallows", peer.filter.isItemAllowed(probe));
+                  out.num("peertarget", peer.networkShouldHold(probe));
+                  out.bool("sharescontainer", peer.attachedContainer() == bus.attachedContainer());
+                  break;
+               }
+            }
+         }
       }
    }
 
