@@ -180,3 +180,24 @@ Two things follow for any future container that ships content:
   pushes a change (this is what `OEInventory` does after an inventory change), and `PacketRequestObjectEntity`
   pulls it on demand. Prefer that when state is needed outside a container — a tooltip, a sprite, a second
   player watching. The open packet is only the right vehicle for what one client needs while a panel is open.
+
+## A filter's limits are defined over one inventory; a network is many
+
+`ItemCategoriesFilter` expresses four kinds of limit, and `getAddAmount` folds them all together with the
+tightest winning: an item's own `ItemLimits`, a limit on any **category** above it (walking `parent` upward),
+and the panel-wide `maxAmount` under each of the four `ItemLimitMode`s. Vanilla measures `TOTAL_STACKS` with
+the *moved* item's stack size, so mirroring that is faithful rather than approximate.
+
+The numbers are the filter's; the summing is necessarily ours, because `getAddAmount`/`getRemoveAmount` take
+an `InventoryRange` -- a range within one inventory -- and a network is many. Evaluating them per unit would
+quietly turn "the network keeps 200" into "each unit keeps 200".
+
+`BusObjectEntity.networkShouldHold` folds all four into one ceiling on the item being moved, converting a
+whole-network cap by subtracting what everything else occupies, so each direction's arithmetic stays a single
+line. Two traps, both of which shipped broken:
+
+- **`TOTAL_ITEMS` is the default mode**, so a bus honouring only the "each item" modes discarded the number a
+  player typed, silently, having read and saved it. A control that does nothing is worse than one that is
+  absent.
+- **Category limits are easy to miss entirely**, because the panel makes them look like a tidier way to tick
+  items rather than a limit in their own right.

@@ -488,8 +488,10 @@ Where the mod stops being a port. One primitive does most of the work.
       tree, tri-state ticks, per-item numbers, search, allow-all and clear-all. Only the two header lines
       are ours. **Partly verified in game, and currently broken: issue #1.** It opens and its edits reach
       the server, but the client seems to begin from an empty filter, so editing can wipe what was ticked.
-      The leading suspect is the open packet's content, which is the one hop no headless test can reach —
-      see QA_BACKLOG item 18
+      Fixed (the filter was wrapped twice for the open packet) and confirmed in game: filters, amounts
+      and persistence all work. Limits were a second, separate defect - only the two "each item" modes were
+      honoured while the panel's default is `TOTAL_ITEMS` - and now all four modes plus category limits apply
+      to the network, verified headlessly and pending an in-game check. See QA_BACKLOG item 18
 
 The rule primitive is deliberately introduced once and reused. Overflow control,
 defence against settler overproduction, and reserve floors are the same idea read
