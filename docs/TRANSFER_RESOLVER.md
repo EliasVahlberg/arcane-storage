@@ -174,6 +174,86 @@ Each is a test the harness can now write, since it can let time pass (`settle`) 
 The three tests already carrying `xfail(strict=True)` encode 2, 5 and 6, so they flip to passing exactly when
 this is real, and the strict marker means they cannot be fixed silently.
 
+## Implementation plan
+
+Ordered so that the fault reported in play stops first, and so that every step leaves the mod working and adds
+its own tests. Validation does not depend on the resolver — the conflict predicate needs the rules, not the
+index — so it comes first even though it is logically the last part of the design.
+
+### 1. Validation and the inactive state
+
+On the existing per-bus loop. Stops the churn.
+
+- The conflict predicate: per `(network, item)`, highest import ceiling C against lowest export floor F, flagged
+  only when the flow forms a cycle. Computed on topology change and on rule change, never per tick.
+- A state enum on the bus — Active, or Inactive with a reason — **derived, never saved**, recomputed on load.
+  An enum rather than a boolean so that a later manual off switch and a "no network" state reuse the same path.
+- Synced with `setupContentPacket` / `applyContentPacket` and `PacketObjectEntity`, one packet per transition,
+  because the sprite is drawn client-side and this is the vanilla path for object entity state.
+- A desaturated sprite variant per device, loaded in `initResources()` (client-only), drawn when inactive.
+- A chat line on the transition into inactive, once — never per tick. The durable surfaces are the sprite, the
+  hover tooltip and the panel's reason, which must name the other device and its coordinates.
+- The terminal lists the network's inactive devices. This is the surface that works when the player was
+  elsewhere when it happened, and the only one that scales past a handful of buses.
+
+Headless: the predicate, including the case that must **not** be flagged — import from chest A with export to
+chest B, which is `C > F` and terminates. In game: sprite, chat, tooltip, terminal row.
+`test_two_rules_that_disagree_still_settle` flips to passing here.
+
+### 2. The index
+
+- `NetworkIndex` per network: item to count, plus the member containers. The single copy of derived state;
+  `Holdings` and the per-bus counting go away.
+- Initially populated the way the current code counts, but once per network rather than once per bus per
+  second. This step is a refactor with no behaviour change, which is why it is separate from step 3.
+
+Headless: counts identical to the current implementation across the existing suites, and `query busstats` shows
+walks and scans falling by roughly the bus count.
+
+### 3. Incremental maintenance and the change hook
+
+- Patch `Inventory.updateSlot(int)`, the funnel all mutation inside `Inventory` routes through. Not the listener
+  list, which notifies only its first listener.
+- The hook fires for every inventory in the game, so the "is this bussed?" test is an allocation-free identity
+  lookup and nothing else.
+- If the patch fails to apply, fail **loudly** at load. A silent miss means an index that believes in items
+  that are gone.
+- Reconciliation: periodic cheap drift check plus a resync when the terminal opens.
+
+Headless: a foreign change updates the index with no walk; an induced drift is caught and resynced; the game's
+own container forms still receive their notification (`query listenercheck`); the patch's presence is asserted,
+not assumed.
+
+### 4. The scheduler
+
+- One per network, driven by the member device with the lowest tile order — deterministic leader election, no
+  new patch, and it disappears with the last device. Not `LevelData` or `WorldData`, which only exist when
+  loaded from save data and so are absent on a fresh world.
+- Dirty set of `(network, item)`, coalesced, drained at most once per tick in a stable order.
+- The resolver emits a changeset; each action carries the version it was computed under and is revalidated at
+  drain, then recomputed rather than retried on mismatch.
+- A per-network per-tick budget replaces the per-bus timer. Buses stop deciding anything: they contribute
+  constraints and execute actions.
+- The churn backstop: a `(network, item)` that oscillates past a threshold with no net progress fails closed
+  and reports, catching loops closed outside the flow graph.
+
+Headless: conservation, convergence, determinism, crash equivalence, zero idle cost, prompt throughput. The
+remaining two `xfail` tests flip here.
+
+### 5. Apply
+
+- The panel becomes transactional: edits are local, Apply validates the whole set and either accepts it or
+  rejects it with the reason shown in the panel.
+- Rejected sets are not partially applied.
+
+Headless: the existing `busroundtrip` extended with rejection cases. In game: the feel of the panel, and that
+the reason is legible without documentation.
+
+### Ordering note
+
+Steps 2 to 4 are where throughput improves. Until step 4 lands, a mixed chest still drains one item type per
+second, so the slow-drain symptom outlives the fix for the churn.
+
 ## Non-goals
 
 - No history of changesets as architecture. One pending delta, not a DAG. A bounded debug log is optional and
