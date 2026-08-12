@@ -1,12 +1,18 @@
 """Every limit the rule panel can express, in both directions.
 
-Written after Elias found in game that setting a limit did nothing. The buses honoured only the two
-"each item" modes, and the panel's default mode is TOTAL_ITEMS, so the number a player types was read,
-stored, saved, and then silently discarded. Category limits were ignored outright.
+Two wrong versions of this preceded the tests, both found in game and neither by a unit test. The first
+honoured only the two "each item" limit modes, and since the panel's default is TOTAL_ITEMS the number a
+player typed was read, saved, and silently discarded. The second took the whole-container modes literally
+and capped the network's *entire* item count: in a network holding more than the number that leaves zero
+headroom, so an import bus stopped dead and an export bus treated everything as surplus.
 
-One number, read from both sides: an import bus fills the network to it, an export bus drains the network
-to it. `ruleglobal` sets the panel-wide limit and its mode, `rulecategory` limits a whole category, and
-neither could be set headlessly before -- which is exactly why both shipped broken.
+A bus's number is therefore per item, whatever mode the filter carries, and the panel no longer offers the
+mode dropdown. The number is measured on the **network** in both directions, per D24: an import bus fills the
+network to it, an export bus leaves that much in the network and ships the rest. It is deliberately not a cap
+on the target chest.
+
+`ruleglobal` sets the panel-wide number, `rulecategory` limits a whole category, and neither could be set
+headlessly before -- which is exactly why both shipped broken.
 """
 
 from __future__ import annotations
@@ -38,8 +44,8 @@ def test_an_import_bus_fills_the_network_to_the_panel_limit(wired):
     assert wired.query("container", 3, 0, "stone")["count"] == 180, "the rest stays in the chest"
 
 
-def test_an_export_bus_drains_the_network_to_the_panel_limit(wired):
-    """The mirror. Elias set 20 on an export bus and watched it export everything."""
+def test_an_export_bus_leaves_the_amount_in_the_network(wired):
+    """The mirror, and D24's reserve floor: what the number protects is the network, not the chest."""
     wired.place("exportbus", 2, 0)
     wired.fill(1, 0, "stone", 200)
     wired.do("rule", 2, 0, "only", "stone")
@@ -47,20 +53,44 @@ def test_an_export_bus_drains_the_network_to_the_panel_limit(wired):
 
     wired.do("transfer", 2, 0, 10)
 
-    assert wired.query("item", 0, 0, "stone")["count"] == 20, "the network drains to 20 and stops"
-    assert wired.query("container", 3, 0, "stone")["count"] == 180, "the rest went to the chest"
+    assert wired.query("item", 0, 0, "stone")["count"] == 20, "the network keeps 20 and ships the rest"
+    assert wired.query("container", 3, 0, "stone")["count"] == 180
 
 
-def test_the_total_mode_is_a_budget_shared_by_every_item(wired):
-    """TOTAL_ITEMS caps the network as a whole, so what is already stored eats into the same budget."""
+def test_a_full_network_does_not_block_an_import_with_a_limit(wired):
+    """The regression that mattered. Elias set an amount and the import stopped importing entirely, because
+    the number was read as a cap on everything the network held rather than on the item being moved."""
     wired.place("importbus", 2, 0)
     wired.fill(3, 0, "stone", 100)
-    wired.fill(1, 0, "ironbar", 15)
+    wired.fill(1, 0, "ironbar", 500)
     wired.do("ruleglobal", 2, 0, "total", 20)
 
     wired.do("transfer", 2, 0, 10)
 
-    assert wired.query("item", 0, 0, "stone")["count"] == 5, "15 iron bars leave room for 5 stone"
+    assert wired.query("item", 0, 0, "stone")["count"] == 20, \
+        "500 iron bars elsewhere are irrelevant to how much stone the network should hold"
+
+
+def test_the_number_means_the_same_thing_in_every_mode(wired):
+    """The panel no longer offers the mode dropdown, but a filter saved earlier can carry any mode, and none
+    of them may turn the number into a no-op or a blockade again."""
+    wired.place("importbus", 2, 0)
+    wired.fill(3, 0, "stone", 100)
+    wired.fill(1, 0, "ironbar", 500)
+
+    for mode in ["total", "each"]:
+        wired.do("reset")
+        wired.place("terminal", 0, 0)
+        wired.place("unit", 1, 0)
+        wired.place("importbus", 2, 0)
+        wired.place("storagebox", 3, 0)
+        wired.fill(3, 0, "stone", 100)
+        wired.fill(1, 0, "ironbar", 500)
+        wired.do("ruleglobal", 2, 0, mode, 20)
+
+        wired.do("transfer", 2, 0, 10)
+
+        assert wired.query("item", 0, 0, "stone")["count"] == 20, f"mode {mode} capped stone at 20"
 
 
 def test_the_each_item_mode_gives_every_item_its_own_allowance(wired):
@@ -75,7 +105,7 @@ def test_the_each_item_mode_gives_every_item_its_own_allowance(wired):
     assert wired.query("item", 0, 0, "stone")["count"] == 20, "iron bars are counted separately"
 
 
-def test_the_stacks_mode_measures_in_stacks(wired):
+def test_a_stacks_mode_from_an_older_filter_still_means_something(wired):
     """An iron pickaxe does not stack, so three stacks of it is three items and needs no assumption about
     any item's stack size."""
     wired.place("importbus", 2, 0)

@@ -12,7 +12,6 @@ import necesse.gfx.forms.components.FormFlow;
 import necesse.gfx.forms.components.FormInputSize;
 import necesse.gfx.forms.components.FormLabel;
 import necesse.gfx.forms.components.FormTextInput;
-import necesse.gfx.forms.components.FormDropdownSelectionButton;
 import necesse.gfx.forms.components.localComponents.FormLocalTextButton;
 import necesse.gfx.forms.presets.ItemCategoriesFilterForm;
 import necesse.gfx.forms.presets.containerComponent.ContainerForm;
@@ -55,22 +54,21 @@ public class BusContainerForm<T extends BusContainer> extends ContainerForm<T> {
          Localization.translate("ui", explanationKey), new FontOptions(12), -1, 6, 0);
       this.addComponent(flow.nextY(explanation, 6));
 
-      // The limit-mode dropdown and its number, laid out as the settlement panel lays them out, so the
-      // two read as the same control. Vanilla supplies the labels and the placeholder text.
+      // A label and a number, where the settlement panel puts a mode dropdown and a number. The dropdown is
+      // deliberately absent: its four modes describe a container, and two of them cap a container's entire
+      // item count, which for a network means "the network may hold 20 things in total" -- zero headroom in
+      // any real network, so an import bus stops dead and an export bus treats everything as surplus. Both
+      // were observed in game. A bus's number is per item, which is also what the per-item rows below mean,
+      // so one reading covers the whole panel.
       int limitY = flow.next(28);
-      final FormDropdownSelectionButton<ItemCategoriesFilter.ItemLimitMode> limitMode = this.addComponent(
-         new FormDropdownSelectionButton<>(4, limitY, FormInputSize.SIZE_24, ButtonColor.BASE, WIDTH / 2 - 6));
-      for (ItemCategoriesFilter.ItemLimitMode value : ItemCategoriesFilter.ItemLimitMode.values()) {
-         limitMode.options.add(value, value.displayName);
-      }
-
-      limitMode.setSelected(filter.limitMode, filter.limitMode.displayName);
+      this.addComponent(new FormLabel(
+         Localization.translate("ui", "arcanestorage_buslimit"), new FontOptions(16), -1, 4, limitY + 6));
 
       final FormTextInput limitInput = this.addComponent(
          new FormTextInput(WIDTH / 2 + 2, limitY, FormInputSize.SIZE_24, WIDTH / 2 - 6, 7));
       limitInput.setRegexMatchFull("([0-9]+)?");
       limitInput.rightClickToClear = true;
-      limitInput.placeHolder = filter.limitMode.inputPlaceholder;
+      limitInput.placeHolder = new LocalMessage("ui", "arcanestorage_buslimithint");
       if (filter.maxAmount != Integer.MAX_VALUE) {
          limitInput.setText(String.valueOf(filter.maxAmount));
       }
@@ -79,13 +77,6 @@ public class BusContainerForm<T extends BusContainer> extends ContainerForm<T> {
          int next = limitInput.getText().isEmpty() ? Integer.MAX_VALUE : parseOr(limitInput.getText());
          if (filter.maxAmount != next) {
             filter.maxAmount = next;
-            this.send();
-         }
-      });
-      limitMode.onSelected(e -> {
-         if (filter.limitMode != e.value) {
-            filter.limitMode = e.value;
-            limitInput.placeHolder = filter.limitMode.inputPlaceholder;
             this.send();
          }
       });

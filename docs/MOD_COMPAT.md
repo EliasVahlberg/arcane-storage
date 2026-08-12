@@ -199,5 +199,16 @@ line. Two traps, both of which shipped broken:
 - **`TOTAL_ITEMS` is the default mode**, so a bus honouring only the "each item" modes discarded the number a
   player typed, silently, having read and saved it. A control that does nothing is worse than one that is
   absent.
+- **Honouring the whole-container modes literally is just as wrong for a network.** "The container holds at
+  most 20 items in total" is a sensible rule for a chest with 40 slots and a useless one for a network: any
+  network holding more than 20 things leaves zero headroom, so an import bus stops dead and an export bus sees
+  the entire contents as surplus. Both were observed in game.
+- **So a bus's number is per item, and the mode dropdown is not offered.** The four modes describe a
+  container; only "per item" survives the move to a network. This also makes the panel coherent, since the
+  per-item rows mean the same thing as the panel-wide number.
 - **Category limits are easy to miss entirely**, because the panel makes them look like a tidier way to tick
   items rather than a limit in their own right.
+
+Reusing a vanilla form is still the right call, but this is the shape of its cost: the widget carries the
+assumptions of the thing it was built for, and the ones that do not transfer have to be found and removed
+rather than inherited.

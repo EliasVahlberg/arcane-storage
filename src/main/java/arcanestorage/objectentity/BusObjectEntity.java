@@ -114,17 +114,17 @@ public abstract class BusObjectEntity extends ObjectEntity {
     * <p>One number, read from both directions: an import bus fills the network to it, an export bus drains
     * the network to it. {@link #NO_TARGET} means nothing caps this item and the bus moves what it can.
     *
-    * <p>Four kinds of limit are folded together and the tightest wins, mirroring what
-    * {@code ItemCategoriesFilter.getAddAmount} does within a single inventory: the item's own limit, a limit
-    * on any category above it (walking up parents, as vanilla does), and the panel-wide limit under each of
-    * its four modes. The two whole-container modes were ignored here at first, on the reasoning that a
-    * network's capacity is how many units it has -- which confused the network's capacity with a rule the
-    * player is deliberately setting. Since {@code TOTAL_ITEMS} is the panel's <i>default</i> mode, typing a
-    * number did nothing at all, silently, which is the worst way for a control to fail.
+    * <p>Three kinds of limit are folded together and the tightest wins, in the spirit of
+    * {@code ItemCategoriesFilter.getAddAmount} within a single inventory: the item's own limit, a limit on any
+    * category above it (walking up parents, as vanilla does), and the panel-wide number, which for a bus is
+    * always per item.
     *
-    * <p>A whole-network cap becomes a ceiling on this item by subtracting what everything else already
-    * occupies, so the arithmetic in each direction stays unchanged. Stacks are measured with the moved
-    * item's stack size because that is what vanilla's own {@code StackLimitCounter} is given.
+    * <p>Two wrong versions preceded this one, both found in game. The first honoured only the two "each item"
+    * modes, so since {@code TOTAL_ITEMS} is the panel's default, typing a number did nothing at all. The
+    * second took the whole-container modes literally and capped the network's entire item count, which in any
+    * real network leaves zero headroom -- an import bus stopped dead and an export bus treated everything as
+    * surplus. A bus's number is per item; that is the only reading that means something for a network, and
+    * the mode dropdown is therefore not offered.
     */
    public int networkShouldHold(Item item, BusObjectEntity.Holdings network) {
       int ceiling = NO_TARGET;
@@ -143,23 +143,16 @@ public abstract class BusObjectEntity extends ObjectEntity {
       }
 
       if (this.filter.maxAmount != Integer.MAX_VALUE) {
-         int othersHeld = network.total() - network.of(item);
-         switch (this.filter.limitMode) {
-            case TOTAL_EACH_ITEM:
-               ceiling = tighten(ceiling, this.filter.maxAmount);
-               break;
-            case TOTAL_STACKS_EACH_ITEM:
-               ceiling = tighten(ceiling, this.filter.maxAmount * item.getStackSize());
-               break;
-            case TOTAL_ITEMS:
-               ceiling = tighten(ceiling, this.filter.maxAmount - othersHeld);
-               break;
-            case TOTAL_STACKS:
-               ceiling = tighten(ceiling, this.filter.maxAmount * item.getStackSize() - othersHeld);
-               break;
-            default:
-               break;
-         }
+         // Per item, whatever mode the filter carries. A bus's number cannot sensibly mean anything else:
+         // read as a cap on the network's entire item count -- which is what TOTAL_ITEMS means, and it is
+         // the mode the panel starts in -- a network holding more than the number leaves zero headroom, so
+         // an import bus stops dead and an export bus sees the whole network as surplus. Both were observed
+         // in game. The panel's mode dropdown is not offered for a bus for the same reason.
+         boolean inStacks = this.filter.limitMode == ItemCategoriesFilter.ItemLimitMode.TOTAL_STACKS
+               || this.filter.limitMode == ItemCategoriesFilter.ItemLimitMode.TOTAL_STACKS_EACH_ITEM;
+         ceiling = tighten(ceiling, inStacks
+               ? this.filter.maxAmount * item.getStackSize()
+               : this.filter.maxAmount);
       }
 
       return ceiling;
