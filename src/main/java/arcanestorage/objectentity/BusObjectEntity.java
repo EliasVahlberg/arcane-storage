@@ -481,7 +481,38 @@ public abstract class BusObjectEntity extends ObjectEntity {
     * <p>A direction rather than a class check, so the predicate reads as the rule it enforces and a third
     * kind of device would only have to answer the same question.
     */
-   protected abstract boolean movesIntoNetwork();
+   public abstract boolean movesIntoNetwork();
+
+   /**
+    * Re-runs the evaluation and reports which branch it took. For diagnosis only.
+    *
+    * <p>Exists because the state alone cannot distinguish "no opposed bus was found" from "the numbers were
+    * compatible", and those want opposite fixes.
+    */
+   public String describeEvaluation() {
+      Inventory container = this.attachedContainer();
+      if (container == null) {
+         return "no container";
+      }
+
+      List<BusObjectEntity> peers = new ArrayList<>();
+      List<NetworkStorage> network = this.network(peers);
+      if (network.isEmpty()) {
+         return "no network";
+      }
+
+      StringBuilder out = new StringBuilder("peers=" + peers.size());
+      for (BusObjectEntity peer : peers) {
+         out.append(" [").append(peer.tileX).append(',').append(peer.tileY)
+            .append(" into=").append(peer.movesIntoNetwork())
+            .append(" same=").append(peer == this)
+            .append(" shares=").append(peer.attachedContainer() == container)
+            .append(']');
+      }
+
+      out.append(" mine into=").append(this.movesIntoNetwork());
+      return out.toString();
+   }
 
    @Override
    public void setupContentPacket(PacketWriter writer) {

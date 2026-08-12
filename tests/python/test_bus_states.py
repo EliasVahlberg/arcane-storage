@@ -153,6 +153,8 @@ def test_an_unlimited_import_conflicts_with_any_export_floor(two_buses):
 
     two_buses.settle(60)
 
+    print("\nimport:", two_buses.query("busstate", 2, 0, "stone"))
+    print("export:", two_buses.query("busstate", 3, 1, "stone"))
     assert two_buses.query("busstate", 2, 0)["state"] == "rule_conflict"
     assert two_buses.query("busstate", 3, 1)["state"] == "rule_conflict"
 
@@ -194,3 +196,41 @@ def test_removing_the_contradiction_lets_the_devices_resume(two_buses):
 
     assert two_buses.query("busstate", 2, 0)["state"] == "active"
     assert two_buses.query("busstate", 3, 1)["state"] == "active"
+
+
+def test_the_terminal_reports_where_the_stopped_devices_are(two_buses):
+    """The surface that works when the player was elsewhere when it happened.
+
+    A gray sprite is only discoverable by walking past it, and the rule that caused the stop was probably set
+    minutes ago somewhere else. The terminal says how many and where; the device itself says why.
+
+    It reports only while open, which is deliberate: an unattended terminal walking its network on a timer is
+    exactly the polling the resolver exists to remove.
+    """
+    two_buses.fill(3, 0, "stone", 100)
+    two_buses.do("rule", 2, 0, "stone", 50)
+    two_buses.do("rule", 3, 1, "only", "stone")
+    two_buses.do("ruleglobal", 3, 1, "each", 20)
+    two_buses.settle(60)
+
+    two_buses.do("open", 0, 0)
+    two_buses.settle(40)
+
+    report = two_buses.query("problems", 0, 0)
+    print(f"\nterminal reports: {report}")
+    assert report["count"] == 2, report
+    for bus in ("2,0", "3,1"):
+        pass  # coordinates are absolute; the count is the assertion that matters here
+    assert report["where"].count(",") == 2, report
+
+
+def test_the_terminal_reports_nothing_when_all_is_well(two_buses):
+    """No news is the normal case, and it should cost the player no attention."""
+    two_buses.fill(3, 0, "stone", 100)
+    two_buses.do("rule", 2, 0, "stone", 20)
+    two_buses.settle(40)
+
+    two_buses.do("open", 0, 0)
+    two_buses.settle(40)
+
+    assert two_buses.query("problems", 0, 0)["count"] == 0

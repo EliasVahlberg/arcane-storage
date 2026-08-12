@@ -2,6 +2,7 @@ package arcanestorage.container;
 
 import java.awt.Rectangle;
 
+import arcanestorage.objectentity.BusObjectEntity;
 import necesse.engine.Settings;
 import necesse.engine.ItemCategoryExpandedSetting;
 import necesse.engine.localization.Localization;
@@ -15,6 +16,9 @@ import necesse.gfx.forms.components.FormTextInput;
 import necesse.gfx.forms.components.localComponents.FormLocalTextButton;
 import necesse.gfx.forms.presets.ItemCategoriesFilterForm;
 import necesse.gfx.forms.presets.containerComponent.ContainerForm;
+import necesse.engine.gameLoop.tickManager.TickManager;
+import necesse.entity.mobs.PlayerMob;
+import necesse.gfx.GameColor;
 import necesse.gfx.gameFont.FontOptions;
 import necesse.gfx.ui.ButtonColor;
 import necesse.inventory.item.Item;
@@ -41,6 +45,14 @@ public class BusContainerForm<T extends BusContainer> extends ContainerForm<T> {
 
    public final ItemCategoriesFilterForm filterForm;
 
+   /**
+    * Why the bus has stopped, or empty when it has not.
+    *
+    * <p>Refreshed while the panel is open rather than fixed at construction, because the reason a bus stopped
+    * is usually a rule the player is editing right now: they should see it clear as they fix it.
+    */
+   private final FormLabel stateLabel;
+
    public BusContainerForm(Client client, T container, String nameKey, String explanationKey) {
       super(client, WIDTH, HEIGHT, container);
       final ItemCategoriesFilter filter = container.filter;
@@ -53,6 +65,11 @@ public class BusContainerForm<T extends BusContainer> extends ContainerForm<T> {
       FormLabel explanation = new FormLabel(
          Localization.translate("ui", explanationKey), new FontOptions(12), -1, 6, 0);
       this.addComponent(flow.nextY(explanation, 6));
+
+      // Reserved whether or not anything is wrong, so nothing below moves when a rule starts or stops
+      // conflicting. Wrapped to the panel width because the reason names another device and its coordinates.
+      this.stateLabel = new FormLabel("", new FontOptions(12), -1, 6, 0, WIDTH - 12);
+      this.addComponent(flow.nextY(this.stateLabel, 4));
 
       // A label and a number, where the settlement panel puts a mode dropdown and a number. The dropdown is
       // deliberately absent: its four modes describe a container, and two of them cap a container's entire
@@ -137,6 +154,22 @@ public class BusContainerForm<T extends BusContainer> extends ContainerForm<T> {
          new FormTextInput(4, searchY, FormInputSize.SIZE_24, WIDTH - 8, -1, 500));
       search.placeHolder = new LocalMessage("ui", "searchtip");
       search.onChange(e -> this.filterForm.setSearch(search.getText()));
+   }
+
+   /**
+    * Keeps the stopped-reason line current while the panel is open.
+    *
+    * <p>The state arrives through the object entity's own sync, so a client's copy of the bus is
+    * authoritative enough to read here -- and it changes without the panel doing anything, which is why this
+    * is refreshed per frame rather than set once.
+    */
+   @Override
+   public void draw(TickManager tickManager, PlayerMob perspective, Rectangle renderBox) {
+      BusObjectEntity bus = this.container.bus;
+      this.stateLabel.setText(bus == null || !bus.isInactive()
+         ? ""
+         : GameColor.RED.getColorCode() + bus.stateMessage());
+      super.draw(tickManager, perspective, renderBox);
    }
 
    /** An unparseable number is treated as no limit, which is what clearing the field means. */

@@ -43,7 +43,7 @@ public class ExportBusObjectEntity extends BusObjectEntity {
 
    /** Out of the network. */
    @Override
-   protected boolean movesIntoNetwork() {
+   public boolean movesIntoNetwork() {
       return false;
    }
 

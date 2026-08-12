@@ -30,7 +30,6 @@ import necesse.engine.ItemCategoryExpandedSetting;
 import java.util.LinkedHashMap;
 import necesse.engine.window.WindowManager;
 import necesse.engine.localization.Localization;
-import necesse.engine.localization.message.GameMessage;
 import necesse.engine.localization.message.LocalMessage;
 import necesse.engine.network.client.Client;
 import necesse.engine.network.packet.PacketContainerAction;
@@ -43,6 +42,8 @@ import necesse.gfx.forms.components.FormFlow;
 import necesse.gfx.forms.components.FormInputSize;
 import necesse.gfx.forms.components.FormContentIconButton;
 import necesse.gfx.forms.components.FormDropdownSelectionButton;
+import necesse.gfx.GameColor;
+import necesse.engine.localization.message.GameMessage;
 import necesse.gfx.forms.components.FormLabel;
 import java.awt.Color;
 import necesse.gfx.forms.components.FormProgressBarText;
@@ -253,6 +254,15 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
    private boolean benchesChanged;
    public final FormProgressBarText capacityBar;
    public final FormLabel summaryLabel;
+
+   /**
+    * How many devices on this network have stopped, with the reasons on hover.
+    *
+    * <p>The state itself lives on each bus and travels through the terminal's own object entity, so this is
+    * only a view. Blank when nothing is wrong, which is the normal case and should cost the player no
+    * attention.
+    */
+   public final FormLabel problemsLabel;
    public FormContentIconButton sortButton;
 
    /** Picks a category to filter by. Built from the game's own tree, so mods appear in it too. */
@@ -371,6 +381,14 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
       this.summaryLabel = this.mainForm
          .addComponent(new FormLabel("", new FontOptions(12), 1,
                this.mainForm.getWidth() - PADDING, categoryY + 4));
+
+      // Centred on the category row, which is empty between the dropdown and the item count. Short by
+      // design, with the detail on hover: the terminal is where a player comes when storage misbehaves, and a
+      // gray sprite on a bus behind a wall is not something they can find. Placed as an overlay on an
+      // existing row rather than as a new one, so the tab's fixed height still adds up.
+      this.problemsLabel = this.mainForm
+         .addComponent(new FormLabel("", new FontOptions(12), 0,
+               this.mainForm.getWidth() / 2, categoryY + 4, this.mainForm.getWidth() / 2));
 
       this.itemList = this.mainForm
          .addComponent(
@@ -1190,7 +1208,29 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
          this.refreshList();
       }
 
+      this.updateProblems();
       super.draw(tickManager, perspective, renderBox);
+   }
+
+   /**
+    * Shows how many devices have stopped, and why, from the terminal's synced summary.
+    *
+    * <p>Per frame rather than once, because the reason a device stopped is usually a rule the player is about
+    * to change: the line has to clear itself when they fix it, without reopening anything.
+    */
+   private void updateProblems() {
+      String problems = this.getContainer().terminal == null
+         ? ""
+         : this.getContainer().terminal.getProblems();
+      if (problems.isEmpty()) {
+         this.problemsLabel.setText("");
+         return;
+      }
+
+      this.problemsLabel.setText(GameColor.RED.getColorCode()
+            + Localization.translate("ui", "arcanestorage_problems",
+                  "count", String.valueOf(problems.split(" ").length),
+                  "where", problems));
    }
 
    /** Order-sensitive hash of item identity and amount, used only to detect changes. */

@@ -10,6 +10,8 @@ import arcanestorage.network.NetworkConductor;
 import arcanestorage.network.NetworkStorage;
 import arcanestorage.network.UnitNetwork;
 import necesse.entity.objectEntity.InventoryObjectEntity;
+import necesse.engine.network.PacketReader;
+import necesse.engine.network.PacketWriter;
 import necesse.entity.objectEntity.ObjectEntity;
 import necesse.inventory.recipe.Tech;
 import java.util.Map;
@@ -275,5 +277,111 @@ public class StorageTerminalObjectEntity extends InventoryObjectEntity {
 
          return null;
       }, (x, y) -> level.getObject(x, y) instanceof NetworkConductor, MAX_UNITS, MAX_CONDUITS);
+   }
+
+   /**
+    * Ticks between recounting the network's stopped devices, while somebody is looking.
+    *
+    * <p>Twenty is one second, which is as often as a bus re-evaluates itself, so the terminal cannot show a
+    * problem the buses have not decided on yet.
+    */
+   private static final int PROBLEM_INTERVAL = 20;
+
+   /**
+    * The network's stopped devices, as the lines the terminal shows. Empty when everything is working.
+    *
+    * <p><b>Why the terminal carries this at all.</b> A gray sprite is only discoverable if the player walks
+    * past it, and the reason a bus stopped is usually a rule set minutes earlier somewhere else. The terminal
+    * is where a player goes when storage misbehaves, so it is the one surface that finds the problem for them,
+    * and the only one that scales past a handful of buses.
+    */
+   private String problems = "";
+
+   private int ticksUntilProblemCheck = PROBLEM_INTERVAL;
+
+   /**
+    * Recounts stopped devices, but <b>only while the terminal is open</b>.
+    *
+    * <p>Idle cost is the reason for that condition rather than tidiness: an unattended terminal walking its
+    * network once a second is exactly the polling the transfer resolver exists to remove, and it would keep
+    * the idle-cost test failing for a new reason after the old one is fixed.
+    */
+   @Override
+   public void serverTick() {
+      super.serverTick();
+      if (!this.isServer() || !this.isInUse()) {
+         return;
+      }
+
+      if (--this.ticksUntilProblemCheck > 0) {
+         return;
+      }
+
+      this.ticksUntilProblemCheck = PROBLEM_INTERVAL;
+
+      String found = this.findProblems();
+      if (!found.equals(this.problems)) {
+         this.problems = found;
+         this.markDirty();
+      }
+   }
+
+   /**
+    * Where the stopped devices are, as {@code x,y} separated by spaces. Bounded.
+    *
+    * <p>Coordinates rather than reasons, deliberately: the terminal's job is to say that something is wrong
+    * and where to look, and the device itself explains why when the player gets there -- on its sprite, its
+    * hover tip and its panel. Splitting it that way keeps each surface doing one job and the packet small.
+    */
+   private String findProblems() {
+      Level level = this.getLevel();
+      if (level == null) {
+         return "";
+      }
+
+      StringBuilder lines = new StringBuilder();
+
+      // Buses conduct, so every bus on this network is visited by the same walk that finds the units. The
+      // conductor test is the place to notice them; there is no second traversal.
+      UnitNetwork.discover(this.tileX, this.tileY, (x, y) -> {
+         ObjectEntity candidate = level.entityManager.getObjectEntity(x, y);
+         return candidate instanceof NetworkStorage && ((NetworkStorage)candidate).isOnNetwork()
+            ? (NetworkStorage)candidate
+            : null;
+      }, (x, y) -> {
+         if (!(level.getObject(x, y) instanceof NetworkConductor)) {
+            return false;
+         }
+
+         ObjectEntity at = level.entityManager.getObjectEntity(x, y);
+         if (at instanceof BusObjectEntity && ((BusObjectEntity)at).isInactive() && lines.length() < 120) {
+            if (lines.length() > 0) {
+               lines.append(' ');
+            }
+
+            lines.append(at.tileX).append(',').append(at.tileY);
+         }
+
+         return true;
+      }, MAX_UNITS, MAX_CONDUITS);
+
+      return lines.toString();
+   }
+
+   /** The stopped devices on this network, as lines. Read by the form; empty when all is well. */
+   public String getProblems() {
+      return this.problems;
+   }
+
+   @Override
+   public void setupContentPacket(PacketWriter writer) {
+      super.setupContentPacket(writer);
+      writer.putNextString(this.problems);
+   }
+
+   @Override
+   public void applyContentPacket(PacketReader reader) {
+      super.applyContentPacket(reader);
+      this.problems = reader.getNextString();
    }
 }

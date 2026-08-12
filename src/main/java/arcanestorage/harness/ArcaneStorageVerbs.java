@@ -31,6 +31,7 @@ import necesse.inventory.item.Item;
 import necesse.inventory.Inventory;
 import necesse.inventory.InventoryItem;
 import necesse.level.maps.Level;
+import necesse.level.maps.regionSystem.RegionManager;
 import necesseheadlessharness.Harness;
 import necesseheadlessharness.command.TestContext;
 import necesseheadlessharness.Json;
@@ -85,6 +86,7 @@ public final class ArcaneStorageVerbs {
       Harness.registerExpectation(new ListenerCheckVerb());
       Harness.registerExpectation(new BusStatsQuery());
       Harness.registerExpectation(new BusStateQuery());
+      Harness.registerExpectation(new TerminalProblemsQuery());
       Harness.registerVerb(new RuleGlobalVerb());
       Harness.registerVerb(new RuleCategoryVerb());
       Harness.registerExpectation(new BusOpenPacketQuery());
@@ -201,6 +203,20 @@ public final class ArcaneStorageVerbs {
                      || entity instanceof StorageTerminalObjectEntity
                      || entity instanceof BusObjectEntity)) {
                ours.add(new Point(entity.tileX, entity.tileY));
+            }
+         }
+
+         // Regions first, or the sweep below reads an unloaded region as empty and leaves everything in it
+         // standing. That is not hypothetical: a saved world boots with no regions loaded, so the first test
+         // of a session inherited the previous session's chests, and the chest sitting on a tile silently
+         // blocked a bus placement -- which removed one side of a conflict and made a test fail depending on
+         // what had run before it. Loading from a verb is safe because verbs run on the server thread.
+         int bits = RegionManager.REGION_SIZE_BITS;
+         for (int regionY = context.tileY(-CONDUCTOR_SWEEP) >> bits;
+               regionY <= context.tileY(CONDUCTOR_SWEEP) >> bits; regionY++) {
+            for (int regionX = context.tileX(-CONDUCTOR_SWEEP) >> bits;
+                  regionX <= context.tileX(CONDUCTOR_SWEEP) >> bits; regionX++) {
+               context.level.regionManager.getRegion(regionX, regionY, true);
             }
          }
 
@@ -705,6 +721,7 @@ public final class ArcaneStorageVerbs {
          int members = bus.network(peers).size();
          out.num("members", members);
          out.num("peers", peers.size());
+         out.str("evaluation", bus.describeEvaluation());
          out.bool("container", bus.attachedContainer() != null);
 
          // The predicate's two numbers for a probe item, when one is named: ceiling from the importer,
@@ -722,6 +739,45 @@ public final class ArcaneStorageVerbs {
                }
             }
          }
+      }
+   }
+
+   /**
+    * What the terminal reports about stopped devices on its network.
+    *
+    * <p>{@code query problems <dx> <dy>} -> {@code {where, count}}. Computed only while the terminal is in
+    * use, so a test must open it first -- which is the behaviour being asserted, not an inconvenience: an
+    * unattended terminal walking its network on a timer is the polling this whole design removes.
+    */
+   private static final class TerminalProblemsQuery implements TestVerb, TestQuery {
+      public String name() {
+         return "problems";
+      }
+
+      public String usage() {
+         return "query problems <dx> <dy>";
+      }
+
+      public int coordinateArgIndex() {
+         return 2;
+      }
+
+      public boolean run(TestContext context) {
+         return true;
+      }
+
+      public void query(TestContext context, Json.Writer out) {
+         ObjectEntity entity = context.level.entityManager.getObjectEntity(
+            context.tileX(context.intArg(2)), context.tileY(context.intArg(3)));
+         if (!(entity instanceof StorageTerminalObjectEntity)) {
+            out.str("where", "");
+            out.num("count", -1);
+            return;
+         }
+
+         String where = ((StorageTerminalObjectEntity)entity).getProblems();
+         out.str("where", where);
+         out.num("count", where.isEmpty() ? 0 : where.split(" ").length);
       }
    }
 

@@ -41,7 +41,7 @@ public class ImportBusObjectEntity extends BusObjectEntity {
 
    /** Into the network. */
    @Override
-   protected boolean movesIntoNetwork() {
+   public boolean movesIntoNetwork() {
       return true;
    }
 
