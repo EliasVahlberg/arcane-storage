@@ -75,6 +75,28 @@ Fixed after the first attempt at this script, so start again from step 2:
   touched, which is every path to it. The list now stops short of a reserved strip. It is also no longer
   disabled when there is nothing to send, because a disabled button looks exactly like that bug.
 
+### The logistics tab — new, none of it seen
+
+Open the terminal and pick the Logistics tab. There should be four tabs now.
+
+1. **With nothing wrong**, the issues panel should be absent rather than an empty red box, and the line should
+   read that every device is working. The device list on the left should name both buses with their
+   coordinates.
+2. **Pick a device.** Its rules should appear on the right, briefly showing "Reading this device's rules" while
+   they are fetched. Check the editor is usable in a pane that is shorter than the bus's own panel -- this is
+   the layout most likely to be wrong, since the pane is about 380px tall and the panel was 420.
+3. **Change something and Apply.** It should take effect exactly as it does from the bus's own panel.
+4. **Make a contradiction from here**: give the export bus a floor, then try to give the import bus a higher
+   ceiling for the same item. The refusal should appear in the pane, above the editor.
+5. **Now let a contradiction stand** so both buses stop. The issues panel should turn red and name both devices
+   with reasons, and both rows in the list should turn red. This is the thing the storage tab's one-line banner
+   could not do, so it is the point of the whole tab -- judge whether it reads as informative rather than
+   alarming.
+6. **Check the storage tab's banner** still says the count and now points here.
+7. **Break a bus while its rules are open** in the pane. The pane should fall back to the "pick a device" hint
+   rather than showing rules for something that no longer exists, and the list should lose the row.
+8. **A bigger network**, if convenient: five or six buses. The list scrolls; the pane does not move.
+
 Known and deliberate, so not bugs:
 
 - The stopped sprites are luminance-weighted desaturations of the current placeholder art, generated in a
@@ -83,6 +105,11 @@ Known and deliberate, so not bugs:
   still there, it stops again after about forty moves. That is intended: a stop that could only be lifted by
   editing a rule would need the player to work out what to edit.
 - The commits for this work are unsigned. The signing key needs a passphrase typed by a person.
+- The logistics tab shows one device's rules at a time rather than a column of expanding rows. That is a
+  departure from what was asked for, and the reason is that the editor contains a scrolling category tree:
+  nesting one inside each row of another scrolling list means two nested scroll regions, and a content box
+  claims the mouse over its whole rectangle once clicked -- which is exactly how the Apply button came to be
+  inert. Say if the expanding-row shape is worth the risk and it can be changed.
 
 ### Fixed since his last pass, so worth a look first
 
@@ -204,6 +231,38 @@ so the second client is a different identity; the host must also be in dev mode,
 
 12. With both clients connected, one opens the terminal and **the other should see it lit**, and see it
     go dark when the first closes it.
+
+## A separate logistics terminal — a balancing idea, recorded not decided
+
+Raised while looking at the logistics tab: rather than a tab on the storage terminal, logistics could be its own
+**Logistics Terminal**, and placing a bus could *require* one on the network. The appeal is gamefeel — the
+network gains a visible control room, buses become a deliberate step rather than something available from the
+first terminal, and the tab stops competing for room with storage and crafting.
+
+This is noted as cutting against an earlier decision, which is why it is written down rather than acted on. The
+crafting interface was made a tab and not a second block, deliberately, and the reasoning is in ROADMAP Phase 3:
+Magic Storage's separate Crafting Access blocks are a consequence of Terraria's UI, and one terminal with tabs is
+fewer objects to craft, place and keep in sync.
+
+The case for treating logistics differently is real and worth stating fairly:
+
+- **Crafting is a view; logistics is authority.** The crafting tab shows what the network can already make. The
+  logistics tab changes what the network *does*, to devices elsewhere on the level. Gating that behind an object
+  a player chose to build is a different proposition from gating a view.
+- **It is a natural place to hang a cost.** A prerequisite object gives automation a price and a tier, which the
+  progression design wants anyway, and it is more legible than making each bus expensive.
+- **It removes a tab from a panel that will keep growing.** Storage, crafting, stations and logistics is already
+  four.
+
+Against it:
+
+- **Two terminals to keep in sync**, and a second thing to craft and place before anything works.
+- **A player who has built buses and then breaks the terminal** has a network doing things with no way to see or
+  change them, which needs a rule of its own.
+- **Discoverability**: a tab is found by opening what you already have.
+
+Nothing is blocked either way. The tab exists and works, and the editor it uses is a shared component built into
+whatever form asks for one -- so moving it into its own container later is a change of host, not a rewrite.
 
 ## Deferred, with reasons
 

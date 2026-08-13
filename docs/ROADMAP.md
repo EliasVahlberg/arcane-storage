@@ -668,6 +668,33 @@ for a future throughput constraint, where it is physically motivated.
 | Contradictory rules | 12 moves per 120 ticks, forever | refused when written |
 | Loop closed by an outside agent | never detected | stopped after 40 moves |
 
+### Phase 5c — the logistics tab
+
+`[built Aug 2026]` The stopped-device notice was first a single line in the storage tab's category row, and it
+worked in the sense that it appeared. It was a poor notice: the row's height is fixed, so the line could say how
+many devices had stopped and where, and nothing about why -- a player who saw it still had to walk to each device.
+
+The terminal now has a fourth tab that does two jobs in one place. A red-backed panel names every stopped device
+with its reason, and the same list of devices is how their rules are set, so the fix is where the diagnosis is.
+
+- [x] Per-bus summaries in the terminal's content packet, carrying the parts of a reason rather than a sentence,
+      so nothing is worded twice and no server sends its own language to a client.
+- [x] The rule editor as one shared component, built into whatever form asks for one. Both the bus's panel and
+      the tab use it, so neither can drift from the other.
+- [x] Rules written from the terminal go through the same validation as rules written at the bus. There must be
+      no way to reach a contradictory configuration by choosing the more convenient of two interfaces.
+- [x] A membership check on every rule action: the tab addresses buses by coordinate, so the terminal confirms
+      the bus is on its own network before writing anything.
+- [x] Filters fetched per device on selection rather than sent for every bus when the terminal opens.
+
+One shape decision is a departure from what was asked for and is recorded in `docs/QA_BACKLOG.md`: the list shows
+one device's rules at a time rather than a column of expanding rows, because the editor contains a scrolling
+category tree and nesting those inside another scrolling list invites the same hit-testing fault that made the
+Apply button inert.
+
+A larger idea from the same conversation -- logistics as its own terminal, required before a bus can be placed --
+is a balancing question rather than a technical one and is written up in the backlog rather than decided here.
+
 ### Needs a person
 
 Everything the tests cannot see. None of it is verified:
