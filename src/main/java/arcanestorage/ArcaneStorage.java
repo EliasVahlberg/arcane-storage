@@ -106,7 +106,8 @@ public class ArcaneStorage {
             return new BusContainerForm<>(
                client, new BusContainer(client.getClient(), uniqueSeed, bus, content),
                isImport ? IMPORT_BUS_STRING_ID : EXPORT_BUS_STRING_ID,
-               isImport ? "arcanestorage_importbusrule" : "arcanestorage_exportbusrule"
+               isImport ? "arcanestorage_importbusrule" : "arcanestorage_exportbusrule",
+               isImport ? "arcanestorage_importbuslimit" : "arcanestorage_exportbuslimit"
             );
          },
          (client, uniqueSeed, objectEntity, content, serverObject) -> new BusContainer(

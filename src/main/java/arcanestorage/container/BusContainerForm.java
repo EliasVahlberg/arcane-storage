@@ -47,6 +47,16 @@ public class BusContainerForm<T extends BusContainer> extends ContainerForm<T> {
    /** Height reserved at the bottom of the panel for the Apply button, kept clear of the scrolling list. */
    private static final int APPLY_STRIP = 32;
 
+   /** The state and refusal line: its font, and how many wrapped lines the layout keeps clear for it. */
+   private static final int STATE_FONT = 12;
+
+   private static final int STATE_LINES = 3;
+
+   /** The amount row. Two lines at this font, because naming what the number means does not fit on one. */
+   private static final int LIMIT_FONT = 14;
+
+   private static final int LIMIT_ROW = 32;
+
    public final ItemCategoriesFilterForm filterForm;
 
    /**
@@ -60,7 +70,7 @@ public class BusContainerForm<T extends BusContainer> extends ContainerForm<T> {
    /** Whether the panel holds edits the server has not been told about. */
    private boolean unapplied;
 
-   public BusContainerForm(Client client, T container, String nameKey, String explanationKey) {
+   public BusContainerForm(Client client, T container, String nameKey, String explanationKey, String limitKey) {
       super(client, WIDTH, HEIGHT, container);
       final ItemCategoriesFilter filter = container.filter;
       FormFlow flow = new FormFlow(5);
@@ -73,10 +83,24 @@ public class BusContainerForm<T extends BusContainer> extends ContainerForm<T> {
          Localization.translate("ui", explanationKey), new FontOptions(12), -1, 6, 0);
       this.addComponent(flow.nextY(explanation, 6));
 
-      // Reserved whether or not anything is wrong, so nothing below moves when a rule starts or stops
-      // conflicting. Wrapped to the panel width because the reason names another device and its coordinates.
-      this.stateLabel = new FormLabel("", new FontOptions(12), -1, 6, 0, WIDTH - 12);
-      this.addComponent(flow.nextY(this.stateLabel, 4));
+      // A fixed block, reserved whether or not anything is wrong. The first version passed the empty label to
+      // flow.nextY, which advances by a component's height *as it is then* -- and an empty label is zero lines
+      // tall, so nothing was reserved and the text landed on the amount row below. Nothing here may depend on
+      // the length of a message that is not set yet.
+      int stateY = flow.next(STATE_FONT * STATE_LINES + 4);
+      this.stateLabel = new FormLabel("", new FontOptions(STATE_FONT), -1, 6, stateY, WIDTH - 12);
+      this.addComponent(this.stateLabel);
+
+      // Measured against the longest thing that can appear there, with the widest plausible substitutions.
+      // The reason names an item and a pair of coordinates, so its length is not under this file's control.
+      FormLabel worstCase = new FormLabel(Localization.translate("ui", "arcanestorage_refused",
+            "item", "Pearlescent Diamond Broadsword", "x", "-12345", "y", "-12345"),
+            new FontOptions(STATE_FONT), -1, 0, 0, WIDTH - 12);
+      if (worstCase.getHeight() > STATE_FONT * STATE_LINES) {
+         GameLog.warn.println("Arcane Storage: the bus panel reserves " + STATE_LINES
+               + " lines for its state line but the longest refusal needs "
+               + (worstCase.getHeight() / STATE_FONT) + "; it will overlap the amount row.");
+      }
 
       // A label and a number, where the settlement panel puts a mode dropdown and a number. The dropdown is
       // deliberately absent: its four modes describe a container, and two of them cap a container's entire
@@ -84,9 +108,14 @@ public class BusContainerForm<T extends BusContainer> extends ContainerForm<T> {
       // any real network, so an import bus stops dead and an export bus treats everything as surplus. Both
       // were observed in game. A bus's number is per item, which is also what the per-item rows below mean,
       // so one reading covers the whole panel.
-      int limitY = flow.next(28);
-      this.addComponent(new FormLabel(
-         Localization.translate("ui", "arcanestorage_buslimit"), new FontOptions(16), -1, 4, limitY + 6));
+      int limitY = flow.next(LIMIT_ROW);
+      FormLabel limitLabel = this.addComponent(new FormLabel(
+         Localization.translate("ui", limitKey), new FontOptions(LIMIT_FONT), -1, 4, limitY,
+         WIDTH / 2 - 12));
+      if (limitLabel.getHeight() > LIMIT_ROW) {
+         GameLog.warn.println("Arcane Storage: the amount label needs " + limitLabel.getHeight()
+               + "px but its row is " + LIMIT_ROW + "px; it will overlap the filter list.");
+      }
 
       final FormTextInput limitInput = this.addComponent(
          new FormTextInput(WIDTH / 2 + 2, limitY, FormInputSize.SIZE_24, WIDTH / 2 - 6, 7));
@@ -214,7 +243,9 @@ public class BusContainerForm<T extends BusContainer> extends ContainerForm<T> {
          message = Localization.translate("ui", "arcanestorage_unapplied");
       }
 
-      this.stateLabel.setText(message);
+      // The wrap width goes with every set: setText(String) delegates to setText(text, -1), which wraps at
+      // Integer.MAX_VALUE -- one long line off the side of the panel, which is what this used to draw.
+      this.stateLabel.setText(message, WIDTH - 12);
       super.draw(tickManager, perspective, renderBox);
    }
 
