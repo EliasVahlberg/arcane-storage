@@ -15,6 +15,8 @@ import necesse.inventory.item.ItemCategory;
 import necesse.inventory.itemFilter.ItemCategoriesFilter;
 import arcanestorage.objectentity.StorageTerminalObjectEntity;
 import arcanestorage.network.NetworkConductor;
+import arcanestorage.network.NetworkIndex;
+import arcanestorage.network.NetworkIndexes;
 import arcanestorage.network.NetworkStorage;
 import necesse.engine.network.Packet;
 import necesse.engine.network.PacketReader;
@@ -87,6 +89,7 @@ public final class ArcaneStorageVerbs {
       Harness.registerExpectation(new BusStatsQuery());
       Harness.registerExpectation(new BusStateQuery());
       Harness.registerExpectation(new TerminalProblemsQuery());
+      Harness.registerExpectation(new IndexDriftQuery());
       Harness.registerVerb(new RuleGlobalVerb());
       Harness.registerVerb(new RuleCategoryVerb());
       Harness.registerExpectation(new BusOpenPacketQuery());
@@ -205,6 +208,10 @@ public final class ArcaneStorageVerbs {
                ours.add(new Point(entity.tileX, entity.tileY));
             }
          }
+
+         // Indexes are derived from a layout that is about to stop existing, and setObject below does not
+         // run the destroy hook that would normally invalidate them.
+         NetworkIndexes.forget();
 
          // Regions first, or the sweep below reads an unloaded region as empty and leaves everything in it
          // standing. That is not hypothetical: a saved world boots with no regions loaded, so the first test
@@ -678,6 +685,11 @@ public final class ArcaneStorageVerbs {
          out.num("transfers", BusObjectEntity.transfers);
          out.num("slots", BusObjectEntity.slotsScanned);
          out.num("walks", BusObjectEntity.networkWalks);
+
+         // How many networks are indexed, and how many rebuilds the sharing did not avoid. Both are here so a
+         // test can assert that cost is a property of the network rather than of how many devices watch it.
+         out.num("indexes", NetworkIndexes.indexedOn(context.level));
+         out.num("rebuilds", NetworkIndex.rebuilds);
       }
    }
 
@@ -717,7 +729,7 @@ public final class ArcaneStorageVerbs {
 
          // What the predicate had to work with. Added while diagnosing a conflict that went undetected
          // after a restart: the state alone cannot say whether the peer walk or the comparison was at fault.
-         List<BusObjectEntity> peers = new ArrayList<>();
+         List<ObjectEntity> peers = new ArrayList<>();
          int members = bus.network(peers).size();
          out.num("members", members);
          out.num("peers", peers.size());
@@ -731,7 +743,12 @@ public final class ArcaneStorageVerbs {
             if (probe != null) {
                out.num("target", bus.networkShouldHold(probe));
                out.bool("allows", bus.filter.isItemAllowed(probe));
-               for (BusObjectEntity peer : peers) {
+               for (ObjectEntity found : peers) {
+                  if (found == bus || !(found instanceof BusObjectEntity)) {
+                     continue;
+                  }
+
+                  BusObjectEntity peer = (BusObjectEntity)found;
                   out.bool("peerallows", peer.filter.isItemAllowed(probe));
                   out.num("peertarget", peer.networkShouldHold(probe));
                   out.bool("sharescontainer", peer.attachedContainer() == bus.attachedContainer());
@@ -781,6 +798,37 @@ public final class ArcaneStorageVerbs {
       }
    }
 
+   /**
+    * Whether the index still agrees with what the units hold.
+    *
+    * <p>{@code query indexdrift} -> {@code {drift, indexes}}. Zero drift is agreement. The point of a query
+    * rather than an assertion inside the mod is that a test can induce drift deliberately and watch it be
+    * caught, which is the only way to know the reconciliation works.
+    */
+   private static final class IndexDriftQuery implements TestVerb, TestQuery {
+      public String name() {
+         return "indexdrift";
+      }
+
+      public String usage() {
+         return "query indexdrift";
+      }
+
+      public boolean run(TestContext context) {
+         return true;
+      }
+
+      public void query(TestContext context, Json.Writer out) {
+         int drift = 0;
+         for (NetworkIndex index : NetworkIndexes.on(context.level)) {
+            drift += index.driftAgainstWorld();
+         }
+
+         out.num("drift", drift);
+         out.num("indexes", NetworkIndexes.indexedOn(context.level));
+      }
+   }
+
    private static final class BusStatsResetVerb implements TestVerb {
       public String name() {
          return "busstatsreset";
@@ -794,6 +842,7 @@ public final class ArcaneStorageVerbs {
          BusObjectEntity.moves = 0;
          BusObjectEntity.transfers = 0;
          BusObjectEntity.slotsScanned = 0;
+         NetworkIndex.rebuilds = 0;
          BusObjectEntity.networkWalks = 0;
          context.info("counters zeroed");
          return true;

@@ -1,5 +1,10 @@
 package arcanestorage.object;
 
+import necesse.engine.network.server.ServerClient;
+import necesse.entity.pickup.ItemPickupEntity;
+import necesse.entity.mobs.Attacker;
+import arcanestorage.network.NetworkIndexes;
+import java.util.ArrayList;
 import java.awt.Color;
 
 import arcanestorage.network.NetworkNode;
@@ -51,5 +56,28 @@ public class StorageTerminalObject extends StorageBoxInventoryObject implements 
       if (level.isServer()) {
          StorageTerminalContainer.openAndSendContainer(ArcaneStorage.TERMINAL_CONTAINER, player.getServerClient(), level, x, y);
       }
+   }
+
+   /**
+    * Any placement of a network object may have joined two networks or extended one.
+    *
+    * <p>The shared index is refused rather than repaired: it is cheaper to rebuild a network's counts than to
+    * work out what a new tile did to them, and rebuilding is the operation that is already known to be correct.
+    * Placing something is rare, so a coarse invalidation costs nothing measurable.
+    */
+   @Override
+   public void placeObject(Level level, int layerID, int x, int y, int rotation, boolean byPlayer) {
+      super.placeObject(level, layerID, x, y, rotation, byPlayer);
+      NetworkIndexes.topologyChanged();
+   }
+
+   /** And any break may have split one, or removed a member. */
+   @Override
+   public void onDestroyed(
+      Level level, int layerID, int x, int y, Attacker attacker, ServerClient client,
+      ArrayList<ItemPickupEntity> itemsDropped
+   ) {
+      super.onDestroyed(level, layerID, x, y, attacker, client, itemsDropped);
+      NetworkIndexes.topologyChanged();
    }
 }

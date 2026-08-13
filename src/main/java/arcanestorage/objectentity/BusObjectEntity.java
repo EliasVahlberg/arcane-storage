@@ -2,9 +2,13 @@ package arcanestorage.objectentity;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import arcanestorage.network.NetworkConductor;
+import arcanestorage.network.NetworkIndex;
+import arcanestorage.network.NetworkIndexes;
 import arcanestorage.network.NetworkStorage;
 import arcanestorage.network.UnitNetwork;
 import necesse.engine.localization.Localization;
@@ -101,6 +105,14 @@ public abstract class BusObjectEntity extends ObjectEntity {
    private int conflictY;
 
    /**
+    * The index this bus last used, kept so it can be reused without walking.
+    *
+    * <p>A reference rather than a copy, so that when another device on the same network rebuilds it, this bus
+    * follows along for free. Never saved: it is derived state about the world, and the world is what is saved.
+    */
+   private NetworkIndex cachedNetwork;
+
+   /**
     * Counters for diagnosis, not for behaviour: how much work the buses are doing.
     *
     * <p>They exist because "it locks up" is not a testable claim and "the move count is still climbing after
@@ -135,7 +147,7 @@ public abstract class BusObjectEntity extends ObjectEntity {
     * keeps 200" into "each unit keeps 200". The numbers still come from the filter; only the arithmetic
     * across units is ours.
     */
-   protected abstract int allowedToMove(Item item, int inSource, int inDestination, BusObjectEntity.Holdings network);
+   protected abstract int allowedToMove(Item item, int inSource, int inDestination, NetworkIndex network);
 
    /**
     * How much of an item the player has said the network should hold, or {@link #NO_TARGET}.
@@ -162,7 +174,7 @@ public abstract class BusObjectEntity extends ObjectEntity {
     * surplus. A bus's number is per item; that is the only reading that means something for a network, and
     * the mode dropdown is therefore not offered.
     */
-   public int networkShouldHold(Item item, BusObjectEntity.Holdings network) {
+   public int networkShouldHold(Item item, NetworkIndex network) {
       int ceiling = NO_TARGET;
 
       ItemCategoriesFilter.ItemLimits limits = this.filter.getItemLimits(item);
@@ -196,75 +208,14 @@ public abstract class BusObjectEntity extends ObjectEntity {
 
    /** The same question with the bus's live network, for diagnostics and the harness. */
    public int networkShouldHold(Item item) {
-      return this.networkShouldHold(item, new BusObjectEntity.Holdings(inventoriesOf(this.network())));
+      NetworkIndex index = this.networkIndex();
+      return index == null ? NO_TARGET : this.networkShouldHold(item, index);
    }
 
    /** Keeps the lowest ceiling seen, treating a cap already exceeded as zero rather than as a negative. */
    private static int tighten(int ceiling, int candidate) {
       int floored = Math.max(candidate, 0);
       return ceiling == NO_TARGET ? floored : Math.min(ceiling, floored);
-   }
-
-   /**
-    * What one side of a transfer holds, counted the ways a filter's limits are measured.
-    *
-    * <p>Exists because a filter's limits are defined over an {@code InventoryRange} -- a range within one
-    * inventory -- and a network is many. Evaluating them per unit would quietly turn "the network keeps 200"
-    * into "each unit keeps 200". The numbers come from the filter; the summing across members is ours.
-    */
-   protected static final class Holdings {
-      private final List<Inventory> side;
-      private int total = -1;
-
-      protected Holdings(List<Inventory> side) {
-         this.side = side;
-      }
-
-      /** How many of one item the side holds. */
-      protected int of(Item item) {
-         return countIn(this.side, item.getStringID());
-      }
-
-      /** Everything the side holds, of every item, counted once and remembered. */
-      protected int total() {
-         if (this.total < 0) {
-            int sum = 0;
-
-            for (Inventory inventory : this.side) {
-               for (int slot = 0; slot < inventory.getSize(); slot++) {
-                  InventoryItem item = inventory.getItem(slot);
-                  if (item != null) {
-                     sum += item.getAmount();
-                  }
-               }
-            }
-
-            this.total = sum;
-         }
-
-         return this.total;
-      }
-
-      /**
-       * What the side holds of a category's items, excluding one item.
-       *
-       * <p>The exclusion is what turns a category's limit into a ceiling for the item being moved: the rest
-       * of the category is occupied space, and what is left is this item's room.
-       */
-      protected int inCategoryExcept(ItemCategoriesFilter.ItemCategoryFilter category, Item except) {
-         int sum = 0;
-
-         for (Inventory inventory : this.side) {
-            for (int slot = 0; slot < inventory.getSize(); slot++) {
-               InventoryItem item = inventory.getItem(slot);
-               if (item != null && item.item != except && category.category.containsItemOrInChildren(item.item)) {
-                  sum += item.getAmount();
-               }
-            }
-         }
-
-         return sum;
-      }
    }
 
    /**
@@ -276,10 +227,10 @@ public abstract class BusObjectEntity extends ObjectEntity {
     * {@code Inventory} is a concrete class with dirty tracking, filters and locked slots, and a view
     * that reimplemented some of that would be a subtle liar.
     */
-   protected abstract List<Inventory> sources(List<NetworkStorage> network, Inventory container);
+   protected abstract List<Inventory> sources(NetworkIndex network, Inventory container);
 
    /** Where they go. The other side. */
-   protected abstract List<Inventory> destinations(List<NetworkStorage> network, Inventory container);
+   protected abstract List<Inventory> destinations(NetworkIndex network, Inventory container);
 
    @Override
    public void serverTick() {
@@ -299,19 +250,17 @@ public abstract class BusObjectEntity extends ObjectEntity {
          return;
       }
 
-      // One walk serves both jobs. Evaluating the state needs the network and the buses on it, and so does
-      // transferring, so the walk is done here and handed down rather than repeated.
+      // One index serves both jobs, and usually somebody else built it. Evaluating the state needs the
+      // network and the buses on it, and so does transferring, so both read the same shared copy.
       Inventory container = this.attachedContainer();
-      List<BusObjectEntity> peers = new ArrayList<>();
-      List<NetworkStorage> network =
-         container == null ? Collections.emptyList() : this.network(peers);
+      NetworkIndex index = container == null ? null : this.networkIndex();
 
-      if (!this.evaluate(container, network, peers).isActive()) {
+      if (!this.evaluate(container, index).isActive()) {
          return;
       }
 
       transfers++;
-      this.transferOnce(level, container, network);
+      this.transferOnce(level, container, index);
    }
 
    /**
@@ -324,23 +273,22 @@ public abstract class BusObjectEntity extends ObjectEntity {
     * container, and that is answered from the walk already performed. Only when such a bus exists is the
     * per-item comparison done, so the overwhelmingly common layout costs one identity check per peer.
     */
-   private DeviceState evaluate(
-      Inventory container, List<NetworkStorage> network, List<BusObjectEntity> peers
-   ) {
+   private DeviceState evaluate(Inventory container, NetworkIndex index) {
       if (container == null) {
          return this.setState(DeviceState.NO_CONTAINER, null, 0, 0);
       }
 
-      if (network.isEmpty()) {
+      if (index == null || index.units().isEmpty()) {
          return this.setState(DeviceState.NO_NETWORK, null, 0, 0);
       }
 
       BusObjectEntity opposed = null;
-      for (BusObjectEntity peer : peers) {
+      for (ObjectEntity peer : index.devices()) {
          if (peer != this
-               && peer.movesIntoNetwork() != this.movesIntoNetwork()
-               && peer.attachedContainer() == container) {
-            opposed = peer;
+               && peer instanceof BusObjectEntity
+               && ((BusObjectEntity)peer).movesIntoNetwork() != this.movesIntoNetwork()
+               && ((BusObjectEntity)peer).attachedContainer() == container) {
+            opposed = (BusObjectEntity)peer;
             break;
          }
       }
@@ -351,7 +299,7 @@ public abstract class BusObjectEntity extends ObjectEntity {
 
       BusObjectEntity importer = this.movesIntoNetwork() ? this : opposed;
       BusObjectEntity exporter = this.movesIntoNetwork() ? opposed : this;
-      String contested = firstUnsatisfiableItem(importer, exporter, new Holdings(inventoriesOf(network)));
+      String contested = firstUnsatisfiableItem(importer, exporter, index);
 
       return contested == null
          ? this.setState(DeviceState.ACTIVE, null, 0, 0)
@@ -379,7 +327,7 @@ public abstract class BusObjectEntity extends ObjectEntity {
     * would break a legitimate and useful layout, so the shared-container test is not an optimisation.
     */
    private static String firstUnsatisfiableItem(
-      BusObjectEntity importer, BusObjectEntity exporter, Holdings network
+      BusObjectEntity importer, BusObjectEntity exporter, NetworkIndex network
    ) {
       for (Item item : ItemRegistry.getItems()) {
          if (item == null
@@ -495,14 +443,19 @@ public abstract class BusObjectEntity extends ObjectEntity {
          return "no container";
       }
 
-      List<BusObjectEntity> peers = new ArrayList<>();
+      List<ObjectEntity> peers = new ArrayList<>();
       List<NetworkStorage> network = this.network(peers);
       if (network.isEmpty()) {
          return "no network";
       }
 
       StringBuilder out = new StringBuilder("peers=" + peers.size());
-      for (BusObjectEntity peer : peers) {
+      for (ObjectEntity found : peers) {
+         if (!(found instanceof BusObjectEntity)) {
+            continue;
+         }
+
+         BusObjectEntity peer = (BusObjectEntity)found;
          out.append(" [").append(peer.tileX).append(',').append(peer.tileY)
             .append(" into=").append(peer.movesIntoNetwork())
             .append(" same=").append(peer == this)
@@ -565,27 +518,38 @@ public abstract class BusObjectEntity extends ObjectEntity {
          return 0;
       }
 
-      List<NetworkStorage> network = this.network();
-      if (network.isEmpty()) {
+      NetworkIndex index = this.networkIndex();
+      if (index == null) {
          return 0;
       }
 
-      return this.transferOnce(level, container, network);
+      return this.transferOnce(level, container, index);
    }
 
    /**
-    * The same transfer, given what the caller has already looked up.
+    * The same transfer, against the network's shared index.
     *
-    * <p>Split out so the tick pays for one network walk rather than two: the state evaluation needs the
-    * network and the buses on it, and so does this.
+    * <p><b>Where the old cost was.</b> This loop used to ask, for every slot it looked at, how many of that
+    * item each side held -- and the network side of that question scanned every unit's every slot. So a chest
+    * of mixed items cost slots times slots, and a second bus paid it again privately. Now the network's side
+    * of the question is a lookup in one shared count, and the container's side is one pass over forty slots
+    * taken before the loop. The arithmetic and the decisions are unchanged; only who counts, and how often.
     */
-   private int transferOnce(Level level, Inventory container, List<NetworkStorage> network) {
-      List<Inventory> from = this.sources(network, container);
-      List<Inventory> to = this.destinations(network, container);
+   private int transferOnce(Level level, Inventory container, NetworkIndex index) {
+      List<Inventory> from = this.sources(index, container);
+      List<Inventory> to = this.destinations(index, container);
+      boolean into = this.movesIntoNetwork();
 
-      // Counted once per transfer rather than per item: a whole-network limit needs the network's totals,
-      // and the network does not change while one item is being moved.
-      BusObjectEntity.Holdings networkHoldings = new BusObjectEntity.Holdings(inventoriesOf(network));
+      // One pass, because the container is the side the index does not cover. Forty slots at most, and a
+      // network of any size costs nothing on top of it.
+      Map<Item, Integer> inContainer = new HashMap<>();
+      for (int slot = 0; slot < container.getSize(); slot++) {
+         slotsScanned++;
+         InventoryItem item = container.getItem(slot);
+         if (item != null) {
+            inContainer.merge(item.item, item.getAmount(), Integer::sum);
+         }
+      }
 
       for (Inventory fromInventory : from) {
          for (int slot = 0; slot < fromInventory.getSize(); slot++) {
@@ -595,8 +559,12 @@ public abstract class BusObjectEntity extends ObjectEntity {
                continue;
             }
 
-            String itemID = item.item.getStringID();
-            int allowed = this.allowedToMove(item.item, countIn(from, itemID), countIn(to, itemID), networkHoldings);
+            int held = inContainer.getOrDefault(item.item, 0);
+            int inNetwork = index.of(item.item);
+            int allowed = this.allowedToMove(item.item,
+               into ? held : inNetwork,
+               into ? inNetwork : held,
+               index);
             if (allowed <= 0) {
                continue;
             }
@@ -604,6 +572,10 @@ public abstract class BusObjectEntity extends ObjectEntity {
             int wanted = Math.min(Math.min(allowed, MAX_PER_TRANSFER), item.getAmount());
             int moved = move(level, fromInventory, to, item, wanted);
             if (moved > 0) {
+               // The index is the network's copy of the truth and we just changed the network, so it is
+               // corrected here rather than left to expire. Anything else on this network reads the new
+               // number immediately, which is what makes the shared copy safe to share.
+               index.changed(item.item, into ? moved : -moved);
                return moved;
             }
          }
@@ -667,6 +639,39 @@ public abstract class BusObjectEntity extends ObjectEntity {
    }
 
    /**
+    * The shared index for this bus's network, walking only when it has to.
+    *
+    * <p><b>This is where the idle cost went.</b> A bus used to walk its network every time it ticked, and so
+    * did every other bus on the same network, each building its own private count. Now the first device to ask
+    * within the freshness window walks and builds; the rest hold a reference to the same object and do
+    * nothing. A layout change invalidates every copy at once, so the saving costs no staleness that the old
+    * per-second recount did not already have.
+    *
+    * <p>Returns null when this bus is on no network, which the caller reports as a state rather than treating
+    * as an empty network -- the two are different mistakes and want different messages.
+    */
+   public NetworkIndex networkIndex() {
+      Level level = this.getLevel();
+      if (level == null) {
+         return null;
+      }
+
+      if (NetworkIndexes.stillGood(level, this.cachedNetwork, this)) {
+         return this.cachedNetwork;
+      }
+
+      // Itself first, and not as a nicety. The walk starts on this tile and tests its neighbours, so a device
+      // never discovers itself -- which would leave the shared list missing whichever device built it. Two
+      // consequences, both silent: a bus would not find its opposite number if that bus had built the index,
+      // so a conflict would go undetected; and no device would recognise itself as a member, so every one of
+      // them would walk again every tick and the sharing would achieve nothing.
+      List<ObjectEntity> devices = new ArrayList<>();
+      devices.add(this);
+      this.cachedNetwork = NetworkIndexes.share(level, this.network(devices), devices);
+      return this.cachedNetwork;
+   }
+
+   /**
     * The network this bus belongs to, walked from its own tile.
     *
     * <p>Recomputed rather than stored, for the same reason the terminal recomputes it: membership is a
@@ -683,7 +688,7 @@ public abstract class BusObjectEntity extends ObjectEntity {
     * walk as a conducting tile. Recording them there is what lets a bus ask whether anything else is
     * fighting it without a second traversal.
     */
-   public List<NetworkStorage> network(List<BusObjectEntity> peersOut) {
+   public List<NetworkStorage> network(List<ObjectEntity> devicesOut) {
       networkWalks++;
       final Level level = this.getLevel();
       return UnitNetwork.discover(this.tileX, this.tileY, (x, y) -> {
@@ -699,10 +704,10 @@ public abstract class BusObjectEntity extends ObjectEntity {
             return false;
          }
 
-         if (peersOut != null) {
+         if (devicesOut != null) {
             ObjectEntity at = level.entityManager.getObjectEntity(x, y);
             if (at instanceof BusObjectEntity && !at.removed()) {
-               peersOut.add((BusObjectEntity)at);
+               devicesOut.add(at);
             }
          }
 

@@ -3,7 +3,7 @@ package arcanestorage.objectentity;
 import java.util.Collections;
 import java.util.List;
 
-import arcanestorage.network.NetworkStorage;
+import arcanestorage.network.NetworkIndex;
 import necesse.inventory.Inventory;
 import necesse.inventory.item.Item;
 import necesse.level.maps.Level;
@@ -32,7 +32,7 @@ public class ExportBusObjectEntity extends BusObjectEntity {
     * set, a ticked item is sent in full.
     */
    @Override
-   protected int allowedToMove(Item item, int inSource, int inDestination, BusObjectEntity.Holdings network) {
+   protected int allowedToMove(Item item, int inSource, int inDestination, NetworkIndex network) {
       if (!this.filter.isItemAllowed(item)) {
          return 0;
       }
@@ -48,12 +48,12 @@ public class ExportBusObjectEntity extends BusObjectEntity {
    }
 
    @Override
-   protected List<Inventory> sources(List<NetworkStorage> network, Inventory container) {
-      return inventoriesOf(network);
+   protected List<Inventory> sources(NetworkIndex network, Inventory container) {
+      return network.memberInventories();
    }
 
    @Override
-   protected List<Inventory> destinations(List<NetworkStorage> network, Inventory container) {
+   protected List<Inventory> destinations(NetworkIndex network, Inventory container) {
       return Collections.singletonList(container);
    }
 }
