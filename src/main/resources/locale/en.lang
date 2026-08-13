@@ -13,6 +13,7 @@ arcanestorage_exportbustip=Moves items out of the network into a neighbouring co
 arcanestorage_bus_nocontainer=This bus has no container beside it, so it has nothing to move.
 arcanestorage_bus_nonetwork=This bus is not touching a storage network.
 arcanestorage_problems=<count> stopped at <where>
+arcanestorage_state_churn=Stopped: <item> kept moving back and forth without settling. Something outside this network is undoing the work.
 arcanestorage_state_conflict=Stopped: its rule for <item> cannot be met while the <other> at <x>,<y> shares this container. One fills the network, the other empties it.
 arcanestorage_buslimit=Amount of each
 arcanestorage_buslimithint=Any amount

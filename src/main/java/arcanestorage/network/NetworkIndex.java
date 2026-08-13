@@ -161,6 +161,14 @@ public final class NetworkIndex {
 
       this.lastReconciled = tick;
       IndexedInventories.claim(this);
+
+      // The network is not the one the scheduler last reasoned about, so nothing it was holding on to still
+      // applies: different members, possibly different devices, certainly different counts. The churn history
+      // goes too, which makes a churn stop temporary rather than permanent: a rebuild happens when the layout
+      // changes and at worst every thirty seconds, so a device whose tormentor has gone away resumes on its own,
+      // and one whose tormentor is still there stops again after a bounded number of moves. A stop that could
+      // only be lifted by editing a rule would need the player to work out what to edit.
+      this.scheduler.rulesChanged();
    }
 
    /**
@@ -205,6 +213,11 @@ public final class NetworkIndex {
 
       items[slot] = nowItem;
       amounts[slot] = nowAmount;
+
+      // Both kinds involved, because a slot changing kind can put the network above a floor for one item and
+      // below a ceiling for another at the same moment.
+      this.scheduler.markDirty(wasItem);
+      this.scheduler.markDirty(nowItem);
    }
 
    /**
@@ -260,6 +273,18 @@ public final class NetworkIndex {
    }
 
    private boolean reconcileRequested;
+
+   /**
+    * Takes the device list from a caller that has just walked the network.
+    *
+    * <p>Counts are untouched: who is watching a network has nothing to do with what it holds, and rebuilding
+    * for a device that arrived would throw away a correct index for no reason.
+    */
+   void adoptDevices(List<ObjectEntity> devices) {
+      if (devices != null && !devices.isEmpty()) {
+         this.devices = devices;
+      }
+   }
 
    /** Whether a build may still be trusted, on both counts it can go stale for. */
    boolean isFresh(long tick, long topologyVersion) {
@@ -402,6 +427,28 @@ public final class NetworkIndex {
    public long version() {
       return this.version;
    }
+
+   /**
+    * The kinds the network holds, as a snapshot.
+    *
+    * <p>A copy, because the caller is about to move items and moving them changes this. Iterating the live map
+    * while the hook writes to it would be a concurrent modification with a stack trace attached.
+    */
+   public List<Item> kindsHeld() {
+      return new ArrayList<>(this.counts.keySet());
+   }
+
+   /**
+    * This network's scheduler, created with the index and living as long as it does.
+    *
+    * <p>Attached to the index rather than to a device, because it belongs to the network: devices come and go,
+    * and the dirty set and the churn history should survive one of them being broken.
+    */
+   public NetworkScheduler scheduler() {
+      return this.scheduler;
+   }
+
+   private final NetworkScheduler scheduler = new NetworkScheduler(this);
 
    /** How many distinct kinds the network holds. For diagnosis. */
    public int kinds() {

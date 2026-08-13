@@ -106,6 +106,11 @@ this.filter = local;
       public void executePacket(PacketReader reader) {
          if (BusContainer.this.client.isServer()) {
             BusContainer.this.bus.filter.readPacket(reader);
+
+            // The network has to be told, or a rule the player just set would wait for some unrelated change
+            // to disturb the same item before anything happened. Nothing polls any more, so nothing would
+            // notice on its own.
+            BusContainer.this.bus.rulesChanged();
          }
       }
    }

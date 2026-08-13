@@ -33,13 +33,40 @@ public enum DeviceState {
     * winner would leave a rule silently doing nothing, which is the failure mode this whole mechanism
     * exists to remove.
     */
-   RULE_CONFLICT("arcanestorage_state_conflict");
+   RULE_CONFLICT("arcanestorage_state_conflict"),
+
+   /**
+    * An item kept moving without the network getting any closer to its rules, so the device stopped.
+    *
+    * <p>Separate from {@link #RULE_CONFLICT} because the cause is different and so is the fix. A rule conflict
+    * is two of our devices contradicting each other, which the static check can see and name. This is a loop
+    * closed outside the network -- a settler hauling items back, a hopper, another mod's pipe -- which nothing
+    * can see in advance and which is therefore caught on the evidence of the work itself.
+    */
+   CHURN("arcanestorage_state_churn");
 
    /** Locale key under {@code ui} explaining the state, or null when there is nothing to explain. */
    public final String localeKey;
 
    DeviceState(String localeKey) {
       this.localeKey = localeKey;
+   }
+
+   /**
+    * Whether this state means the device has been deliberately stopped, as against merely describing a
+    * situation.
+    *
+    * <p>The distinction matters because the states are recomputed on a heartbeat and can therefore be a second
+    * out of date, and a stale description must not stop a device working. A missing container or network is a
+    * fact the move path checks for itself as it goes; a rule conflict or a churn stop is a decision, and it is
+    * the decision that has to hold.
+    *
+    * <p>Got this wrong first: a bus that had been placed before its chest kept "no container" until the next
+    * heartbeat and refused to move anything in the meantime, which looked exactly like the bug this whole
+    * design was meant to remove.
+    */
+   public boolean stopsWork() {
+      return this == RULE_CONFLICT || this == CHURN;
    }
 
    public boolean isActive() {

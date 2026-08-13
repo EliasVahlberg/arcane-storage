@@ -6,9 +6,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import arcanestorage.network.DeviceOnNetwork;
+import arcanestorage.network.IndexedInventories;
 import arcanestorage.network.NetworkConductor;
 import arcanestorage.network.NetworkIndex;
 import arcanestorage.network.NetworkIndexes;
+import arcanestorage.network.NetworkScheduler;
 import arcanestorage.network.NetworkStorage;
 import arcanestorage.network.UnitNetwork;
 import necesse.engine.localization.Localization;
@@ -48,7 +51,7 @@ import necesse.level.maps.Level;
  * code can duplicate or destroy a stack. That ordering is deliberate and should not be reversed for
  * tidiness.
  */
-public abstract class BusObjectEntity extends ObjectEntity {
+public abstract class BusObjectEntity extends ObjectEntity implements DeviceOnNetwork {
 
    /**
     * Ticks between transfers. 20 is one second at the server's tick rate.
@@ -86,7 +89,6 @@ public abstract class BusObjectEntity extends ObjectEntity {
     */
    public final ItemCategoriesFilter filter;
 
-   private int ticksUntilTransfer = TRANSFER_INTERVAL;
 
    /**
     * Whether this bus is working, and why not when it is not.
@@ -112,6 +114,11 @@ public abstract class BusObjectEntity extends ObjectEntity {
     */
    private NetworkIndex cachedNetwork;
 
+   /** When this bus last looked for a network, and under which layout, so a fruitless search is not repeated. */
+   private long lastSearched = Long.MIN_VALUE / 2;
+
+   private long searchedUnderTopology = -1;
+
    /**
     * Counters for diagnosis, not for behaviour: how much work the buses are doing.
     *
@@ -127,6 +134,12 @@ public abstract class BusObjectEntity extends ObjectEntity {
 
    public static long networkWalks;
 
+   public static long walkedNoCache;
+
+   public static long walkedStale;
+
+   public static long walkedNotMember;
+
    /**
     * @param allowAllByDefault whether an unconfigured bus moves everything. True for an import bus, since
     *        importing only adds and "point it at a chest" is the whole feature; false for an export bus,
@@ -136,6 +149,11 @@ public abstract class BusObjectEntity extends ObjectEntity {
    protected BusObjectEntity(Level level, String stringID, int x, int y, boolean allowAllByDefault) {
       super(level, stringID, x, y);
       this.filter = new ItemCategoriesFilter(ItemCategory.masterCategory, allowAllByDefault);
+
+      // A device coming into existence changes the shape of a network, and this catches every way that can
+      // happen: placed by a player, created while a world loads, or put there by a test. The placement hook on
+      // the object covers only the first of those.
+      NetworkIndexes.topologyChanged();
    }
 
    /**
@@ -239,28 +257,115 @@ public abstract class BusObjectEntity extends ObjectEntity {
          return;
       }
 
-      if (--this.ticksUntilTransfer > 0) {
-         return;
-      }
-
-      this.ticksUntilTransfer = TRANSFER_INTERVAL;
-
       Level level = this.getLevel();
       if (level == null) {
          return;
       }
 
-      // One index serves both jobs, and usually somebody else built it. Evaluating the state needs the
-      // network and the buses on it, and so does transferring, so both read the same shared copy.
-      Inventory container = this.attachedContainer();
-      NetworkIndex index = container == null ? null : this.networkIndex();
-
-      if (!this.evaluate(container, index).isActive()) {
+      // A bus no longer decides anything on a timer. It contributes rules, executes what the network's
+      // scheduler asks of it, and -- if it happens to be the lowest-ordered device on the network -- drives
+      // that scheduler. Every bus still ticks, because that is how the engine reaches us, but a tick with
+      // nothing dirty costs a few field reads.
+      NetworkIndex index = this.networkIndex();
+      if (index == null) {
+         this.evaluate(this.attachedContainer(), null);
          return;
       }
 
-      transfers++;
-      this.transferOnce(level, container, index);
+      // The container is watched so that somebody filling it wakes the network. Re-registered on every tick
+      // rather than once, because the chest a bus points at can be broken and replaced without anything
+      // telling us, and the registration is a map put with an unchanged value in the common case.
+      IndexedInventories.watch(this.attachedContainer(), index);
+
+      NetworkIndexes.drive(level, index, this);
+   }
+
+   /**
+    * Runs the network's scheduler if this bus leads it.
+    *
+    * <p>Called from the tick rather than being the tick, because leadership is a property of the network and
+    * every device asks the same question of the same list.
+    */
+   @Override
+   public long tileOrder() {
+      return ((long)this.tileY << 32) | (this.tileX & 0xFFFFFFFFL);
+   }
+
+   @Override
+   public boolean fillsNetwork() {
+      return this.movesIntoNetwork();
+   }
+
+   @Override
+   public boolean wants(Item item) {
+      return item != null && this.filter.isItemAllowed(item);
+   }
+
+   @Override
+   public int targetFor(Item item, NetworkIndex index) {
+      return this.networkShouldHold(item, index);
+   }
+
+   @Override
+   public Inventory container() {
+      return this.attachedContainer();
+   }
+
+   @Override
+   public void revalidate(NetworkIndex index) {
+      this.evaluate(this.attachedContainer(), index);
+   }
+
+   @Override
+   public void reportChurn(Item item) {
+      this.setState(DeviceState.CHURN, item.getStringID(), this.tileX, this.tileY);
+   }
+
+   /**
+    * Moves up to {@code amount} of one item in this bus's direction.
+    *
+    * <p>Bounded by {@link #MAX_PER_TRANSFER} per call so that one item cannot consume a whole network's budget
+    * in a single move, and so a large transfer stays visible as it happens rather than teleporting.
+    *
+    * <p>The source side is scanned for the item, which is the one place this design still does more work than
+    * it needs to: the index knows how many of a thing the network holds but not which unit holds them. A
+    * location index -- what vanilla's settlement storage keeps, a record per stack -- would turn this into a
+    * lookup, and is the obvious next improvement rather than something this step needs.
+    */
+   @Override
+   public int moveItem(Level level, NetworkIndex index, Item item, int amount) {
+      if (this.state.stopsWork() || amount <= 0) {
+         return 0;
+      }
+
+      Inventory container = this.attachedContainer();
+      if (container == null) {
+         return 0;
+      }
+
+      List<Inventory> from = this.sources(index, container);
+      List<Inventory> to = this.destinations(index, container);
+      int wanted = Math.min(amount, MAX_PER_TRANSFER);
+      int movedTotal = 0;
+
+      for (Inventory fromInventory : from) {
+         for (int slot = 0; slot < fromInventory.getSize() && movedTotal < wanted; slot++) {
+            slotsScanned++;
+            InventoryItem inSlot = fromInventory.getItem(slot);
+            if (inSlot == null || inSlot.item != item) {
+               continue;
+            }
+
+            int take = Math.min(wanted - movedTotal, inSlot.getAmount());
+            movedTotal += move(level, fromInventory, to, inSlot, take);
+         }
+      }
+
+      if (movedTotal > 0) {
+         transfers++;
+      }
+
+      return movedTotal;
    }
 
    /**
@@ -280,6 +385,14 @@ public abstract class BusObjectEntity extends ObjectEntity {
 
       if (index == null || index.units().isEmpty()) {
          return this.setState(DeviceState.NO_NETWORK, null, 0, 0);
+      }
+
+      // Before the rule comparison, because a stop already decided on the evidence of the work itself outranks
+      // a fresh look at the rules -- which will say everything is fine, since the rules are fine. What is wrong
+      // is outside them.
+      Item churning = index.scheduler().stalledItemFor(this);
+      if (churning != null) {
+         return this.setState(DeviceState.CHURN, churning.getStringID(), this.tileX, this.tileY);
       }
 
       BusObjectEntity opposed = null;
@@ -639,6 +752,20 @@ public abstract class BusObjectEntity extends ObjectEntity {
    }
 
    /**
+    * The player changed this bus's rules, so the network reconsiders everything and every device revalidates.
+    *
+    * <p>Called from the panel's apply path and from the harness's rule verbs. Without it a new rule would sit
+    * unnoticed until something else happened to disturb the same item -- which was the first thing to go wrong
+    * when the timers came out, and it made a correct system look broken.
+    */
+   public void rulesChanged() {
+      NetworkIndex index = this.networkIndex();
+      if (index != null) {
+         index.scheduler().rulesChanged();
+      }
+   }
+
+   /**
     * The shared index for this bus's network, walking only when it has to.
     *
     * <p><b>This is where the idle cost went.</b> A bus used to walk its network every time it ticked, and so
@@ -656,6 +783,24 @@ public abstract class BusObjectEntity extends ObjectEntity {
          return null;
       }
 
+      // A bus that found no network at all has nothing to cache, so without this it would walk on every single
+      // tick -- measured at 62 walks in 60 ticks for one disconnected bus, which is worse than the timer this
+      // design replaced. Retried at the heartbeat cadence instead, and immediately when the layout changes,
+      // which is the only thing that can connect it.
+      if (this.cachedNetwork == null
+            && this.searchedUnderTopology == NetworkIndexes.topologyVersion()
+            && NetworkIndexes.ticksSince(level, this.lastSearched) < NetworkScheduler.HEARTBEAT_TICKS) {
+         return null;
+      }
+
+      if (this.cachedNetwork == null) {
+         walkedNoCache++;
+      } else if (!NetworkIndexes.freshFor(level, this.cachedNetwork)) {
+         walkedStale++;
+      } else if (!this.cachedNetwork.holds(this)) {
+         walkedNotMember++;
+      }
+
       if (NetworkIndexes.stillGood(level, this.cachedNetwork, this)) {
          // The periodic check lives here rather than on a timer of its own: a network with no devices left has
          // nobody to be wrong for, and one being used is exactly the one worth checking.
@@ -671,6 +816,8 @@ public abstract class BusObjectEntity extends ObjectEntity {
       List<ObjectEntity> devices = new ArrayList<>();
       devices.add(this);
       this.cachedNetwork = NetworkIndexes.share(level, this.network(devices), devices);
+      this.lastSearched = NetworkIndexes.tickOn(level);
+      this.searchedUnderTopology = NetworkIndexes.topologyVersion();
       return this.cachedNetwork;
    }
 

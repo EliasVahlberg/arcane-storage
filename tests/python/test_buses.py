@@ -58,13 +58,18 @@ def test_an_unconfigured_import_bus_moves_everything(bussed):
 
 
 def test_a_rule_makes_the_import_bus_selective(bussed):
-    """An unticked item stays where it is."""
-    bussed.harness.fill(3, 0, "ironbar", 30)
-    bussed.harness.fill(3, 0, "stone", 30)
+    """An unticked item stays where it is.
+
+    The rule goes on before the chest is filled, because a bus now acts as soon as something changes: an
+    unconfigured bus given thirty stone will have taken it before the rule arrives, which is correct behaviour
+    and not what this test is about.
+    """
     # 'only' is the panel's "Clear all" button followed by ticking one item, which is what a player does.
     bussed.harness.do("rule", 2, 0, "only", "ironbar")
+    bussed.harness.fill(3, 0, "ironbar", 30)
+    bussed.harness.fill(3, 0, "stone", 30)
 
-    bussed.harness.do("transfer", 2, 0, 4)
+    bussed.harness.settle(20)
 
     assert bussed.count("ironbar") == 30
     assert bussed.count("stone") == 0, "stone is not ticked, so it does not move"

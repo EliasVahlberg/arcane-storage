@@ -59,6 +59,16 @@ public final class NetworkIndexes {
       topologyVersion++;
    }
 
+   /** The server's tick count on a level. Public so a device can time its own retries by the same clock. */
+   public static long tickOn(Level level) {
+      return tickOf(level);
+   }
+
+   /** How long ago something happened, in ticks. */
+   public static long ticksSince(Level level, long then) {
+      return tickOf(level) - then;
+   }
+
    /** The current topology version, for anything holding a build under it. */
    public static long topologyVersion() {
       return topologyVersion;
@@ -84,6 +94,14 @@ public final class NetworkIndexes {
 
       NetworkIndex existing = indexes.get(key);
       if (existing != null && existing.isFresh(tick, topologyVersion)) {
+         // The caller has just walked, so its list of devices is current by definition -- adopt it rather than
+         // keeping the one whoever built this entry happened to see. Without this, a device placed after the
+         // entry was built would never appear in it, would never recognise itself as a member, and would walk
+         // the network on every single tick while the shared copy went on ignoring it. That is not
+         // hypothetical: it measured 62 walks in 60 ticks, and it only showed up because the test harness
+         // places objects through setObject and so never runs the placement hook that would have invalidated
+         // the entry. Relying on that hook for device membership was the mistake; the walk already knows.
+         existing.adoptDevices(devices);
          return existing;
       }
 
@@ -107,10 +125,33 @@ public final class NetworkIndexes {
     * fresh -- which another device on the same network may have refreshed on its behalf -- it does no work at
     * all.
     */
+   /** Whether a build is still current, ignoring who is asking. For diagnosis. */
+   public static boolean freshFor(Level level, NetworkIndex index) {
+      return index != null && index.isFresh(tickOf(level), topologyVersion);
+   }
+
    public static boolean stillGood(Level level, NetworkIndex index, ObjectEntity device) {
       return index != null
          && index.isFresh(tickOf(level), topologyVersion)
          && index.holds(device);
+   }
+
+   /**
+    * Lets one device drive its network's scheduler, if it is the one that should.
+    *
+    * <p>Every device calls this on every tick and all but one of them return immediately. That is deliberate:
+    * leadership is derived from the device list rather than stored, so there is no election to get wrong, no
+    * state to persist, and no gap when the leader is broken -- the next tick's list simply has a new lowest
+    * member.
+    */
+   public static void drive(Level level, NetworkIndex index, DeviceOnNetwork device) {
+      if (index == null || !index.scheduler().leads(device)) {
+         return;
+      }
+
+      long tick = tickOf(level);
+      index.scheduler().tick(level, tick);
+      index.reconcile(tick);
    }
 
    /** Runs an index's periodic self-check, if it is due one. */

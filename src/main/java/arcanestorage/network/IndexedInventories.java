@@ -55,17 +55,75 @@ public final class IndexedInventories {
    private IndexedInventories() {
    }
 
+   /**
+    * Containers a device is attached to: changes there wake the network, but their contents are not counted.
+    *
+    * <p>Kept apart from the members for a reason that would otherwise be a duplication bug: a chest beside an
+    * import bus is not part of the network's holdings, and counting it would have the network believe it owns
+    * items sitting in somebody's chest. What a change there does mean is that there may now be work to do.
+    */
+   private static final Map<Inventory, NetworkIndex> WATCHED = new ConcurrentHashMap<>();
+
+   /**
+    * What was last seen in each slot of a watched container.
+    *
+    * <p>Only the kinds, never the amounts: nothing counts a chest, and all the network needs from a change there
+    * is which item to reconsider. It matters most when a slot goes <i>empty</i>, because the slot itself no
+    * longer says what left it -- and the alternative, reconsidering every item on the network, turned out to be
+    * both wasteful and actively harmful: it ran several times a second while a bus drained a chest, and it wiped
+    * the churn detector's evidence each time.
+    */
+   private static final Map<Inventory, Item[]> WATCHED_SHADOW = new ConcurrentHashMap<>();
+
    /** Called from the patch, for every inventory in the game. Must stay cheap. */
    public static void slotChanged(Inventory inventory, int slot) {
       notifications++;
 
       NetworkIndex index = OWNERS.get(inventory);
-      if (index == null) {
+      if (index != null) {
+         relevant++;
+         index.slotChanged(inventory, slot);
+         return;
+      }
+
+      NetworkIndex watching = WATCHED.get(inventory);
+      if (watching == null) {
          return;
       }
 
       relevant++;
-      index.slotChanged(inventory, slot);
+
+      // Only the disturbance, not a count: what changed in somebody's chest is the network's business only in so
+      // far as it may now have something to do about it.
+      Item now = itemIn(inventory, slot);
+      Item[] shadow = WATCHED_SHADOW.get(inventory);
+      Item was = shadow != null && slot >= 0 && slot < shadow.length ? shadow[slot] : null;
+
+      if (shadow != null && slot >= 0 && slot < shadow.length) {
+         shadow[slot] = now;
+      }
+
+      watching.scheduler().markDirty(now);
+      if (was != now) {
+         watching.scheduler().markDirty(was);
+      }
+   }
+
+   /** Registers a device's container, so a change in it wakes the network. */
+   public static void watch(Inventory container, NetworkIndex index) {
+      if (container == null || index == null) {
+         return;
+      }
+
+      WATCHED.put(container, index);
+      WATCHED_SHADOW.computeIfAbsent(container, inventory -> {
+         Item[] seen = new Item[inventory.getSize()];
+         for (int slot = 0; slot < seen.length; slot++) {
+            seen[slot] = itemIn(inventory, slot);
+         }
+
+         return seen;
+      });
    }
 
    /** Points every member inventory of an index at it. Called when an index is built or rebuilt. */
@@ -89,6 +147,8 @@ public final class IndexedInventories {
    /** Everything, for the harness between scenarios. */
    public static void forget() {
       OWNERS.clear();
+      WATCHED.clear();
+      WATCHED_SHADOW.clear();
    }
 
    /** How many inventories are being watched. For diagnosis. */

@@ -1,5 +1,6 @@
 package arcanestorage.objectentity;
 
+import arcanestorage.network.NetworkIndexes;
 import arcanestorage.network.NetworkStorage;
 import necesse.entity.objectEntity.InventoryObjectEntity;
 import necesse.entity.objectEntity.ObjectEntity;
@@ -24,6 +25,10 @@ public class StorageUnitObjectEntity extends InventoryObjectEntity implements Ne
    public StorageUnitObjectEntity(Level level, int x, int y, int slots) {
       super(level, x, y, slots);
       this.type = TYPE;
+
+      // A unit appearing changes what networks exist, and this catches the paths the object's placement hook
+      // does not: a world loading, and a test placing one directly.
+      NetworkIndexes.topologyChanged();
    }
 
    /** Number of occupied slots, for the interact readout. */

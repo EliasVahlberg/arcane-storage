@@ -18,6 +18,7 @@ import arcanestorage.network.NetworkConductor;
 import arcanestorage.network.IndexedInventories;
 import arcanestorage.network.NetworkIndex;
 import arcanestorage.network.NetworkIndexes;
+import arcanestorage.network.NetworkScheduler;
 import arcanestorage.network.NetworkStorage;
 import necesse.engine.network.Packet;
 import necesse.engine.network.PacketReader;
@@ -36,6 +37,7 @@ import necesse.inventory.InventoryItem;
 import necesse.level.maps.Level;
 import necesse.level.maps.regionSystem.RegionManager;
 import necesseheadlessharness.Harness;
+import necesseheadlessharness.Ticks;
 import necesseheadlessharness.command.TestContext;
 import necesseheadlessharness.Json;
 import necesseheadlessharness.command.TestQuery;
@@ -76,6 +78,7 @@ public final class ArcaneStorageVerbs {
       Harness.registerVerb(new ReportVerb());
       Harness.registerVerb(new ResetVerb());
       Harness.registerVerb(new IndexPoisonVerb());
+      Harness.registerVerb(new HaulVerb());
       Harness.registerVerb(new WithdrawVerb());
       Harness.registerVerb(new DepositVerb());
       Harness.registerVerb(new DepositAllVerb());
@@ -505,6 +508,7 @@ public final class ArcaneStorageVerbs {
          String word = context.arg(3);
          if ("all".equals(word) || "none".equals(word)) {
             bus.filter.master.setAllowed("all".equals(word));
+            bus.rulesChanged();
             context.info("set every item " + ("all".equals(word) ? "allowed" : "denied"));
             return true;
          }
@@ -530,6 +534,7 @@ public final class ArcaneStorageVerbs {
             bus.filter.setItemAllowed(item, allowed);
          }
 
+         bus.rulesChanged();
          context.info((allowed ? "allowed " : "denied ") + itemStringID
                + (target > 0 ? ", network should hold " + target : ""));
          return true;
@@ -694,6 +699,30 @@ public final class ArcaneStorageVerbs {
          out.num("indexes", NetworkIndexes.indexedOn(context.level));
          out.num("rebuilds", NetworkIndex.rebuilds);
          out.num("driftslots", NetworkIndex.driftScans);
+
+         // The scheduler's own state, because "nothing moved" has several very different causes: nothing was
+         // dirty, nothing led the network, the budget ran out, or an item was given up on.
+         out.num("scheduled", NetworkScheduler.scheduled);
+         out.num("deferred", NetworkScheduler.deferred);
+         out.num("resolves", NetworkScheduler.resolves);
+         out.num("tick", context.level.getWorldEntity() == null ? -1
+               : context.level.getWorldEntity().getGameTicks());
+
+         int pending = 0;
+         int stalled = 0;
+         int leaders = 0;
+         for (NetworkIndex index : NetworkIndexes.on(context.level)) {
+            pending += index.scheduler().pending();
+            stalled += index.scheduler().stalledCount();
+            leaders += index.scheduler().hasLeader() ? 1 : 0;
+         }
+
+         out.num("pending", pending);
+         out.num("stalled", stalled);
+         out.num("led", leaders);
+         out.num("nocache", BusObjectEntity.walkedNoCache);
+         out.num("stale", BusObjectEntity.walkedStale);
+         out.num("notmember", BusObjectEntity.walkedNotMember);
       }
    }
 
@@ -897,6 +926,86 @@ public final class ArcaneStorageVerbs {
       }
    }
 
+   /**
+    * Plays the part of something outside the network that keeps undoing its work.
+    *
+    * <p>{@code haul <dx> <dy> <itemStringID> <amountPerTick> <ticks>} -- every tick, moves that much of the item
+    * out of the network's units and back into the container at those coordinates.
+    *
+    * <p>This exists because the churn backstop cannot be provoked any other way. A cycle built only from our own
+    * devices always has one container with both an import and an export bus on it, which the static check sees
+    * and stops before anything moves. The loops the backstop is actually for are closed by somebody else -- a
+    * settler hauling to a priority container, a hopper, another mod's pipe -- and none of those exist in a
+    * scenario. So a scenario has to play the settler.
+    */
+   private static final class HaulVerb implements TestVerb {
+      public String name() {
+         return "haul";
+      }
+
+      public String usage() {
+         return "haul <dx> <dy> <itemStringID> <amountPerTick> <ticks>";
+      }
+
+      public int coordinateArgIndex() {
+         return 1;
+      }
+
+      public boolean run(TestContext context) {
+         int x = context.tileX(context.intArg(1));
+         int y = context.tileY(context.intArg(2));
+         Item item = ItemRegistry.getItem(context.arg(3));
+         int perTick = context.intArg(4);
+         int ticks = context.intArg(5);
+         Level level = context.level;
+
+         if (item == null) {
+            return context.check(false, "haul " + context.arg(3), "no such item");
+         }
+
+         ObjectEntity target = level.entityManager.getObjectEntity(x, y);
+         if (!(target instanceof OEInventory)) {
+            return context.check(false, "haul into " + x + "," + y, "no container there");
+         }
+
+         Inventory destination = ((OEInventory)target).getInventory();
+         int[] remaining = {ticks};
+
+         Ticks.each(tickedLevel -> {
+            if (remaining[0]-- <= 0) {
+               return false;
+            }
+
+            int moved = 0;
+            for (NetworkStorage unit : allUnits(level)) {
+               Inventory from = unit.getInventory();
+               for (int slot = 0; slot < from.getSize() && moved < perTick; slot++) {
+                  InventoryItem inSlot = from.getItem(slot);
+                  if (inSlot == null || inSlot.item != item) {
+                     continue;
+                  }
+
+                  InventoryItem moving = inSlot.copy();
+                  moving.setAmount(Math.min(perTick - moved, inSlot.getAmount()));
+                  int wanted = moving.getAmount();
+                  destination.addItem(level, null, moving, "haul", null);
+                  int accepted = wanted - moving.getAmount();
+                  if (accepted > 0) {
+                     from.removeItems(level, null, item, accepted, "haul");
+                     moved += accepted;
+                  }
+               }
+            }
+
+            return true;
+         });
+
+         context.info("hauling " + perTick + " " + context.arg(3) + " per tick back to " + x + "," + y
+            + " for " + ticks + " ticks");
+         return true;
+      }
+   }
+
    private static final class BusStatsResetVerb implements TestVerb {
       public String name() {
          return "busstatsreset";
@@ -910,9 +1019,15 @@ public final class ArcaneStorageVerbs {
          BusObjectEntity.moves = 0;
          BusObjectEntity.transfers = 0;
          BusObjectEntity.slotsScanned = 0;
+         BusObjectEntity.walkedNoCache = 0;
+         BusObjectEntity.walkedStale = 0;
+         BusObjectEntity.walkedNotMember = 0;
          NetworkIndex.rebuilds = 0;
          NetworkIndex.resyncs = 0;
          NetworkIndex.driftScans = 0;
+         NetworkScheduler.scheduled = 0;
+         NetworkScheduler.deferred = 0;
+         NetworkScheduler.resolves = 0;
          BusObjectEntity.networkWalks = 0;
          context.info("counters zeroed");
          return true;
@@ -948,6 +1063,7 @@ public final class ArcaneStorageVerbs {
          String mode = context.arg(3);
          if (mode.equals("none")) {
             bus.filter.maxAmount = Integer.MAX_VALUE;
+            bus.rulesChanged();
             context.info("cleared the panel-wide limit");
             return true;
          }
@@ -971,6 +1087,7 @@ public final class ArcaneStorageVerbs {
          }
 
          bus.filter.maxAmount = context.intArg(4);
+         bus.rulesChanged();
          context.info("limit " + bus.filter.maxAmount + " in mode " + bus.filter.limitMode);
          return true;
       }
@@ -1011,6 +1128,7 @@ public final class ArcaneStorageVerbs {
          }
 
          category.setMaxItems(context.intArg(4));
+         bus.rulesChanged();
          context.info("category " + category.category.stringID + " limited to " + category.getMaxItems());
          return true;
       }

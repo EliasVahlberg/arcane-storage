@@ -66,12 +66,13 @@ def test_a_settled_network_stops_doing_work(storage):
     assert stats["moves"] == 0, "nothing left to move"
 
 
-@pytest.mark.xfail(strict=True, reason="one item type per bus per second; a mixed chest drains too slowly")
 def test_how_long_a_mixed_chest_takes_to_drain(storage):
     """The other candidate: not stuck, just slow. One item type per bus per second.
 
     A chest holding a spread of items is the normal case -- it is what a settler fills -- so this is the
-    number a player experiences.
+    number a player experiences. It used to leave three of eight kinds behind after five seconds, because a bus
+    could only think about one kind each time its timer fired. The scheduler considers every disturbed item
+    under one per-network budget, so the whole chest now goes in a tick or two.
     """
     storage.place("terminal", 0, 0)
     storage.place("unit", 1, 0)
