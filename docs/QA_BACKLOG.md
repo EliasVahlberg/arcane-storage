@@ -97,6 +97,23 @@ Open the terminal and pick the Logistics tab. There should be four tabs now.
    rather than showing rules for something that no longer exists, and the list should lose the row.
 8. **A bigger network**, if convenient: five or six buses. The list scrolls; the pane does not move.
 
+### Bus names — new, none of it seen
+
+1. **Open a bus.** The top row should be its name, in an editable box, where the type heading used to be. Judge
+   whether it reads as a title rather than as a stray input.
+2. **Place three import buses and one export bus.** They should be Import Bus #1, #2, #3 and Export Bus #1 --
+   the two directions count separately.
+3. **Rename one** to something like "Grain Import", from the bus and again from the logistics tab. Both routes
+   should work and the new name should appear in the tab's row, in the bus's panel, and in any stopped-device
+   reason that mentions it.
+4. **Clear the box.** It should go back to its assigned number rather than becoming blank.
+5. **Save and reload the world.** Names and numbers should come back. This is the one thing here no test covers:
+   the harness cannot reload a world.
+6. **Break a numbered bus and place a new one.** The survivors should keep their numbers and the new one should
+   take a number nobody is using. Tested headlessly, but worth one look.
+7. **Cause a conflict** and read the reason. It should name the other device rather than only giving its
+   coordinates.
+
 Known and deliberate, so not bugs:
 
 - The stopped sprites are luminance-weighted desaturations of the current placeholder art, generated in a
@@ -105,6 +122,10 @@ Known and deliberate, so not bugs:
   still there, it stops again after about forty moves. That is intended: a stop that could only be lifted by
   editing a rule would need the player to work out what to edit.
 - The commits for this work are unsigned. The signing key needs a passphrase typed by a person.
+- A bus placed with nothing to connect to has no number until it joins a network, and shows its plain object
+  name until then. A number means a position within a network, so there is nothing to number against.
+- The red issues panel wraps to four lines. Enough stopped devices will overflow it; the device list is still
+  complete and still red per row.
 - The logistics tab shows one device's rules at a time rather than a column of expanding rows. That is a
   departure from what was asked for, and the reason is that the editor contains a scrolling category tree:
   nesting one inside each row of another scrolling list means two nested scroll regions, and a content box
