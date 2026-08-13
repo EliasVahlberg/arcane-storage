@@ -35,6 +35,9 @@ public class BusContainer extends Container {
 
    public final BusContainer.SetFilterAction setFilterAction;
 
+   /** The server's refusal channel. Registered in the same order on both sides, as all actions must be. */
+   public final BusContainer.RejectFilterAction rejectFilterAction;
+
    public BusContainer(NetworkClient client, int uniqueSeed, BusObjectEntity bus, Packet content) {
       super(client, uniqueSeed);
       this.bus = bus;
@@ -50,6 +53,7 @@ this.filter = local;
       }
 
       this.setFilterAction = this.registerAction(new BusContainer.SetFilterAction());
+      this.rejectFilterAction = this.registerAction(new BusContainer.RejectFilterAction());
    }
 
    /**
@@ -104,14 +108,67 @@ this.filter = local;
 
       @Override
       public void executePacket(PacketReader reader) {
-         if (BusContainer.this.client.isServer()) {
-            BusContainer.this.bus.filter.readPacket(reader);
+         if (!BusContainer.this.client.isServer()) {
+            return;
+         }
 
-            // The network has to be told, or a rule the player just set would wait for some unrelated change
-            // to disturb the same item before anything happened. Nothing polls any more, so nothing would
-            // notice on its own.
-            BusContainer.this.bus.rulesChanged();
+         // Read into a copy first. The point of an Apply button is that a rule set is adopted or refused as one
+         // thing, and a filter read straight into the bus would already be in force by the time anything could
+         // object -- possibly with half of it contradicting a neighbour and the other half fine.
+         ItemCategoriesFilter proposed = new ItemCategoriesFilter(ItemCategory.masterCategory, false);
+         proposed.readPacket(reader);
+
+         String refusal = BusContainer.this.bus.whyRefused(proposed);
+         if (refusal != null) {
+            // Nothing is applied, not even the parts that were harmless. A half-applied rule set is a state the
+            // player did not ask for and cannot see, which is worse than a refusal they can read.
+            BusContainer.this.rejectFilterAction.runAndSend(refusal);
+            return;
+         }
+
+         BusContainer.this.bus.filter.readPacket(new PacketReader(writeOf(proposed)));
+
+         // The network has to be told, or a rule the player just set would wait for some unrelated change to
+         // disturb the same item before anything happened. Nothing polls any more, so nothing would notice.
+         BusContainer.this.bus.rulesChanged();
+      }
+   }
+
+   /** A filter as a packet, so an accepted proposal can be copied into the bus's own filter. */
+   private static Packet writeOf(ItemCategoriesFilter filter) {
+      Packet content = new Packet();
+      filter.writePacket(new PacketWriter(content));
+      return content;
+   }
+
+   /**
+    * The server's answer when a rule set is refused, carrying the reason back to the client that sent it.
+    *
+    * <p>{@code runAndSendAction} is symmetric -- a container on the server sends to its own client -- so the
+    * reply needs no new packet type, and it reaches only the player who tried, which is where it belongs.
+    */
+   public class RejectFilterAction extends ContainerCustomAction {
+
+      public void runAndSend(String reason) {
+         Packet content = new Packet();
+         new PacketWriter(content).putNextString(reason);
+         this.runAndSendAction(content);
+      }
+
+      @Override
+      public void executePacket(PacketReader reader) {
+         String reason = reader.getNextString();
+         if (!BusContainer.this.client.isServer()) {
+            BusContainer.this.refusal = reason;
          }
       }
    }
+
+   /**
+    * Why the last attempt to apply a rule set was refused, or null.
+    *
+    * <p>Transient and per-attempt: not saved, not synced to anyone else, and cleared as soon as an attempt
+    * succeeds. It belongs to one player's edit, not to the bus.
+    */
+   public String refusal;
 }

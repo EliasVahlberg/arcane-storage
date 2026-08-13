@@ -193,14 +193,19 @@ public abstract class BusObjectEntity extends ObjectEntity implements DeviceOnNe
     * the mode dropdown is therefore not offered.
     */
    public int networkShouldHold(Item item, NetworkIndex network) {
+      return this.networkShouldHold(this.filter, item, network);
+   }
+
+   /** The same, reading a filter that need not be the one this bus is using -- see {@link #whyRefused}. */
+   public int networkShouldHold(ItemCategoriesFilter rules, Item item, NetworkIndex network) {
       int ceiling = NO_TARGET;
 
-      ItemCategoriesFilter.ItemLimits limits = this.filter.getItemLimits(item);
+      ItemCategoriesFilter.ItemLimits limits = rules.getItemLimits(item);
       if (limits != null && !limits.isDefault()) {
          ceiling = tighten(ceiling, limits.getMaxItems());
       }
 
-      for (ItemCategoriesFilter.ItemCategoryFilter category = this.filter.getItemCategory(item);
+      for (ItemCategoriesFilter.ItemCategoryFilter category = rules.getItemCategory(item);
             category != null;
             category = category.parent) {
          if (!category.isDefault()) {
@@ -208,17 +213,17 @@ public abstract class BusObjectEntity extends ObjectEntity implements DeviceOnNe
          }
       }
 
-      if (this.filter.maxAmount != Integer.MAX_VALUE) {
+      if (rules.maxAmount != Integer.MAX_VALUE) {
          // Per item, whatever mode the filter carries. A bus's number cannot sensibly mean anything else:
          // read as a cap on the network's entire item count -- which is what TOTAL_ITEMS means, and it is
          // the mode the panel starts in -- a network holding more than the number leaves zero headroom, so
          // an import bus stops dead and an export bus sees the whole network as surplus. Both were observed
          // in game. The panel's mode dropdown is not offered for a bus for the same reason.
-         boolean inStacks = this.filter.limitMode == ItemCategoriesFilter.ItemLimitMode.TOTAL_STACKS
-               || this.filter.limitMode == ItemCategoriesFilter.ItemLimitMode.TOTAL_STACKS_EACH_ITEM;
+         boolean inStacks = rules.limitMode == ItemCategoriesFilter.ItemLimitMode.TOTAL_STACKS
+               || rules.limitMode == ItemCategoriesFilter.ItemLimitMode.TOTAL_STACKS_EACH_ITEM;
          ceiling = tighten(ceiling, inStacks
-               ? this.filter.maxAmount * item.getStackSize()
-               : this.filter.maxAmount);
+               ? rules.maxAmount * item.getStackSize()
+               : rules.maxAmount);
       }
 
       return ceiling;
@@ -442,15 +447,28 @@ public abstract class BusObjectEntity extends ObjectEntity implements DeviceOnNe
    private static String firstUnsatisfiableItem(
       BusObjectEntity importer, BusObjectEntity exporter, NetworkIndex network
    ) {
+      return firstUnsatisfiableItem(importer.filter, exporter.filter, importer, exporter, network);
+   }
+
+   /**
+    * The same question with the filters given separately from the buses that hold them.
+    *
+    * <p>Which is what makes a proposal judgeable: the numbers come from a filter, and the filter need not be the
+    * one the device is currently using.
+    */
+   private static String firstUnsatisfiableItem(
+      ItemCategoriesFilter importRules, ItemCategoriesFilter exportRules,
+      BusObjectEntity importer, BusObjectEntity exporter, NetworkIndex network
+   ) {
       for (Item item : ItemRegistry.getItems()) {
          if (item == null
-               || !importer.filter.isItemAllowed(item)
-               || !exporter.filter.isItemAllowed(item)) {
+               || !importRules.isItemAllowed(item)
+               || !exportRules.isItemAllowed(item)) {
             continue;
          }
 
-         int ceiling = importer.networkShouldHold(item, network);
-         int floor = exporter.networkShouldHold(item, network);
+         int ceiling = importer.networkShouldHold(importRules, item, network);
+         int floor = exporter.networkShouldHold(exportRules, item, network);
          if (ceiling == NO_TARGET || ceiling > Math.max(floor, 0)) {
             return item.getStringID();
          }
@@ -749,6 +767,49 @@ public abstract class BusObjectEntity extends ObjectEntity implements DeviceOnNe
       }
 
       return total;
+   }
+
+   /**
+    * Why a proposed rule set would be refused, or null if it is fine.
+    *
+    * <p>The right moment to reject an unsatisfiable rule set is when it is written, not by retrying the write
+    * forever -- which is what the old code did, and what a player experienced as items shuttling back and forth.
+    * A device that has already been stopped can explain itself, but a rule that was never accepted needs no
+    * explaining later.
+    *
+    * <p>Evaluated against the proposal rather than by adopting it and looking: a rule set is accepted or refused
+    * as one thing, so nothing may be in force while it is still being judged.
+    */
+   public String whyRefused(ItemCategoriesFilter proposed) {
+      Inventory container = this.attachedContainer();
+      NetworkIndex index = this.networkIndex();
+      if (container == null || index == null) {
+         return null;
+      }
+
+      for (ObjectEntity peer : index.devices()) {
+         if (peer == this || !(peer instanceof BusObjectEntity)) {
+            continue;
+         }
+
+         BusObjectEntity other = (BusObjectEntity)peer;
+         if (other.movesIntoNetwork() == this.movesIntoNetwork() || other.attachedContainer() != container) {
+            continue;
+         }
+
+         String contested = this.movesIntoNetwork()
+            ? firstUnsatisfiableItem(proposed, other.filter, this, other, index)
+            : firstUnsatisfiableItem(other.filter, proposed, other, this, index);
+
+         if (contested != null) {
+            return Localization.translate("ui", "arcanestorage_refused",
+               "item", Localization.translate("item", contested),
+               "x", String.valueOf(other.tileX),
+               "y", String.valueOf(other.tileY));
+         }
+      }
+
+      return null;
    }
 
    /**

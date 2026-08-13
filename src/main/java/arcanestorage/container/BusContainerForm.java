@@ -53,6 +53,12 @@ public class BusContainerForm<T extends BusContainer> extends ContainerForm<T> {
     */
    private final FormLabel stateLabel;
 
+   /** Sends the edited rule set. Green while there is something to send, so the panel says what it is waiting for. */
+   private final FormLocalTextButton applyButton;
+
+   /** Whether the panel holds edits the server has not been told about. */
+   private boolean unapplied;
+
    public BusContainerForm(Client client, T container, String nameKey, String explanationKey) {
       super(client, WIDTH, HEIGHT, container);
       final ItemCategoriesFilter filter = container.filter;
@@ -94,7 +100,7 @@ public class BusContainerForm<T extends BusContainer> extends ContainerForm<T> {
          int next = limitInput.getText().isEmpty() ? Integer.MAX_VALUE : parseOr(limitInput.getText());
          if (filter.maxAmount != next) {
             filter.maxAmount = next;
-            this.send();
+            this.edited();
          }
       });
 
@@ -116,22 +122,22 @@ public class BusContainerForm<T extends BusContainer> extends ContainerForm<T> {
 
             @Override
             public void onItemsChanged(Item[] items, boolean allowed) {
-               BusContainerForm.this.send();
+               BusContainerForm.this.edited();
             }
 
             @Override
             public void onItemLimitsChanged(Item item, ItemCategoriesFilter.ItemLimits limits) {
-               BusContainerForm.this.send();
+               BusContainerForm.this.edited();
             }
 
             @Override
             public void onCategoryChanged(ItemCategoriesFilter.ItemCategoryFilter category, boolean allowed) {
-               BusContainerForm.this.send();
+               BusContainerForm.this.edited();
             }
 
             @Override
             public void onCategoryLimitsChanged(ItemCategoriesFilter.ItemCategoryFilter category, int maxItems) {
-               BusContainerForm.this.send();
+               BusContainerForm.this.edited();
             }
          });
 
@@ -140,15 +146,22 @@ public class BusContainerForm<T extends BusContainer> extends ContainerForm<T> {
          .onClicked(e -> {
             filter.master.setAllowed(true);
             this.filterForm.updateAllButtons();
-            this.send();
+            this.edited();
          });
       content.addComponent(new FormLocalTextButton(
             "ui", "clearallbutton", WIDTH / 2 + 2, 0, WIDTH / 2 - 6, FormInputSize.SIZE_24, ButtonColor.BASE))
          .onClicked(e -> {
             filter.master.setAllowed(false);
             this.filterForm.updateAllButtons();
-            this.send();
+            this.edited();
          });
+
+      // Apply sits with the two whole-tree buttons rather than at the bottom of the panel, because it belongs
+      // with the other things that act on the rule set as a whole.
+      this.applyButton = this.addComponent(new FormLocalTextButton(
+            "ui", "arcanestorage_apply", WIDTH / 2 - 60, HEIGHT - 30, 120, FormInputSize.SIZE_24,
+            ButtonColor.GREEN));
+      this.applyButton.onClicked(e -> this.apply());
 
       FormTextInput search = this.addComponent(
          new FormTextInput(4, searchY, FormInputSize.SIZE_24, WIDTH - 8, -1, 500));
@@ -166,9 +179,20 @@ public class BusContainerForm<T extends BusContainer> extends ContainerForm<T> {
    @Override
    public void draw(TickManager tickManager, PlayerMob perspective, Rectangle renderBox) {
       BusObjectEntity bus = this.container.bus;
-      this.stateLabel.setText(bus == null || !bus.isInactive()
-         ? ""
-         : GameColor.RED.getColorCode() + bus.stateMessage());
+
+      // A refusal outranks the device's state, because it answers what the player just did. The state is a
+      // standing fact about the bus and will still be there once they have read the refusal.
+      String message = "";
+      if (this.container.refusal != null) {
+         message = GameColor.RED.getColorCode() + this.container.refusal;
+      } else if (bus != null && bus.isInactive()) {
+         message = GameColor.RED.getColorCode() + bus.stateMessage();
+      } else if (this.unapplied) {
+         message = Localization.translate("ui", "arcanestorage_unapplied");
+      }
+
+      this.stateLabel.setText(message);
+      this.applyButton.setActive(this.unapplied);
       super.draw(tickManager, perspective, renderBox);
    }
 
@@ -182,7 +206,24 @@ public class BusContainerForm<T extends BusContainer> extends ContainerForm<T> {
    }
 
    /** Pushes the edited filter to the server. See {@link BusContainer.SetFilterAction} for why in full. */
-   private void send() {
+   /**
+    * Records that the player has changed something, without telling the server yet.
+    *
+    * <p>The panel used to send on every click, which had two consequences worth being rid of. A rule set was
+    * judged one checkbox at a time, so a player midway through a legitimate change could be refused for a state
+    * they were about to leave -- and a set that could only be valid as a whole could never be reached at all.
+    * And on a bus that had stopped, each click restarted the work under a rule the player had not finished
+    * writing.
+    */
+   private void edited() {
+      this.unapplied = true;
+      this.container.refusal = null;
+   }
+
+   /** Sends the whole rule set for the server to accept or refuse as one thing. */
+   private void apply() {
+      this.container.refusal = null;
+      this.unapplied = false;
       this.container.setFilterAction.runAndSend(this.container.filter);
    }
 

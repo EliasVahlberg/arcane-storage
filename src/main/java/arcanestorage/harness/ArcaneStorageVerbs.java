@@ -79,6 +79,7 @@ public final class ArcaneStorageVerbs {
       Harness.registerVerb(new ResetVerb());
       Harness.registerVerb(new IndexPoisonVerb());
       Harness.registerVerb(new HaulVerb());
+      Harness.registerVerb(new BusApplyVerb());
       Harness.registerVerb(new WithdrawVerb());
       Harness.registerVerb(new DepositVerb());
       Harness.registerVerb(new DepositAllVerb());
@@ -1003,6 +1004,68 @@ public final class ArcaneStorageVerbs {
          context.info("hauling " + perTick + " " + context.arg(3) + " per tick back to " + x + "," + y
             + " for " + ticks + " ticks");
          return true;
+      }
+   }
+
+   /**
+    * The panel's Apply button, end to end: propose a rule set, and either have it adopted or refused whole.
+    *
+    * <p>{@code busapply <dx> <dy> <item> <target> <accepted|refused>}. Deliberately separate from
+    * {@code busroundtrip}, which exists to exercise the packet round trip that once lost every edit. This one
+    * exercises the decision: the client's copy is built from what the server would send, edited, and then judged
+    * exactly as {@code SetFilterAction} judges it -- so a test can assert that a contradictory set is refused and,
+    * more importantly, that none of it was applied anyway.
+    */
+   private static final class BusApplyVerb implements TestVerb {
+      public String name() {
+         return "busapply";
+      }
+
+      public String usage() {
+         return "busapply <dx> <dy> <item> <target> <accepted|refused>";
+      }
+
+      public int coordinateArgIndex() {
+         return 1;
+      }
+
+      public boolean run(TestContext context) {
+         BusObjectEntity bus = busAt(context, 1);
+         Item item = ItemRegistry.getItem(context.arg(3));
+         if (bus == null || item == null) {
+            context.fail("busapply: no bus or no such item");
+            return false;
+         }
+
+         int target = context.intArg(4);
+         String expected = context.argCount() > 5 ? context.arg(5) : "accepted";
+
+         // As the client does it: read what the server would send on open, edit that copy, propose it back.
+         Packet opened = new Packet();
+         bus.filter.writePacket(new PacketWriter(opened));
+         ItemCategoriesFilter proposed = new ItemCategoriesFilter(ItemCategory.masterCategory, false);
+         proposed.readPacket(new PacketReader(opened));
+         if (target > 0) {
+            proposed.setItemAllowed(item, true, target);
+         } else {
+            proposed.setItemAllowed(item, true);
+         }
+
+         String refusal = bus.whyRefused(proposed);
+         if (refusal == null) {
+            Packet accepted = new Packet();
+            proposed.writePacket(new PacketWriter(accepted));
+            bus.filter.readPacket(new PacketReader(accepted));
+            bus.rulesChanged();
+         }
+
+         context.info(refusal == null
+            ? "applied, and the bus now reads target=" + bus.networkShouldHold(item)
+            : "refused: " + refusal);
+
+         return context.check("refused".equals(expected) == (refusal != null),
+            "busapply " + context.arg(3) + " " + expected,
+            refusal == null ? "it was applied" : "it was refused: " + refusal);
       }
    }
 
