@@ -3,6 +3,7 @@ package arcanestorage.container;
 import java.awt.Rectangle;
 
 import arcanestorage.objectentity.BusObjectEntity;
+import arcanestorage.objectentity.BusSummary;
 import necesse.engine.localization.Localization;
 import necesse.engine.network.client.Client;
 import necesse.gfx.forms.components.FormFlow;
@@ -39,7 +40,7 @@ public class BusContainerForm<T extends BusContainer> extends ContainerForm<T> {
    /** The state and refusal line: its font, and how many wrapped lines the layout keeps clear for it. */
    private static final int STATE_FONT = 12;
 
-   private static final int STATE_LINES = 3;
+   private static final int STATE_LINES = 4;
 
    public final ItemCategoriesFilterForm filterForm;
 
@@ -58,10 +59,9 @@ public class BusContainerForm<T extends BusContainer> extends ContainerForm<T> {
       final ItemCategoriesFilter filter = container.filter;
       FormFlow flow = new FormFlow(5);
 
-      FormLabel title = new FormLabel(
-         Localization.translate("object", nameKey), new FontOptions(20), -1, 6, 0);
-      this.addComponent(flow.nextY(title, 4));
-
+      // No title label: the name row at the top of the editor is the title, and it is editable. A device is
+      // addressed by coordinates, which a player cannot relate to anything they can see, so the name is their
+      // only handle on which bus this is -- and the same row appears in the terminal's logistics tab.
       FormLabel explanation = new FormLabel(
          Localization.translate("ui", explanationKey), new FontOptions(12), -1, 6, 0);
       this.addComponent(flow.nextY(explanation, 6));
@@ -74,15 +74,17 @@ public class BusContainerForm<T extends BusContainer> extends ContainerForm<T> {
       this.stateLabel = new FormLabel("", new FontOptions(STATE_FONT), -1, 6, stateY, WIDTH - 12);
       this.addComponent(this.stateLabel);
 
-      // Measured against the longest thing that can appear there, with the widest plausible substitutions.
-      // The reason names an item and a pair of coordinates, so its length is not under this file's control.
-      FormLabel worstCase = new FormLabel(Localization.translate("ui", "arcanestorage_refused",
-            "item", "Pearlescent Diamond Broadsword", "x", "-12345", "y", "-12345"),
-            new FontOptions(STATE_FONT), -1, 0, 0, WIDTH - 12);
-      if (worstCase.getHeight() > STATE_FONT * STATE_LINES) {
+      // Measured against the longest reason that can appear there. Its length is not under this file's
+      // control: it names an item, a pair of coordinates, and the other device -- whose name the player chose.
+      int worstHeight = Math.max(
+            BusSummary.worstCaseReasonHeight(STATE_FONT, WIDTH - 12),
+            new FormLabel(Localization.translate("ui", "arcanestorage_refused",
+                  "item", "Pearlescent Diamond Broadsword", "x", "-12345", "y", "-12345"),
+                  new FontOptions(STATE_FONT), -1, 0, 0, WIDTH - 12).getHeight());
+      if (worstHeight > STATE_FONT * STATE_LINES) {
          GameLog.warn.println("Arcane Storage: the bus panel reserves " + STATE_LINES
-               + " lines for its state line but the longest refusal needs "
-               + (worstCase.getHeight() / STATE_FONT) + "; it will overlap the amount row.");
+               + " lines for its state line but the longest reason needs " + (worstHeight / STATE_FONT)
+               + "; it will overlap the amount row.");
       }
 
       // Both surfaces that edit a bus's rules -- this panel and the terminal's logistics tab -- build the
@@ -94,7 +96,10 @@ public class BusContainerForm<T extends BusContainer> extends ContainerForm<T> {
       // export bus treats everything as surplus. Both were observed in game.
       int rulesY = flow.next(0);
       this.rules = BusRulesEditor.addTo(this, client, filter, limitKey, "arcanestoragebus",
-            new Rectangle(0, rulesY, WIDTH, HEIGHT - rulesY), f -> {
+            new Rectangle(0, rulesY, WIDTH, HEIGHT - rulesY),
+            container.bus == null ? Localization.translate("object", nameKey) : container.bus.name(),
+            container.setNameAction::runAndSend,
+            f -> {
                this.container.refusal = null;
                this.container.setFilterAction.runAndSend(f);
             });
@@ -125,6 +130,12 @@ public class BusContainerForm<T extends BusContainer> extends ContainerForm<T> {
 
       // The wrap width goes with every set: setText(String) delegates to setText(text, -1), which wraps at
       // Integer.MAX_VALUE -- one long line off the side of the panel, which is what this used to draw.
+      // A rename by anything else -- another player at the terminal -- lands in the box; typing does not, since
+      // the name does not change until it is submitted.
+      if (bus != null) {
+         this.rules.refreshName(bus.name());
+      }
+
       this.stateLabel.setText(message, WIDTH - 12);
       super.draw(tickManager, perspective, renderBox);
    }

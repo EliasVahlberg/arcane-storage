@@ -1,6 +1,8 @@
 package arcanestorage.objectentity;
 
 import necesse.engine.localization.Localization;
+import necesse.gfx.forms.components.FormLabel;
+import necesse.gfx.gameFont.FontOptions;
 import necesse.engine.network.PacketReader;
 import necesse.engine.network.PacketWriter;
 
@@ -36,8 +38,20 @@ public final class BusSummary {
 
    public final int conflictY;
 
+   /** This bus's number among its own kind on the network, or 0 if it has not been given one yet. */
+   public final int ordinal;
+
+   /** What the player called it, or empty to use the assigned name. */
+   public final String customName;
+
+   /** The same two, for the bus on the other side of a rule conflict, so the reason can name it. */
+   public final int conflictOrdinal;
+
+   public final String conflictCustomName;
+
    public BusSummary(int tileX, int tileY, boolean importing, DeviceState state, String conflictItemID,
-         int conflictX, int conflictY) {
+         int conflictX, int conflictY, int ordinal, String customName, int conflictOrdinal,
+         String conflictCustomName) {
       this.tileX = tileX;
       this.tileY = tileY;
       this.importing = importing;
@@ -45,6 +59,10 @@ public final class BusSummary {
       this.conflictItemID = conflictItemID;
       this.conflictX = conflictX;
       this.conflictY = conflictY;
+      this.ordinal = ordinal;
+      this.customName = customName == null ? "" : customName;
+      this.conflictOrdinal = conflictOrdinal;
+      this.conflictCustomName = conflictCustomName == null ? "" : conflictCustomName;
    }
 
    public void writePacket(PacketWriter writer) {
@@ -55,6 +73,10 @@ public final class BusSummary {
       writer.putNextString(this.conflictItemID == null ? "" : this.conflictItemID);
       writer.putNextInt(this.conflictX);
       writer.putNextInt(this.conflictY);
+      writer.putNextInt(this.ordinal);
+      writer.putNextString(this.customName);
+      writer.putNextInt(this.conflictOrdinal);
+      writer.putNextString(this.conflictCustomName);
    }
 
    public static BusSummary readPacket(PacketReader reader) {
@@ -64,18 +86,45 @@ public final class BusSummary {
       DeviceState state = reader.getNextEnum(DeviceState.class);
       String itemID = reader.getNextString();
       return new BusSummary(x, y, importing, state, itemID.isEmpty() ? null : itemID,
-            reader.getNextInt(), reader.getNextInt());
+            reader.getNextInt(), reader.getNextInt(), reader.getNextInt(), reader.getNextString(),
+            reader.getNextInt(), reader.getNextString());
    }
 
-   /** This device's name, as the player sees it on the object itself. */
+   /** What to call this device: what the player named it, or the number it was given. */
    public String name() {
-      return Localization.translate("object",
-            this.importing ? "arcanestorageimportbus" : "arcanestorageexportbus");
+      return BusObjectEntity.busName(this.importing, this.ordinal, this.customName);
    }
 
    /** Where it is, for a player who has to go and look at it. */
    public String where() {
       return this.tileX + "," + this.tileY;
+   }
+
+   /**
+    * How tall the longest reason this class can produce would be, wrapped to a given width.
+    *
+    * <p>Here rather than in either panel because this is where a reason is worded, so this is what knows how
+    * long one can get. Both surfaces reserve a fixed block for it -- fixed because a label's height is a
+    * property of the text it currently holds, and reserving space by measuring an empty label reserves
+    * nothing, which is a fault this project has already shipped once.
+    *
+    * <p>The substitutions are the worst realistic case: the longest item name in the game, a player-chosen
+    * device name at its length limit, and five-digit negative coordinates.
+    */
+   public static int worstCaseReasonHeight(int font, int wrapWidth) {
+      String widestName = new String(new char[BusObjectEntity.MAX_NAME_LENGTH]).replace('\0', 'W');
+      int worst = 0;
+      for (DeviceState state : DeviceState.values()) {
+         if (state.isActive()) {
+            continue;
+         }
+
+         worst = Math.max(worst, new FormLabel(Localization.translate("ui", state.localeKey,
+               "item", "Pearlescent Diamond Broadsword", "other", widestName,
+               "x", "-12345", "y", "-12345"), new FontOptions(font), -1, 0, 0, wrapWidth).getHeight());
+      }
+
+      return worst;
    }
 
    /** Why this bus has stopped, or empty when it has not. */
@@ -92,8 +141,7 @@ public final class BusSummary {
       // for a modded item as well as a vanilla one.
       return Localization.translate("ui", DeviceState.RULE_CONFLICT.localeKey,
          "item", this.conflictItemID == null ? "?" : Localization.translate("item", this.conflictItemID),
-         "other", Localization.translate("object",
-               this.importing ? "arcanestorageexportbus" : "arcanestorageimportbus"),
+         "other", BusObjectEntity.busName(!this.importing, this.conflictOrdinal, this.conflictCustomName),
          "x", String.valueOf(this.conflictX),
          "y", String.valueOf(this.conflictY));
    }

@@ -38,6 +38,8 @@ public class BusContainer extends Container {
    /** The server's refusal channel. Registered in the same order on both sides, as all actions must be. */
    public final BusContainer.RejectFilterAction rejectFilterAction;
 
+   public final BusContainer.SetNameAction setNameAction;
+
    public BusContainer(NetworkClient client, int uniqueSeed, BusObjectEntity bus, Packet content) {
       super(client, uniqueSeed);
       this.bus = bus;
@@ -54,6 +56,7 @@ this.filter = local;
 
       this.setFilterAction = this.registerAction(new BusContainer.SetFilterAction());
       this.rejectFilterAction = this.registerAction(new BusContainer.RejectFilterAction());
+      this.setNameAction = this.registerAction(new BusContainer.SetNameAction());
    }
 
    /**
@@ -160,6 +163,30 @@ this.filter = local;
          String reason = reader.getNextString();
          if (!BusContainer.this.client.isServer()) {
             BusContainer.this.refusal = reason;
+         }
+      }
+   }
+
+   /**
+    * Renames the bus.
+    *
+    * <p>Applied on arrival rather than gathered into the Apply transaction. A name is a label -- nothing reads
+    * it to decide anything -- so there is no state it can contradict and nothing to refuse. Putting it in the
+    * transaction would mean a refused rule set silently discarded a rename that was never in question.
+    */
+   public class SetNameAction extends ContainerCustomAction {
+
+      public void runAndSend(String name) {
+         Packet content = new Packet();
+         new PacketWriter(content).putNextString(name);
+         this.runAndSendAction(content);
+      }
+
+      @Override
+      public void executePacket(PacketReader reader) {
+         String name = reader.getNextString();
+         if (BusContainer.this.client.isServer()) {
+            BusContainer.this.bus.setCustomName(name);
          }
       }
    }

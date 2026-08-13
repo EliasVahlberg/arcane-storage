@@ -3,6 +3,7 @@ package arcanestorage.container;
 import java.awt.Rectangle;
 import java.util.function.Consumer;
 
+import arcanestorage.objectentity.BusObjectEntity;
 import necesse.engine.GameLog;
 import necesse.engine.ItemCategoryExpandedSetting;
 import necesse.engine.Settings;
@@ -49,16 +50,27 @@ public final class BusRulesEditor {
 
    private static final int SEARCH_ROW = 28;
 
+   /** The name row, which is also this panel's title: one control rather than a heading and a field. */
+   private static final int NAME_ROW = 34;
+
    public final ItemCategoriesFilterForm filterForm;
 
    private final ItemCategoriesFilter filter;
 
+   private final FormTextInput nameInput;
+
+   /** The name as the server last reported it, so a rename by anything else is picked up and typing is not. */
+   private String shownName;
+
    /** Whether the player has changed something the server has not been told about. */
    private boolean unapplied;
 
-   private BusRulesEditor(ItemCategoriesFilterForm filterForm, ItemCategoriesFilter filter) {
+   private BusRulesEditor(ItemCategoriesFilterForm filterForm, ItemCategoriesFilter filter,
+         FormTextInput nameInput, String name) {
       this.filterForm = filterForm;
       this.filter = filter;
+      this.nameInput = nameInput;
+      this.shownName = name;
    }
 
    /**
@@ -68,11 +80,22 @@ public final class BusRulesEditor {
     * @param expandKey names the client-side setting remembering which categories are collapsed; sharing one
     *        key between the bus panel and the terminal is intentional, so a player's collapsed categories
     *        follow them rather than depending on which surface they opened
+    * @param name what this bus is currently called, shown in the name row
+    * @param onRename given the new name when the player submits the name row
     * @param onApply given the edited filter when the player presses Apply
     */
    public static BusRulesEditor addTo(Form host, Client client, ItemCategoriesFilter filter, String limitKey,
-         String expandKey, Rectangle region, Consumer<ItemCategoriesFilter> onApply) {
-      int limitY = region.y;
+         String expandKey, Rectangle region, String name, Consumer<String> onRename,
+         Consumer<ItemCategoriesFilter> onApply) {
+      // The name row doubles as the panel's title. A device is addressed by coordinates and a player has no
+      // way to relate coordinates to the bus in front of them -- nothing in the game shows a tile position --
+      // so the name is the only handle they have, and it is worth the top of the panel.
+      final FormTextInput nameInput = host.addComponent(new FormTextInput(
+            region.x + 4, region.y, FormInputSize.SIZE_24, region.width - 8, BusObjectEntity.MAX_NAME_LENGTH));
+      nameInput.setText(name);
+      nameInput.onSubmit(e -> onRename.accept(nameInput.getText()));
+
+      int limitY = region.y + NAME_ROW;
       FormLabel limitLabel = host.addComponent(new FormLabel(
             Localization.translate("ui", limitKey), new FontOptions(LIMIT_FONT), -1, region.x + 4, limitY,
             region.width / 2 - 12));
@@ -133,7 +156,7 @@ public final class BusRulesEditor {
                }
             });
 
-      BusRulesEditor editor = new BusRulesEditor(filterForm, filter);
+      BusRulesEditor editor = new BusRulesEditor(filterForm, filter, nameInput, name);
       self[0] = editor;
 
       limitInput.onSubmit(e -> {
@@ -187,7 +210,21 @@ public final class BusRulesEditor {
 
    /** The smallest region this can be built into without something overlapping something else. */
    public static int minimumHeight() {
-      return LIMIT_ROW + SEARCH_ROW + FormInputSize.SIZE_24.height * 3 + APPLY_STRIP;
+      return NAME_ROW + LIMIT_ROW + SEARCH_ROW + FormInputSize.SIZE_24.height * 3 + APPLY_STRIP;
+   }
+
+   /**
+    * Takes a name the server has reported, if it is not the one already shown.
+    *
+    * <p>Guarded rather than set every frame, because this is the box the player types into. Typing does not
+    * change the name until it is submitted, so the guard holds for as long as they are editing; a rename by
+    * somebody else lands immediately, which is the right outcome for the rarer case.
+    */
+   public void refreshName(String name) {
+      if (name != null && !name.equals(this.shownName)) {
+         this.shownName = name;
+         this.nameInput.setText(name);
+      }
    }
 
    /**

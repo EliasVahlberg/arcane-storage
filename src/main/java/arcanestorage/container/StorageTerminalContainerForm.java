@@ -1334,7 +1334,7 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
          BusSummary bus = buses.get(i);
          long key = StorageTerminalContainer.key(bus.tileX, bus.tileY);
          FormTextButton row = this.deviceListBox.addComponent(new FormTextButton(
-               bus.name() + "  " + bus.where(), 0, i * DEVICE_ROW_PITCH,
+               bus.name(), 0, i * DEVICE_ROW_PITCH,
                DEVICE_LIST_WIDTH - this.deviceListBox.getScrollBarWidth() - 2, FormInputSize.SIZE_24,
                bus.state.isActive() ? ButtonColor.BASE : ButtonColor.RED));
          row.onClicked(e -> this.selectDevice(key));
@@ -1407,18 +1407,23 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
          return;
       }
 
-      pane.addComponent(new FormLabel(selected.name() + "  " + selected.where(), new FontOptions(16), -1,
-            PADDING, PADDING, paneWidth - PADDING * 2));
-
-      int messageY = PADDING + 20;
+      // No title label: the editor's first row is the name, and it is editable. The coordinates that used to
+      // sit here are in the issues panel, which is where a player who has to go and find the thing is looking.
+      int messageY = PADDING;
       this.deviceMessage = pane.addComponent(new FormLabel("", new FontOptions(ISSUE_FONT), -1,
             PADDING, messageY, paneWidth - PADDING * 2));
 
-      int rulesY = messageY + ISSUE_FONT * 2 + PADDING;
+      // A fixed block for the message, tall enough for the longest reason a device can give at this width.
+      int messageLines = Math.max(2,
+            (BusSummary.worstCaseReasonHeight(ISSUE_FONT, paneWidth - PADDING * 2) + ISSUE_FONT - 1)
+                  / ISSUE_FONT);
+      int rulesY = messageY + ISSUE_FONT * messageLines + PADDING;
       final BusSummary bus = selected;
       this.deviceRules = BusRulesEditor.addTo(pane, client, filter,
             bus.importing ? "arcanestorage_importbuslimit" : "arcanestorage_exportbuslimit",
             "arcanestoragebus", new Rectangle(0, rulesY, paneWidth, paneHeight - rulesY),
+            bus.name(),
+            renamed -> this.getContainer().setNameAction.runAndSend(bus.tileX, bus.tileY, renamed),
             edited -> {
                this.getContainer().refusal = null;
                this.getContainer().setRulesAction.runAndSend(bus.tileX, bus.tileY, edited);
@@ -1439,7 +1444,8 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
       StringBuilder issues = new StringBuilder();
       StringBuilder signature = new StringBuilder();
       for (BusSummary bus : buses) {
-         signature.append(bus.tileX).append(',').append(bus.tileY).append(bus.state).append(';');
+         signature.append(bus.tileX).append(',').append(bus.tileY).append(bus.state)
+               .append(bus.ordinal).append(bus.customName).append(';');
          if (bus.state.isActive()) {
             continue;
          }

@@ -98,6 +98,24 @@ public abstract class BusObjectEntity extends ObjectEntity implements DeviceOnNe
     */
    private DeviceState state = DeviceState.ACTIVE;
 
+   /**
+    * This bus's number among its own kind on its network, or 0 before it has been given one.
+    *
+    * <p>Coordinates are what a device really is addressed by, and they are useless to a player: nothing in
+    * the game shows a tile position, so "the bus at 1786,1912" identifies a device only to somebody willing
+    * to go and stand on it. A number does the job that coordinates cannot.
+    *
+    * <p>Assigned once, from the network, and then saved -- so breaking bus #2 of three leaves #1 and #3
+    * rather than renumbering the survivors under a player who had learnt which was which. The next bus
+    * placed takes one above the highest in use, not one above the count, or it would collide with #3.
+    *
+    * <p>Purely a label. Nothing reads it to decide anything.
+    */
+   private int ordinal;
+
+   /** What the player called this bus, or null to use the assigned name. */
+   private String customName;
+
    /** The item a conflict was found on, for the explanation. Null unless {@link DeviceState#RULE_CONFLICT}. */
    private String conflictItemID;
 
@@ -280,6 +298,8 @@ public abstract class BusObjectEntity extends ObjectEntity implements DeviceOnNe
       // The container is watched so that somebody filling it wakes the network. Re-registered on every tick
       // rather than once, because the chest a bus points at can be broken and replaced without anything
       // telling us, and the registration is a map put with an unchanged value in the common case.
+      this.assignOrdinal(index);
+
       IndexedInventories.watch(this.attachedContainer(), index);
 
       NetworkIndexes.drive(level, index, this);
@@ -530,6 +550,103 @@ public abstract class BusObjectEntity extends ObjectEntity implements DeviceOnNe
    }
 
    /**
+    * Gives this bus its number, once, the first time it is on a network.
+    *
+    * <p>One above the highest in use among the same direction on this network, rather than one above how many
+    * there are: names are saved and survivors are never renumbered, so counting would hand a new bus a number
+    * somebody else is already using.
+    *
+    * <p>Deferred to the first tick with a network rather than done when the bus is placed, because a bus is
+    * placed before it is connected to anything -- and the number is meant to be a position within a network,
+    * so a bus with no network has nothing to be numbered against. It gets one when it joins.
+    */
+   private void assignOrdinal(NetworkIndex network) {
+      if (this.ordinal != 0 || network == null) {
+         return;
+      }
+
+      int highest = 0;
+      for (ObjectEntity device : network.devices()) {
+         if (device instanceof BusObjectEntity && device != this) {
+            BusObjectEntity peer = (BusObjectEntity)device;
+            if (peer.movesIntoNetwork() == this.movesIntoNetwork()) {
+               highest = Math.max(highest, peer.ordinal);
+            }
+         }
+      }
+
+      this.ordinal = highest + 1;
+      this.markDirty();
+   }
+
+   /**
+    * What to call this bus: what the player named it, or the number it was given.
+    *
+    * <p>Assembled from parts rather than stored as text, so it is localized wherever it is read and a
+    * dedicated server does not send its own language to a client.
+    */
+   public static String busName(boolean importing, int ordinal, String customName) {
+      if (customName != null && !customName.isEmpty()) {
+         return customName;
+      }
+
+      String objectKey = importing ? "arcanestorageimportbus" : "arcanestorageexportbus";
+      if (ordinal <= 0) {
+         return Localization.translate("object", objectKey);
+      }
+
+      return Localization.translate("ui",
+            importing ? "arcanestorage_importbusname" : "arcanestorage_exportbusname",
+            "n", String.valueOf(ordinal));
+   }
+
+   public String name() {
+      return busName(this.movesIntoNetwork(), this.ordinal, this.customName);
+   }
+
+   public int getOrdinal() {
+      return this.ordinal;
+   }
+
+   /** What the player called this bus, or an empty string when it is using its assigned name. */
+   public String getCustomName() {
+      return this.customName == null ? "" : this.customName;
+   }
+
+   /**
+    * Renames this bus, or returns it to its assigned name when given nothing or that name back.
+    *
+    * <p>A label and nothing else: no rule reads it, so unlike a rule set there is nothing here that can be
+    * refused, and it applies immediately rather than waiting for Apply.
+    */
+   public void setCustomName(String name) {
+      // A name is read back out into labels and into the chat line announcing a stopped device, so it goes
+      // through the same places the game's own coloured text does. Left as typed, a name containing the colour
+      // marker would let one player recolour another's panel and chat, and a newline would put a second line
+      // into a block whose height is reserved. Neither is dangerous; both are avoidable here rather than at
+      // every point of use.
+      String trimmed = name == null ? "" : name.replaceAll("[\\p{Cntrl}\u00A7]", "").trim();
+      if (trimmed.length() > MAX_NAME_LENGTH) {
+         trimmed = trimmed.substring(0, MAX_NAME_LENGTH);
+      }
+
+      // Typing the assigned name, or clearing the box, means "use the assigned name" rather than pinning a
+      // copy of it -- otherwise a bus renumbered by nothing would keep a stale number as a custom name.
+      String next = trimmed.isEmpty() || trimmed.equals(busName(this.movesIntoNetwork(), this.ordinal, null))
+            ? null
+            : trimmed;
+      if (java.util.Objects.equals(this.customName, next)) {
+         return;
+      }
+
+      this.customName = next;
+      this.markDirty();
+   }
+
+   /** Long enough for "Grain Import" and short enough to fit a device row. */
+   public static final int MAX_NAME_LENGTH = 24;
+
+   /**
     * This bus as the terminal sees it.
     *
     * <p>Also how this bus words its own state, so the reason on the sprite's hover tip, the reason in this
@@ -537,8 +654,23 @@ public abstract class BusObjectEntity extends ObjectEntity implements DeviceOnNe
     * agree today.
     */
    public BusSummary summary() {
+      // The other side of a conflict is named, not just located, and its name is looked up here rather than
+      // travelling in the packet: it is a bus on this level a tile or two away, so whoever can see this one
+      // can almost certainly see that one too. When the lookup fails the message falls back to coordinates.
+      BusObjectEntity other = null;
+      if (this.state == DeviceState.RULE_CONFLICT) {
+         Level level = this.getLevel();
+         if (level != null) {
+            ObjectEntity entity = level.entityManager.getObjectEntity(this.conflictX, this.conflictY);
+            if (entity instanceof BusObjectEntity) {
+               other = (BusObjectEntity)entity;
+            }
+         }
+      }
+
       return new BusSummary(this.tileX, this.tileY, this.movesIntoNetwork(), this.state,
-            this.conflictItemID, this.conflictX, this.conflictY);
+            this.conflictItemID, this.conflictX, this.conflictY, this.ordinal, this.getCustomName(),
+            other == null ? 0 : other.ordinal, other == null ? "" : other.getCustomName());
    }
 
    public DeviceState getState() {
@@ -600,6 +732,8 @@ public abstract class BusObjectEntity extends ObjectEntity implements DeviceOnNe
       writer.putNextString(this.conflictItemID == null ? "" : this.conflictItemID);
       writer.putNextInt(this.conflictX);
       writer.putNextInt(this.conflictY);
+      writer.putNextInt(this.ordinal);
+      writer.putNextString(this.customName == null ? "" : this.customName);
    }
 
    @Override
@@ -610,6 +744,9 @@ public abstract class BusObjectEntity extends ObjectEntity implements DeviceOnNe
       this.conflictItemID = itemID.isEmpty() ? null : itemID;
       this.conflictX = reader.getNextInt();
       this.conflictY = reader.getNextInt();
+      this.ordinal = reader.getNextInt();
+      String name = reader.getNextString();
+      this.customName = name.isEmpty() ? null : name;
    }
 
    /**
@@ -965,6 +1102,15 @@ public abstract class BusObjectEntity extends ObjectEntity implements DeviceOnNe
       SaveData filterSave = new SaveData("FILTER");
       this.filter.addSaveData(filterSave);
       save.addSaveData(filterSave);
+
+      // The number is saved rather than derived on load, because deriving it would renumber the survivors
+      // every time a bus was broken, and a player who has learnt which one is #2 would find it moved.
+      save.addInt("ordinal", this.ordinal);
+      if (this.customName != null) {
+         // Safe, not unsafe: this string is whatever a player typed, and the unsafe variant writes it into the
+         // save verbatim. A name containing the format's own delimiter would corrupt this entity's save data.
+         save.addSafeString("customName", this.customName);
+      }
    }
 
    @Override
@@ -974,5 +1120,9 @@ public abstract class BusObjectEntity extends ObjectEntity implements DeviceOnNe
       if (filterSave != null) {
          this.filter.applyLoadData(filterSave);
       }
+
+      this.ordinal = save.getInt("ordinal", 0, false);
+      String name = save.getSafeString("customName", "", false);
+      this.customName = name.isEmpty() ? null : name;
    }
 }

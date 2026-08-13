@@ -82,6 +82,8 @@ public final class ArcaneStorageVerbs {
       Harness.registerVerb(new HaulVerb());
       Harness.registerVerb(new BusApplyVerb());
       Harness.registerVerb(new TerminalRulesVerb());
+      Harness.registerVerb(new BusNameVerb());
+      Harness.registerExpectation(new BusNameQuery());
       Harness.registerExpectation(new BusesQuery());
       Harness.registerVerb(new WithdrawVerb());
       Harness.registerVerb(new DepositVerb());
@@ -1131,7 +1133,8 @@ public final class ArcaneStorageVerbs {
             }
 
             list.append(bus.where()).append(':').append(bus.importing ? "import" : "export")
-                  .append(':').append(bus.state.name().toLowerCase());
+                  .append(':').append(bus.state.name().toLowerCase())
+                  .append(':').append(bus.name());
             if (!bus.state.isActive()) {
                stopped++;
             }
@@ -1152,6 +1155,83 @@ public final class ArcaneStorageVerbs {
     * worth testing rather than trusting -- the tab addresses buses by coordinate, so without it a crafted
     * packet could rewrite a bus in somebody else's base.
     */
+   /**
+    * Renames a bus: {@code busname <dx> <dy> <name>}.
+    *
+    * <p>Separate from the query below because the two are reached by different commands and so read their
+    * coordinates from different positions -- {@code busname 2 0} puts them at 1 and 2, {@code query busname 2 0}
+    * at 2 and 3. One class serving both would have to guess which it was, and guess wrong somewhere.
+    */
+   private static final class BusNameVerb implements TestVerb {
+      public String name() {
+         return "busname";
+      }
+
+      public String usage() {
+         return "busname <dx> <dy> <name>";
+      }
+
+      public int coordinateArgIndex() {
+         return 1;
+      }
+
+      public boolean run(TestContext context) {
+         BusObjectEntity bus = busAt(context, 1);
+         if (bus == null) {
+            context.fail("busname: no bus there");
+            return false;
+         }
+
+         // Joined rather than taken as one argument: a scenario line is split on whitespace and a name has
+         // spaces in it -- "Grain Import" is the example the feature exists for.
+         StringBuilder name = new StringBuilder();
+         for (int i = 3; i < context.argCount(); i++) {
+            if (name.length() > 0) {
+               name.append(' ');
+            }
+
+            name.append(context.arg(i));
+         }
+
+         bus.setCustomName(name.toString());
+         context.info("named " + bus.name());
+         return true;
+      }
+   }
+
+   /**
+    * A bus's name as it stands: {@code query busname <dx> <dy>} -> {@code {name, ordinal, custom}}.
+    *
+    * <p>The name is only a label, but the number in an assigned one is chosen by looking at the network, and
+    * that choice has a collision case worth proving rather than assuming: it has to be one above the highest
+    * number in use, not one above how many buses there are, or breaking one and placing another hands out a
+    * number somebody else is still using.
+    */
+   private static final class BusNameQuery implements TestVerb, TestQuery {
+      public String name() {
+         return "busname";
+      }
+
+      public String usage() {
+         return "query busname <dx> <dy>";
+      }
+
+      public int coordinateArgIndex() {
+         return 2;
+      }
+
+      public boolean run(TestContext context) {
+         return true;
+      }
+
+      public void query(TestContext context, Json.Writer out) {
+         BusObjectEntity bus = busAt(context, 2);
+         out.str("name", bus == null ? "" : bus.name());
+         out.num("ordinal", bus == null ? -1 : bus.getOrdinal());
+         out.str("custom", bus == null ? "" : bus.getCustomName());
+      }
+   }
+
    private static final class TerminalRulesVerb implements TestVerb {
       public String name() {
          return "terminalrules";

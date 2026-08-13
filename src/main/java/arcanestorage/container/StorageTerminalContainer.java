@@ -88,6 +88,8 @@ public class StorageTerminalContainer extends Container {
 
    public final StorageTerminalContainer.RejectRulesAction rejectRulesAction;
 
+   public final StorageTerminalContainer.SetNameAction setNameAction;
+
    /**
     * Rules fetched for the buses the player has looked at, keyed by tile. Client-side only.
     *
@@ -180,6 +182,7 @@ public class StorageTerminalContainer extends Container {
       this.sendRulesAction = this.registerAction(new StorageTerminalContainer.SendRulesAction());
       this.setRulesAction = this.registerAction(new StorageTerminalContainer.SetRulesAction());
       this.rejectRulesAction = this.registerAction(new StorageTerminalContainer.RejectRulesAction());
+      this.setNameAction = this.registerAction(new StorageTerminalContainer.SetNameAction());
    }
 
    /**
@@ -258,6 +261,41 @@ public class StorageTerminalContainer extends Container {
     * convenient of two interfaces. A rule set is adopted or refused as one thing here too, and a refusal
     * applies none of it.
     */
+   /**
+    * Renames a bus from the terminal.
+    *
+    * <p>Goes through the same membership check as a rule change: the tab addresses devices by coordinate, so
+    * without it a crafted packet could rename a bus anywhere on the level. A name is only a label, so this is
+    * the cheapest possible thing to abuse -- which is exactly why it should not be the one route that skips
+    * the check.
+    */
+   public class SetNameAction extends ContainerCustomAction {
+
+      public void runAndSend(int x, int y, String name) {
+         Packet content = new Packet();
+         PacketWriter writer = new PacketWriter(content);
+         writer.putNextInt(x);
+         writer.putNextInt(y);
+         writer.putNextString(name);
+         this.runAndSendAction(content);
+      }
+
+      @Override
+      public void executePacket(PacketReader reader) {
+         if (!StorageTerminalContainer.this.client.isServer()) {
+            return;
+         }
+
+         int x = reader.getNextInt();
+         int y = reader.getNextInt();
+         String name = reader.getNextString();
+         BusObjectEntity bus = StorageTerminalContainer.this.busFor(x, y);
+         if (bus != null) {
+            bus.setCustomName(name);
+         }
+      }
+   }
+
    public class SetRulesAction extends ContainerCustomAction {
 
       public void runAndSend(int x, int y, ItemCategoriesFilter edited) {
