@@ -10,6 +10,15 @@ reference now points at the pytest file that owns the assertion. See `docs/TESTI
 
 ## Confirmed in game
 
+**Phase 5b, 13 Aug 2026.** The Apply button works once it is outside the filter list's rectangle. A rule set that
+contradicts a bus sharing the same container is refused when applied, and the soft-fail path -- the device
+stopping rather than churning -- was seen to detect the feedback-loop case correctly. Not yet looked at: the grey
+sprite, the chat line, the terminal's banner.
+
+Two faults found in the same pass and fixed: the stopped-reason line reserved no vertical space and was not
+wrapping, so it drew over the amount row; and the amount was labelled "Amount of each", which does not say that
+an export bus's number is a floor held by the network rather than a target for the chest beside it.
+
 Stated by Elias, in order of confirmation:
 
 - The larger terminal, the 18x8 grid and the footer — *"the size and feel is good with the larger ui"*
