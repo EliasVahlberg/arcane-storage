@@ -301,6 +301,31 @@ whatever form asks for one -- so moving it into its own container later is a cha
 
 - The **storage unit's lighting revision** — it must never look openable. Still owed.
 - The **six unused category icons** — a decision, not a bug.
+- **The logistics tab's world marker** (pulsing tile outline for the selected bus) — disabled,
+  13 Aug 2026, after too much time against too small a feature. The call site in
+  `StorageTerminalContainerForm.draw()` is commented out; `drawWorldMarker()` and its diagnostics
+  are left in place.
+
+  What was actually wrong, found by reading `FormShader` rather than guessing: every `Form.draw()`
+  pushes a shader state carrying a screen offset and a clip rectangle, and pops it when that form
+  finishes. `startState` *intersects* its rectangle with whatever was already active rather than
+  replacing it. The marker was drawn from the switcher's own `draw()`, outside any form's state,
+  so it silently inherited whatever small clip box some other component had left active a moment
+  earlier — no exception, because clipping isn't an error. That is why two full rounds of
+  coordinate-math fixes and exception-hunting both came back clean: neither was where the bug was.
+
+  The fix believed correct but never confirmed in game: push an explicit shader state before
+  drawing — offset `(0,0)`, clip rectangle the full hud buffer, mirroring what `Form.draw()`
+  itself does — and pop it after, via `GameResources.formShader.startState(...)` /
+  `state.end()`. This compiled and passed the full test suite but was never seen to actually
+  render; the feature was cut for time before that last check happened.
+
+  If revisited: rebuild with the call site uncommented, open the logistics tab, select a bus, and
+  look. If it still does not render, the diagnostic logging already in `drawWorldMarker()` (an
+  unconditional per-frame trace, a guard-failure trace, and a try/catch around the draw calls)
+  should be the starting point rather than new theories — three rounds of plausible-sounding
+  coordinate/lifecycle theories were all wrong or unconfirmed, and empirical tracing is what
+  finally found the real mechanism.
 
 ---
 

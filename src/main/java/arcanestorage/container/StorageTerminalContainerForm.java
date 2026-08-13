@@ -67,6 +67,9 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import necesse.gfx.camera.GameCamera;
 import necesse.level.maps.Level;
+import necesse.gfx.GameResources;
+import necesse.gfx.shader.FormShader;
+import java.awt.Point;
 import necesse.engine.GlobalData;
 import necesse.engine.window.GameWindow;
 import necesse.engine.window.WindowManager;
@@ -276,6 +279,12 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
 
    /** Which device the marker has already reported drawing, so the diagnostic is one line and not one a frame. */
    private long markerLogged = Long.MIN_VALUE;
+
+   private long markerLastTraced = 0;
+
+   private long markerGuardLastTraced = 0;
+
+   private long markerDrawFailed = Long.MIN_VALUE;
    public final Form craftingForm;
 
    public final Form stationsForm;
@@ -1283,8 +1292,10 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
       this.updateProblems();
       this.updateLogistics(this.client);
 
-      // Before the panel, so a marker behind the panel is covered by it rather than drawn over it.
-      this.drawWorldMarker();
+      // World marker disabled: see docs/QA_BACKLOG.md ("world marker for the selected logistics
+      // device does not render"). The method, its diagnostics and the explanation of the shader
+      // clip-state bug that was found are left in place for whoever picks this back up.
+      // this.drawWorldMarker();
       super.draw(tickManager, perspective, renderBox);
    }
 
@@ -1473,6 +1484,17 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
     * give a crisp outline at this size.
     */
    private void drawWorldMarker() {
+      // Unconditional and throttled by wall time rather than by selection, so a run that never selects a
+      // device still shows whether this method is being called at all -- the previous version of this trace
+      // fired only after a selection, and could not tell "never called" apart from "called, drew nothing".
+      long now = System.currentTimeMillis();
+      if (now - this.markerLastTraced > 2000) {
+         this.markerLastTraced = now;
+         GameLog.debug.println("Arcane Storage: drawWorldMarker called, markerX=" + this.markerX
+               + " markerY=" + this.markerY + " selectedDevice=" + this.selectedDevice
+               + " currentTab=" + this.tabs.getCurrentTabIndex() + " logisticsTab=" + this.logisticsTabIndex);
+      }
+
       if (this.markerX < 0 || this.markerY < 0) {
          return;
       }
@@ -1480,6 +1502,15 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
       GameCamera camera = GlobalData.getCurrentState() == null ? null : GlobalData.getCurrentState().getCamera();
       GameWindow window = WindowManager.getWindow();
       if (camera == null || window == null || window.getSceneWidth() <= 0) {
+         // The first attempt at this diagnostic coupled its own condition to the unrelated trace above and
+         // never actually fired -- fixed to log once per throttle window regardless, on its own timer.
+         if (now - this.markerGuardLastTraced > 2000) {
+            this.markerGuardLastTraced = now;
+            GameLog.debug.println("Arcane Storage: drawWorldMarker stopped by its guard: camera=" + camera
+                  + " window=" + window + " sceneWidth="
+                  + (window == null ? "?" : String.valueOf(window.getSceneWidth())));
+         }
+
          return;
       }
 
@@ -1512,11 +1543,33 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
                + ", camera " + camera.getX() + "," + camera.getY());
       }
 
-      Renderer.initQuadDraw(width, height).color(new Color(90, 160, 255, alpha / 4)).draw(x, y);
-      Renderer.initQuadDraw(width, edge).color(edgeColor).draw(x, y);
-      Renderer.initQuadDraw(width, edge).color(edgeColor).draw(x, y + height - edge);
-      Renderer.initQuadDraw(edge, height - edge * 2).color(edgeColor).draw(x, y + edge);
-      Renderer.initQuadDraw(edge, height - edge * 2).color(edgeColor).draw(x + width - edge, y + edge);
+      // The real fault, found by reading FormShader rather than guessing again: every Form.draw() pushes a
+      // shader state carrying an offset and a draw-limit rectangle, and startState *intersects* that rectangle
+      // with whatever was already active rather than replacing it -- so drawing from here, right after one
+      // form's state has ended and before the next has started, inherits whatever rectangle was left current.
+      // That is usually some other component's small clip box, which silently clips these quads to nothing.
+      // There is no exception, because clipping is not an error.
+      //
+      // The fix is the same one Form.draw() itself uses: push an explicit state before drawing and pop it
+      // after, rather than drawing into whatever state happens to be active. Offset zero and the full hud
+      // buffer as the limit is the root state -- the one FormShader.use() itself establishes once per frame.
+      FormShader.FormShaderState state = GameResources.formShader.startState(
+            new Point(0, 0), new Rectangle(0, 0, window.getHudWidth(), window.getHudHeight()));
+      try {
+         Renderer.initQuadDraw(width, height).color(new Color(90, 160, 255, alpha / 4)).draw(x, y);
+         Renderer.initQuadDraw(width, edge).color(edgeColor).draw(x, y);
+         Renderer.initQuadDraw(width, edge).color(edgeColor).draw(x, y + height - edge);
+         Renderer.initQuadDraw(edge, height - edge * 2).color(edgeColor).draw(x, y + edge);
+         Renderer.initQuadDraw(edge, height - edge * 2).color(edgeColor).draw(x + width - edge, y + edge);
+      } catch (Throwable t) {
+         if (this.markerDrawFailed != this.selectedDevice) {
+            this.markerDrawFailed = this.selectedDevice;
+            GameLog.err.println("Arcane Storage: drawWorldMarker's draw calls threw: " + t);
+            t.printStackTrace(GameLog.err);
+         }
+      } finally {
+         state.end();
+      }
    }
 
    /**
