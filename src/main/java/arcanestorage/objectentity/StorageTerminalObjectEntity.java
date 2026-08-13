@@ -287,15 +287,22 @@ public class StorageTerminalObjectEntity extends InventoryObjectEntity {
     */
    private static final int PROBLEM_INTERVAL = 20;
 
+   /** A ceiling on the survey, so a pathological network cannot make an unbounded packet. */
+   private static final int MAX_BUSES = 128;
+
    /**
-    * The network's stopped devices, as the lines the terminal shows. Empty when everything is working.
+    * Every bus on the network, with what each is doing. Ordered by tile, so the list does not reshuffle.
     *
-    * <p><b>Why the terminal carries this at all.</b> A gray sprite is only discoverable if the player walks
+    * <p><b>Why the terminal carries this at all.</b> A grey sprite is only discoverable if the player walks
     * past it, and the reason a bus stopped is usually a rule set minutes earlier somewhere else. The terminal
     * is where a player goes when storage misbehaves, so it is the one surface that finds the problem for them,
     * and the only one that scales past a handful of buses.
+    *
+    * <p>All of them rather than only the stopped ones, because the logistics tab configures buses as well as
+    * reporting on them -- and a list that showed a device only once it broke would be a strange place to go
+    * and set it up.
     */
-   private String problems = "";
+   private List<BusSummary> buses = new ArrayList<>();
 
    private int ticksUntilProblemCheck = PROBLEM_INTERVAL;
 
@@ -309,7 +316,15 @@ public class StorageTerminalObjectEntity extends InventoryObjectEntity {
    @Override
    public void serverTick() {
       super.serverTick();
-      if (!this.isServer() || !this.isInUse()) {
+      if (!this.isServer()) {
+         return;
+      }
+
+      // Armed rather than merely skipped while nobody is looking, so the first tick after a terminal is opened
+      // surveys instead of waiting out the rest of an interval. A logistics tab that took most of a second to
+      // list anything would read as an empty network.
+      if (!this.isInUse()) {
+         this.ticksUntilProblemCheck = 1;
          return;
       }
 
@@ -319,30 +334,50 @@ public class StorageTerminalObjectEntity extends InventoryObjectEntity {
 
       this.ticksUntilProblemCheck = PROBLEM_INTERVAL;
 
-      String found = this.findProblems();
-      if (!found.equals(this.problems)) {
-         this.problems = found;
+      List<BusSummary> found = this.surveyBuses();
+      if (!sameAs(this.buses, found)) {
+         this.buses = found;
          this.markDirty();
       }
    }
 
    /**
-    * Where the stopped devices are, as {@code x,y} separated by spaces. Bounded.
+    * Whether two surveys say the same thing, so an unchanged network sends no packet.
     *
-    * <p>Coordinates rather than reasons, deliberately: the terminal's job is to say that something is wrong
-    * and where to look, and the device itself explains why when the player gets there -- on its sprite, its
-    * hover tip and its panel. Splitting it that way keeps each surface doing one job and the packet small.
+    * <p>Compared field by field rather than by identity, since every survey builds new summaries. Without
+    * this the terminal would push its whole bus list to every client once a second while open.
     */
-   private String findProblems() {
-      Level level = this.getLevel();
-      if (level == null) {
-         return "";
+   private static boolean sameAs(List<BusSummary> a, List<BusSummary> b) {
+      if (a.size() != b.size()) {
+         return false;
       }
 
-      StringBuilder lines = new StringBuilder();
+      for (int i = 0; i < a.size(); i++) {
+         BusSummary one = a.get(i);
+         BusSummary two = b.get(i);
+         if (one.tileX != two.tileX || one.tileY != two.tileY || one.importing != two.importing
+               || one.state != two.state || one.conflictX != two.conflictX || one.conflictY != two.conflictY
+               || !java.util.Objects.equals(one.conflictItemID, two.conflictItemID)) {
+            return false;
+         }
+      }
 
-      // Buses conduct, so every bus on this network is visited by the same walk that finds the units. The
-      // conductor test is the place to notice them; there is no second traversal.
+      return true;
+   }
+
+   /**
+    * Every bus reachable from this terminal, in tile order.
+    *
+    * <p>Buses conduct, so they are all visited by the same walk that finds the units. The conductor test is
+    * the place to notice them; there is no second traversal.
+    */
+   private List<BusSummary> surveyBuses() {
+      Level level = this.getLevel();
+      if (level == null) {
+         return new ArrayList<>();
+      }
+
+      List<BusObjectEntity> found = new ArrayList<>();
       UnitNetwork.discover(this.tileX, this.tileY, (x, y) -> {
          ObjectEntity candidate = level.entityManager.getObjectEntity(x, y);
          return candidate instanceof NetworkStorage && ((NetworkStorage)candidate).isOnNetwork()
@@ -354,34 +389,76 @@ public class StorageTerminalObjectEntity extends InventoryObjectEntity {
          }
 
          ObjectEntity at = level.entityManager.getObjectEntity(x, y);
-         if (at instanceof BusObjectEntity && ((BusObjectEntity)at).isInactive() && lines.length() < 120) {
-            if (lines.length() > 0) {
-               lines.append(' ');
-            }
-
-            lines.append(at.tileX).append(',').append(at.tileY);
+         if (at instanceof BusObjectEntity && found.size() < MAX_BUSES) {
+            found.add((BusObjectEntity)at);
          }
 
          return true;
       }, MAX_UNITS, MAX_CONDUITS);
 
-      return lines.toString();
+      // Sorted so the tab's rows keep their places between surveys. A list in discovery order would
+      // reshuffle whenever the walk started somewhere else, and a player would lose the row they were reading.
+      found.sort((a, b) -> a.tileY != b.tileY ? Integer.compare(a.tileY, b.tileY)
+            : Integer.compare(a.tileX, b.tileX));
+
+      List<BusSummary> summaries = new ArrayList<>(found.size());
+      for (BusObjectEntity bus : found) {
+         summaries.add(bus.summary());
+      }
+
+      return summaries;
    }
 
-   /** The stopped devices on this network, as lines. Read by the form; empty when all is well. */
-   public String getProblems() {
-      return this.problems;
+   /**
+    * The bus at these coordinates, if it is on this network.
+    *
+    * <p>The membership test is the point, not a convenience: the logistics tab edits rules by coordinate, so
+    * without it a client could send any coordinates it liked and rewrite a bus belonging to somebody else's
+    * base. A walk per edit is affordable because edits are things players do occasionally.
+    */
+   public BusObjectEntity busOnNetwork(int x, int y) {
+      Level level = this.getLevel();
+      if (level == null) {
+         return null;
+      }
+
+      ObjectEntity at = level.entityManager.getObjectEntity(x, y);
+      if (!(at instanceof BusObjectEntity)) {
+         return null;
+      }
+
+      for (BusSummary summary : this.surveyBuses()) {
+         if (summary.tileX == x && summary.tileY == y) {
+            return (BusObjectEntity)at;
+         }
+      }
+
+      return null;
+   }
+
+   /** Every bus on this network, as the terminal last saw them. Read by the form. */
+   public List<BusSummary> getBuses() {
+      return this.buses;
    }
 
    @Override
    public void setupContentPacket(PacketWriter writer) {
       super.setupContentPacket(writer);
-      writer.putNextString(this.problems);
+      writer.putNextShortUnsigned(this.buses.size());
+      for (BusSummary summary : this.buses) {
+         summary.writePacket(writer);
+      }
    }
 
    @Override
    public void applyContentPacket(PacketReader reader) {
       super.applyContentPacket(reader);
-      this.problems = reader.getNextString();
+      int count = reader.getNextShortUnsigned();
+      List<BusSummary> read = new ArrayList<>(count);
+      for (int i = 0; i < count; i++) {
+         read.add(BusSummary.readPacket(reader));
+      }
+
+      this.buses = read;
    }
 }

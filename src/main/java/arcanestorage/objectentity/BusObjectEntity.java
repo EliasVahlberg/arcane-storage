@@ -526,24 +526,19 @@ public abstract class BusObjectEntity extends ObjectEntity implements DeviceOnNe
 
    /** What this bus is doing, or why it is not. Empty when it is simply working. */
    public String stateMessage() {
-      if (this.state.isActive()) {
-         return "";
-      }
+      return this.summary().message();
+   }
 
-      if (this.state != DeviceState.RULE_CONFLICT) {
-         return Localization.translate("ui", this.state.localeKey);
-      }
-
-      // The locale keys under [item] are the registry string IDs, so this needs no registry lookup and
-      // works for a modded item as well as a vanilla one.
-      return Localization.translate("ui", DeviceState.RULE_CONFLICT.localeKey,
-         "item", this.conflictItemID == null
-            ? "?"
-            : Localization.translate("item", this.conflictItemID),
-         "other", Localization.translate("object",
-            this.movesIntoNetwork() ? "arcanestorageexportbus" : "arcanestorageimportbus"),
-         "x", String.valueOf(this.conflictX),
-         "y", String.valueOf(this.conflictY));
+   /**
+    * This bus as the terminal sees it.
+    *
+    * <p>Also how this bus words its own state, so the reason on the sprite's hover tip, the reason in this
+    * bus's panel and the reason in the terminal's logistics tab are one piece of code rather than three that
+    * agree today.
+    */
+   public BusSummary summary() {
+      return new BusSummary(this.tileX, this.tileY, this.movesIntoNetwork(), this.state,
+            this.conflictItemID, this.conflictX, this.conflictY);
    }
 
    public DeviceState getState() {

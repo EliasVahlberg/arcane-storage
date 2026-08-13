@@ -25,6 +25,8 @@ import necesse.gfx.forms.components.FormContentBox;
 import necesse.gfx.forms.components.FormContainerRecipe;
 import necesse.inventory.recipe.CanCraft;
 import arcanestorage.ArcaneStorage;
+import arcanestorage.objectentity.BusSummary;
+import necesse.inventory.itemFilter.ItemCategoriesFilter;
 import necesse.gfx.forms.components.FormTextButton;
 import necesse.engine.ItemCategoryExpandedSetting;
 import java.util.LinkedHashMap;
@@ -235,6 +237,21 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
     */
    private static final int CATEGORY_MENU_DEPTH = 3;
 
+   /** The logistics tab's left column: the list of devices. The rest of the width is the selected one's rules. */
+   private static final int DEVICE_LIST_WIDTH = 208;
+
+   private static final int DEVICE_ROW_HEIGHT = 24;
+
+   private static final int DEVICE_ROW_PITCH = 26;
+
+   /** The issues panel: its font, and how many wrapped lines of reasons it shows before it scrolls. */
+   private static final int ISSUE_FONT = 14;
+
+   private static final int ISSUE_LINES = 4;
+
+   /** Translucent so the panel beneath still reads as part of the interface rather than a hole cut in it. */
+   private static final Color ISSUE_BACKING = new Color(150, 40, 36, 150);
+
    public final Form mainForm;
    public final FormItemList itemList;
    public final FormTextInput searchInput;
@@ -242,6 +259,40 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
    public final Form craftingForm;
 
    public final Form stationsForm;
+
+   public final Form logisticsForm;
+
+   /** The red-backed list of stopped devices, and its backing. Hidden together when nothing is wrong. */
+   private FormColorFill issueBacking;
+
+   private FormLabel issueLabel;
+
+   private FormContentBox deviceListBox;
+
+   private final List<FormTextButton> deviceButtons = new ArrayList<>();
+
+   /**
+    * The bus whose rules the right-hand pane is editing, as a tile key, or {@link #NO_DEVICE}.
+    *
+    * <p>One at a time rather than every bus expanded at once. The rules editor contains a scrolling category
+    * tree, and a column of those inside another scrolling list means two nested scroll regions and a
+    * hit-testing hazard that has already cost a day here once.
+    */
+   private long selectedDevice = NO_DEVICE;
+
+   /** Which bus the pane was built for, so it is rebuilt when the selection changes or its rules arrive. */
+   private long paneBuiltFor = NO_DEVICE;
+
+   private Form devicePane;
+
+   private FormLabel deviceMessage;
+
+   private BusRulesEditor deviceRules;
+
+   /** What the device list was built from, so it is rebuilt when the network changes and not every frame. */
+   private String shownDevices = "";
+
+   private static final long NO_DEVICE = Long.MIN_VALUE;
 
    /**
     * Sources the player has unticked. Transient by the same reasoning as the search and the
@@ -636,6 +687,7 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
 
       this.craftingForm = this.buildCraftingTab(client, container);
       this.stationsForm = this.buildStationsTab(client, container);
+      this.logisticsForm = this.buildLogisticsTab(client, container);
       this.makeCurrent(this.tabs);
 
       // Primed here because refreshList() reads it, and the first draw has not happened yet.
@@ -1209,7 +1261,236 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
       }
 
       this.updateProblems();
+      this.updateLogistics(this.client);
       super.draw(tickManager, perspective, renderBox);
+   }
+
+
+   /**
+    * The logistics tab: what every bus on the network is doing, and the rules of whichever one is selected.
+    *
+    * <p>This exists because the notice it replaces did not work. A stopped device was reported by a single line
+    * squeezed into the storage tab's category row, whose height is fixed, so the line could say how many devices
+    * had stopped and where -- and nothing about why. A player who saw it still had to walk to each device.
+    *
+    * <p>Two jobs in one place, which is the point: the issues panel says what is wrong, and the device list is
+    * also how rules are set, so the fix is where the diagnosis is. Rules written here go through the same
+    * validation as rules written at the bus, deliberately -- there must be no way to reach a contradictory
+    * configuration by choosing the more convenient of two interfaces.
+    *
+    * <p>The list is master-detail rather than a column of expanding rows. That is a departure from the shape
+    * this was asked for, and the reason is the rules editor: it contains a scrolling category tree, and putting
+    * one inside each row of another scrolling list means two nested scroll regions. A content box claims the
+    * mouse over its whole rectangle once clicked, which is exactly how the Apply button came to be inert, and
+    * nesting two of them invites the same class of fault where it is hardest to see. One bus at a time gives
+    * the same two capabilities with one scroll region each.
+    */
+   private Form buildLogisticsTab(Client client, T container) {
+      Form form = this.tabs.addLocalizedTab(new LocalMessage("ui", "arcanestorage_tab_logistics"), null);
+
+      FormFlow flow = new FormFlow(PADDING);
+      int headerY = flow.next(FormInputSize.SIZE_24.height + PADDING);
+      form.addComponent(new FormLocalLabel("ui", "arcanestorage_tab_logistics", new FontOptions(20), -1,
+            PADDING, headerY + 4, FORM_WIDTH - PADDING * 2));
+
+      // Reserved whether or not anything is wrong, so the lists below do not move when a device stops. The
+      // backing and its text are hidden together rather than the space being reclaimed.
+      int issuesY = flow.next(ISSUE_FONT * ISSUE_LINES + PADDING * 2);
+      this.issueBacking = form.addComponent(new FormColorFill(PADDING, issuesY,
+            FORM_WIDTH - PADDING * 2, ISSUE_FONT * ISSUE_LINES + PADDING, ISSUE_BACKING));
+      this.issueLabel = form.addComponent(new FormLabel("", new FontOptions(ISSUE_FONT), -1,
+            PADDING * 2, issuesY + PADDING, FORM_WIDTH - PADDING * 4));
+
+      int listY = flow.next(0);
+      int listHeight = FORM_HEIGHT - listY - PADDING;
+      this.deviceListBox = form.addComponent(
+            new FormContentBox(PADDING, listY, DEVICE_LIST_WIDTH, listHeight));
+
+      if (listHeight < BusRulesEditor.minimumHeight()) {
+         GameLog.warn.println("Arcane Storage: the logistics tab leaves " + listHeight
+               + "px for the rules editor, which needs at least " + BusRulesEditor.minimumHeight()
+               + "px; its controls will overlap.");
+      }
+
+      return form;
+   }
+
+   /**
+    * Rebuilds the device list, and only when the network has changed.
+    *
+    * <p>A row per bus, whether or not it is working, because this is where rules are set as well as where
+    * problems are read -- a list that showed a device only once it broke would be a strange place to go and
+    * configure one. A stopped device's row is red, which is the same signal as its sprite going grey: the
+    * player learns one thing, not two.
+    */
+   private void rebuildDeviceList(List<BusSummary> buses) {
+      for (FormTextButton button : this.deviceButtons) {
+         this.deviceListBox.removeComponent(button);
+      }
+
+      this.deviceButtons.clear();
+
+      for (int i = 0; i < buses.size(); i++) {
+         BusSummary bus = buses.get(i);
+         long key = StorageTerminalContainer.key(bus.tileX, bus.tileY);
+         FormTextButton row = this.deviceListBox.addComponent(new FormTextButton(
+               bus.name() + "  " + bus.where(), 0, i * DEVICE_ROW_PITCH,
+               DEVICE_LIST_WIDTH - this.deviceListBox.getScrollBarWidth() - 2, FormInputSize.SIZE_24,
+               bus.state.isActive() ? ButtonColor.BASE : ButtonColor.RED));
+         row.onClicked(e -> this.selectDevice(key));
+         this.deviceButtons.add(row);
+      }
+
+      this.deviceListBox.setContentBox(new Rectangle(
+            DEVICE_LIST_WIDTH - this.deviceListBox.getScrollBarWidth(), buses.size() * DEVICE_ROW_PITCH));
+   }
+
+   /**
+    * Points the right-hand pane at a bus, asking the server for its rules if they are not already here.
+    *
+    * <p>Rules are fetched per bus rather than sent with the terminal's summary: a filter is a category tree
+    * with per-item entries, bus counts are not bounded, and a player who opened the terminal to look at storage
+    * should not pay for every bus on the network.
+    */
+   private void selectDevice(long key) {
+      if (this.selectedDevice == key) {
+         return;
+      }
+
+      this.selectedDevice = key;
+      this.getContainer().refusal = null;
+      if (!this.getContainer().rules.containsKey(key)) {
+         this.getContainer().requestRulesAction.runAndSend((int)(key >> 32), (int)key);
+      }
+   }
+
+   /**
+    * Builds the rules pane for the selected bus, or the hint that stands in for it.
+    *
+    * <p>Rebuilt rather than repointed, because the editor binds to one filter object at construction. The
+    * whole pane is one nested form so that replacing it is a single remove.
+    */
+   private void rebuildDevicePane(Client client, List<BusSummary> buses) {
+      if (this.devicePane != null) {
+         this.logisticsForm.removeComponent(this.devicePane);
+         this.devicePane = null;
+         this.deviceMessage = null;
+         this.deviceRules = null;
+      }
+
+      this.paneBuiltFor = this.selectedDevice;
+
+      int paneX = PADDING * 2 + DEVICE_LIST_WIDTH;
+      int paneY = this.deviceListBox.getY();
+      int paneWidth = FORM_WIDTH - paneX - PADDING;
+      int paneHeight = FORM_HEIGHT - paneY - PADDING;
+
+      Form pane = this.logisticsForm.addComponent(new Form(paneWidth, paneHeight));
+      pane.setPosition(paneX, paneY);
+      this.devicePane = pane;
+
+      BusSummary selected = null;
+      for (BusSummary bus : buses) {
+         if (StorageTerminalContainer.key(bus.tileX, bus.tileY) == this.selectedDevice) {
+            selected = bus;
+            break;
+         }
+      }
+
+      ItemCategoriesFilter filter = this.getContainer().rules.get(this.selectedDevice);
+      if (selected == null || filter == null) {
+         // Covers three cases with one sentence, all of which mean "nothing to edit yet": nothing picked, the
+         // rules still in flight, and a device that has left the network while its rules were on the way.
+         pane.addComponent(new FormLocalLabel("ui",
+               this.selectedDevice == NO_DEVICE ? "arcanestorage_pick_device" : "arcanestorage_fetching_rules",
+               new FontOptions(16), -1, PADDING, PADDING * 2, paneWidth - PADDING * 2));
+         return;
+      }
+
+      pane.addComponent(new FormLabel(selected.name() + "  " + selected.where(), new FontOptions(16), -1,
+            PADDING, PADDING, paneWidth - PADDING * 2));
+
+      int messageY = PADDING + 20;
+      this.deviceMessage = pane.addComponent(new FormLabel("", new FontOptions(ISSUE_FONT), -1,
+            PADDING, messageY, paneWidth - PADDING * 2));
+
+      int rulesY = messageY + ISSUE_FONT * 2 + PADDING;
+      final BusSummary bus = selected;
+      this.deviceRules = BusRulesEditor.addTo(pane, client, filter,
+            bus.importing ? "arcanestorage_importbuslimit" : "arcanestorage_exportbuslimit",
+            "arcanestoragebus", new Rectangle(0, rulesY, paneWidth, paneHeight - rulesY),
+            edited -> {
+               this.getContainer().refusal = null;
+               this.getContainer().setRulesAction.runAndSend(bus.tileX, bus.tileY, edited);
+            });
+   }
+
+   /**
+    * Keeps the logistics tab current: the issues, the list, and which bus the pane is showing.
+    *
+    * <p>Per frame rather than on an event, because everything here arrives without the panel doing anything --
+    * a device stops, a rule set is refused, a bus is broken by a passing mob.
+    */
+   private void updateLogistics(Client client) {
+      List<BusSummary> buses = this.getContainer().terminal == null
+            ? new ArrayList<>()
+            : this.getContainer().terminal.getBuses();
+
+      StringBuilder issues = new StringBuilder();
+      StringBuilder signature = new StringBuilder();
+      for (BusSummary bus : buses) {
+         signature.append(bus.tileX).append(',').append(bus.tileY).append(bus.state).append(';');
+         if (bus.state.isActive()) {
+            continue;
+         }
+
+         if (issues.length() > 0) {
+            issues.append('\n');
+         }
+
+         issues.append(bus.name()).append(' ').append(bus.where()).append(" - ").append(bus.message());
+      }
+
+      this.issueBacking.visible = issues.length() > 0;
+      this.issueLabel.setText(issues.length() == 0
+            ? Localization.translate("ui", "arcanestorage_no_issues")
+            : issues.toString(), FORM_WIDTH - PADDING * 4);
+
+      if (!signature.toString().equals(this.shownDevices)) {
+         this.shownDevices = signature.toString();
+         this.rebuildDeviceList(buses);
+      }
+
+      // The pane is also rebuilt when rules arrive for the bus already selected, which is the ordinary case:
+      // selecting sends a request and the answer lands a round trip later.
+      boolean rulesArrived = this.deviceRules == null
+            && this.getContainer().rules.containsKey(this.selectedDevice);
+      if (this.paneBuiltFor != this.selectedDevice || rulesArrived || this.devicePane == null) {
+         this.rebuildDevicePane(client, buses);
+      }
+
+      if (this.deviceMessage != null) {
+         BusSummary selected = null;
+         for (BusSummary bus : buses) {
+            if (StorageTerminalContainer.key(bus.tileX, bus.tileY) == this.selectedDevice) {
+               selected = bus;
+               break;
+            }
+         }
+
+         // Same precedence as the bus's own panel: a refusal answers what the player just did, a stopped state
+         // is a standing fact that will still be there afterwards.
+         String message = "";
+         if (this.getContainer().refusal != null) {
+            message = GameColor.RED.getColorCode() + this.getContainer().refusal;
+         } else if (selected != null && !selected.state.isActive()) {
+            message = GameColor.RED.getColorCode() + selected.message();
+         } else if (this.deviceRules != null && this.deviceRules.hasUnappliedEdits()) {
+            message = Localization.translate("ui", "arcanestorage_unapplied");
+         }
+
+         this.deviceMessage.setText(message, this.devicePane.getWidth() - PADDING * 2);
+      }
    }
 
    /**
@@ -1219,18 +1500,20 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
     * to change: the line has to clear itself when they fix it, without reopening anything.
     */
    private void updateProblems() {
-      String problems = this.getContainer().terminal == null
-         ? ""
-         : this.getContainer().terminal.getProblems();
-      if (problems.isEmpty()) {
-         this.problemsLabel.setText("");
-         return;
+      // Still on the storage tab as well as in the logistics tab, because this is the line a player sees
+      // without going looking. It now points at the tab that explains rather than trying to explain itself in
+      // a row whose height is fixed -- which is what made it a poor notice.
+      int stopped = 0;
+      if (this.getContainer().terminal != null) {
+         for (BusSummary summary : this.getContainer().terminal.getBuses()) {
+            if (!summary.state.isActive()) {
+               stopped++;
+            }
+         }
       }
 
-      this.problemsLabel.setText(GameColor.RED.getColorCode()
-            + Localization.translate("ui", "arcanestorage_problems",
-                  "count", String.valueOf(problems.split(" ").length),
-                  "where", problems));
+      this.problemsLabel.setText(stopped == 0 ? "" : GameColor.RED.getColorCode()
+            + Localization.translate("ui", "arcanestorage_problems", "count", String.valueOf(stopped)));
    }
 
    /** Order-sensitive hash of item identity and amount, used only to detect changes. */

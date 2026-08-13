@@ -1,12 +1,15 @@
 package arcanestorage.container;
 
+import java.util.HashMap;
 import java.util.ArrayList;
 import java.util.List;
 
+import arcanestorage.objectentity.BusObjectEntity;
 import arcanestorage.network.NetworkContents;
 import arcanestorage.network.NetworkIndexes;
 import arcanestorage.objectentity.StorageTerminalObjectEntity;
 import arcanestorage.network.NetworkStorage;
+import necesse.engine.localization.Localization;
 import necesse.engine.network.NetworkClient;
 import necesse.engine.network.Packet;
 import necesse.engine.network.PacketReader;
@@ -19,6 +22,8 @@ import necesse.inventory.InventoryRange;
 import necesse.inventory.Inventory;
 import necesse.inventory.Inventory;
 import necesse.inventory.InventoryItem;
+import necesse.inventory.item.ItemCategory;
+import necesse.inventory.itemFilter.ItemCategoriesFilter;
 import necesse.inventory.recipe.Recipe;
 import necesse.inventory.recipe.Recipes;
 import necesse.inventory.recipe.Tech;
@@ -74,6 +79,25 @@ public class StorageTerminalContainer extends Container {
    public final StorageTerminalContainer.WithdrawAction withdrawAction;
    public final StorageTerminalContainer.DepositAllAction depositAllAction;
    public final StorageTerminalContainer.DepositCursorAction depositCursorAction;
+
+   public final StorageTerminalContainer.RequestRulesAction requestRulesAction;
+
+   public final StorageTerminalContainer.SendRulesAction sendRulesAction;
+
+   public final StorageTerminalContainer.SetRulesAction setRulesAction;
+
+   public final StorageTerminalContainer.RejectRulesAction rejectRulesAction;
+
+   /**
+    * Rules fetched for the buses the player has looked at, keyed by tile. Client-side only.
+    *
+    * <p>Kept for the session the terminal is open. A player comparing two buses should not re-fetch each time
+    * they switch between them, and a filter they have edited but not applied must survive looking away.
+    */
+   public final HashMap<Long, ItemCategoriesFilter> rules = new HashMap<>();
+
+   /** Why the last attempt to write a bus's rules was refused, or null. Transient, per attempt, per player. */
+   public String refusal;
 
    /**
     * The units backing {@link #NETWORK_START}..{@link #NETWORK_END}, in the same order the
@@ -152,6 +176,154 @@ public class StorageTerminalContainer extends Container {
       this.withdrawAction = this.registerAction(new StorageTerminalContainer.WithdrawAction());
       this.depositAllAction = this.registerAction(new StorageTerminalContainer.DepositAllAction());
       this.depositCursorAction = this.registerAction(new StorageTerminalContainer.DepositCursorAction());
+      this.requestRulesAction = this.registerAction(new StorageTerminalContainer.RequestRulesAction());
+      this.sendRulesAction = this.registerAction(new StorageTerminalContainer.SendRulesAction());
+      this.setRulesAction = this.registerAction(new StorageTerminalContainer.SetRulesAction());
+      this.rejectRulesAction = this.registerAction(new StorageTerminalContainer.RejectRulesAction());
+   }
+
+   /**
+    * The bus at these coordinates, if it is on this terminal's network. Null otherwise, which is a refusal.
+    *
+    * <p>Every rule action checks this. The tab addresses buses by coordinate, so without the check a crafted
+    * packet could rewrite a bus anywhere on the level.
+    */
+   private BusObjectEntity busFor(int x, int y) {
+      return this.terminal == null ? null : this.terminal.busOnNetwork(x, y);
+   }
+
+   /** Asks the server for one bus's rules, which are not in the terminal's own sync. */
+   public class RequestRulesAction extends ContainerCustomAction {
+
+      public void runAndSend(int x, int y) {
+         Packet content = new Packet();
+         PacketWriter writer = new PacketWriter(content);
+         writer.putNextInt(x);
+         writer.putNextInt(y);
+         this.runAndSendAction(content);
+      }
+
+      @Override
+      public void executePacket(PacketReader reader) {
+         if (!StorageTerminalContainer.this.client.isServer()) {
+            return;
+         }
+
+         int x = reader.getNextInt();
+         int y = reader.getNextInt();
+         BusObjectEntity bus = StorageTerminalContainer.this.busFor(x, y);
+         if (bus != null) {
+            StorageTerminalContainer.this.sendRulesAction.runAndSend(x, y, bus.filter);
+         }
+      }
+   }
+
+   /**
+    * The server's answer: one bus's rules, addressed by tile.
+    *
+    * <p>Fetched on request rather than sent with the terminal's summary of the network. A filter is a category
+    * tree with per-item entries and is not small, bus counts are not bounded, and a player opening the terminal
+    * to look at storage would pay for every one of them. This way they pay for the bus they clicked.
+    */
+   public class SendRulesAction extends ContainerCustomAction {
+
+      public void runAndSend(int x, int y, ItemCategoriesFilter filter) {
+         Packet content = new Packet();
+         PacketWriter writer = new PacketWriter(content);
+         writer.putNextInt(x);
+         writer.putNextInt(y);
+         filter.writePacket(writer);
+         this.runAndSendAction(content);
+      }
+
+      @Override
+      public void executePacket(PacketReader reader) {
+         if (StorageTerminalContainer.this.client.isServer()) {
+            return;
+         }
+
+         int x = reader.getNextInt();
+         int y = reader.getNextInt();
+         ItemCategoriesFilter filter = new ItemCategoriesFilter(ItemCategory.masterCategory, false);
+         filter.readPacket(reader);
+         StorageTerminalContainer.this.rules.put(key(x, y), filter);
+      }
+   }
+
+   /**
+    * Writes one bus's rules, through the same validation the bus's own panel obeys.
+    *
+    * <p>The point of routing this through {@link BusObjectEntity#whyRefused} rather than writing the filter
+    * directly is that there must be no way to reach a contradictory configuration by choosing the more
+    * convenient of two interfaces. A rule set is adopted or refused as one thing here too, and a refusal
+    * applies none of it.
+    */
+   public class SetRulesAction extends ContainerCustomAction {
+
+      public void runAndSend(int x, int y, ItemCategoriesFilter edited) {
+         Packet content = new Packet();
+         PacketWriter writer = new PacketWriter(content);
+         writer.putNextInt(x);
+         writer.putNextInt(y);
+         edited.writePacket(writer);
+         this.runAndSendAction(content);
+      }
+
+      @Override
+      public void executePacket(PacketReader reader) {
+         if (!StorageTerminalContainer.this.client.isServer()) {
+            return;
+         }
+
+         int x = reader.getNextInt();
+         int y = reader.getNextInt();
+         ItemCategoriesFilter proposed = new ItemCategoriesFilter(ItemCategory.masterCategory, false);
+         proposed.readPacket(reader);
+
+         BusObjectEntity bus = StorageTerminalContainer.this.busFor(x, y);
+         if (bus == null) {
+            StorageTerminalContainer.this.rejectRulesAction.runAndSend(
+                  Localization.translate("ui", "arcanestorage_rules_gone"));
+            return;
+         }
+
+         String refusal = bus.whyRefused(proposed);
+         if (refusal != null) {
+            StorageTerminalContainer.this.rejectRulesAction.runAndSend(refusal);
+            return;
+         }
+
+         Packet accepted = new Packet();
+         proposed.writePacket(new PacketWriter(accepted));
+         bus.filter.readPacket(new PacketReader(accepted));
+
+         // Or a rule the player just set would wait for some unrelated change to disturb the same item before
+         // anything happened. Nothing polls any more, so nothing would notice.
+         bus.rulesChanged();
+      }
+   }
+
+   /** Why the last write was refused, back to the client that tried. See BusContainer.RejectFilterAction. */
+   public class RejectRulesAction extends ContainerCustomAction {
+
+      public void runAndSend(String reason) {
+         Packet content = new Packet();
+         new PacketWriter(content).putNextString(reason);
+         this.runAndSendAction(content);
+      }
+
+      @Override
+      public void executePacket(PacketReader reader) {
+         String reason = reader.getNextString();
+         if (!StorageTerminalContainer.this.client.isServer()) {
+            StorageTerminalContainer.this.refusal = reason;
+         }
+      }
+   }
+
+   /** One key for a tile, so fetched rules can be held in a map without allocating a point per lookup. */
+   public static long key(int x, int y) {
+      return (long)x << 32 | (long)y & 4294967295L;
    }
 
    /** True when no units are linked. The grid is then simply empty. */

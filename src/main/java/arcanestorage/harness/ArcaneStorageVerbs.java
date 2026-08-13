@@ -10,6 +10,7 @@ import arcanestorage.container.StorageTerminalContainer;
 import arcanestorage.network.NetworkContents;
 import arcanestorage.object.StorageConduitObject;
 import arcanestorage.container.BusContainer;
+import arcanestorage.objectentity.BusSummary;
 import arcanestorage.objectentity.BusObjectEntity;
 import necesse.inventory.item.ItemCategory;
 import necesse.inventory.itemFilter.ItemCategoriesFilter;
@@ -80,6 +81,8 @@ public final class ArcaneStorageVerbs {
       Harness.registerVerb(new IndexPoisonVerb());
       Harness.registerVerb(new HaulVerb());
       Harness.registerVerb(new BusApplyVerb());
+      Harness.registerVerb(new TerminalRulesVerb());
+      Harness.registerExpectation(new BusesQuery());
       Harness.registerVerb(new WithdrawVerb());
       Harness.registerVerb(new DepositVerb());
       Harness.registerVerb(new DepositAllVerb());
@@ -826,9 +829,23 @@ public final class ArcaneStorageVerbs {
             return;
          }
 
-         String where = ((StorageTerminalObjectEntity)entity).getProblems();
-         out.str("where", where);
-         out.num("count", where.isEmpty() ? 0 : where.split(" ").length);
+         StringBuilder where = new StringBuilder();
+         int count = 0;
+         for (BusSummary summary : ((StorageTerminalObjectEntity)entity).getBuses()) {
+            if (summary.state.isActive()) {
+               continue;
+            }
+
+            if (count > 0) {
+               where.append(' ');
+            }
+
+            where.append(summary.where());
+            count++;
+         }
+
+         out.str("where", where.toString());
+         out.num("count", count);
       }
    }
 
@@ -1066,6 +1083,136 @@ public final class ArcaneStorageVerbs {
          return context.check("refused".equals(expected) == (refusal != null),
             "busapply " + context.arg(3) + " " + expected,
             refusal == null ? "it was applied" : "it was refused: " + refusal);
+      }
+   }
+
+   /**
+    * What the terminal's logistics tab is showing, as the terminal itself computed it.
+    *
+    * <p>{@code query buses <dx> <dy>} -> {@code {count, stopped, list}}, where list is
+    * {@code x,y:import|export:state} per bus, space separated. The tab is client-side and no test can look at
+    * it, but everything it draws comes from this one survey, so asserting the survey is asserting the tab's
+    * content -- which devices it lists, in which order, and which of them it will colour red.
+    */
+   private static final class BusesQuery implements TestVerb, TestQuery {
+      public String name() {
+         return "buses";
+      }
+
+      public String usage() {
+         return "buses <dx> <dy>";
+      }
+
+      public int coordinateArgIndex() {
+         return 2;
+      }
+
+      /** Read-only, so there is nothing to do as a verb. */
+      public boolean run(TestContext context) {
+         return true;
+      }
+
+      public void query(TestContext context, Json.Writer out) {
+         ObjectEntity entity = context.level.entityManager.getObjectEntity(
+            context.tileX(context.intArg(2)), context.tileY(context.intArg(3)));
+         if (!(entity instanceof StorageTerminalObjectEntity)) {
+            out.num("count", -1);
+            out.num("stopped", -1);
+            out.str("list", "");
+            return;
+         }
+
+         StringBuilder list = new StringBuilder();
+         int stopped = 0;
+         List<BusSummary> buses = ((StorageTerminalObjectEntity)entity).getBuses();
+         for (BusSummary bus : buses) {
+            if (list.length() > 0) {
+               list.append(' ');
+            }
+
+            list.append(bus.where()).append(':').append(bus.importing ? "import" : "export")
+                  .append(':').append(bus.state.name().toLowerCase());
+            if (!bus.state.isActive()) {
+               stopped++;
+            }
+         }
+
+         out.num("count", buses.size());
+         out.num("stopped", stopped);
+         out.str("list", list.toString());
+      }
+   }
+
+   /**
+    * Writing a bus's rules from the terminal, by exactly the route the logistics tab uses.
+    *
+    * <p>{@code terminalrules <tdx> <tdy> <bdx> <bdy> <item> <target> <accepted|refused|notfound>}. This is the
+    * server half of {@code StorageTerminalContainer.SetRulesAction}: find the bus <i>and check it is on this
+    * terminal's network</i>, judge the proposal, adopt it or refuse it whole. The membership check is the part
+    * worth testing rather than trusting -- the tab addresses buses by coordinate, so without it a crafted
+    * packet could rewrite a bus in somebody else's base.
+    */
+   private static final class TerminalRulesVerb implements TestVerb {
+      public String name() {
+         return "terminalrules";
+      }
+
+      public String usage() {
+         return "terminalrules <tdx> <tdy> <bdx> <bdy> <item> <target> <accepted|refused|notfound>";
+      }
+
+      public int coordinateArgIndex() {
+         return 1;
+      }
+
+      public boolean run(TestContext context) {
+         ObjectEntity entity = context.level.entityManager.getObjectEntity(
+            context.tileX(context.intArg(1)), context.tileY(context.intArg(2)));
+         if (!(entity instanceof StorageTerminalObjectEntity)) {
+            context.fail("terminalrules: no terminal there");
+            return false;
+         }
+
+         StorageTerminalObjectEntity terminal = (StorageTerminalObjectEntity)entity;
+         int busX = context.tileX(context.intArg(3));
+         int busY = context.tileY(context.intArg(4));
+         Item item = ItemRegistry.getItem(context.arg(5));
+         if (item == null) {
+            context.fail("terminalrules: no such item");
+            return false;
+         }
+
+         int target = context.intArg(6);
+         String expected = context.argCount() > 7 ? context.arg(7) : "accepted";
+
+         BusObjectEntity bus = terminal.busOnNetwork(busX, busY);
+         if (bus == null) {
+            context.info("the terminal does not have a bus at " + busX + "," + busY + " on its network");
+            return context.check("notfound".equals(expected), "terminalrules " + expected,
+                  "the bus was not on the terminal's network");
+         }
+
+         ItemCategoriesFilter proposed = new ItemCategoriesFilter(ItemCategory.masterCategory, false);
+         Packet current = new Packet();
+         bus.filter.writePacket(new PacketWriter(current));
+         proposed.readPacket(new PacketReader(current));
+         if (target > 0) {
+            proposed.setItemAllowed(item, true, target);
+         } else {
+            proposed.setItemAllowed(item, true);
+         }
+
+         String refusal = bus.whyRefused(proposed);
+         if (refusal == null) {
+            Packet accepted = new Packet();
+            proposed.writePacket(new PacketWriter(accepted));
+            bus.filter.readPacket(new PacketReader(accepted));
+            bus.rulesChanged();
+         }
+
+         context.info(refusal == null ? "applied through the terminal" : "refused: " + refusal);
+         return context.check("refused".equals(expected) == (refusal != null), "terminalrules " + expected,
+               refusal == null ? "it was applied" : "it was refused: " + refusal);
       }
    }
 
