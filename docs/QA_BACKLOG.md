@@ -114,6 +114,18 @@ Open the terminal and pick the Logistics tab. There should be four tabs now.
 7. **Cause a conflict** and read the reason. It should name the other device rather than only giving its
    coordinates.
 
+### The world marker — new, none of it seen
+
+1. **Pick a device in the logistics tab** and look at the world behind the panel. The bus's tile should have a
+   pulsing blue outline, about once a second.
+2. **Switch to another tab.** The marker should go, since it points at something no longer on screen.
+3. **Change the selection.** The marker should follow it.
+4. **Close the terminal.** No marker should be left behind. Reopen and check it comes back.
+5. **Judge the pulse.** It is meant to catch the eye without competing with a panel being read; say if it is too
+   fast, too slow, or too bright.
+6. **A bus off screen.** The marker is drawn at the tile, so a device out of view has no visible marker. Worth
+   deciding whether that needs an edge-of-screen pointer, which is a bigger piece of work.
+
 Known and deliberate, so not bugs:
 
 - The stopped sprites are luminance-weighted desaturations of the current placeholder art, generated in a

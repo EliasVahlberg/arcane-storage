@@ -65,6 +65,12 @@ import necesse.inventory.item.ItemSearchTester;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import necesse.engine.util.Zoning;
+import necesse.gfx.camera.GameCamera;
+import necesse.gfx.drawOptions.texture.SharedTextureDrawOptions;
+import necesse.gfx.drawables.SortedDrawable;
+import necesse.level.maps.Level;
+import necesse.level.maps.hudManager.HudDrawElement;
 import necesse.engine.GameLog;
 import necesse.engine.registries.RecipeTechRegistry;
 import necesse.gfx.forms.components.FormContainerCraftingListContentBox;
@@ -256,6 +262,14 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
    public final FormItemList itemList;
    public final FormTextInput searchInput;
    public final TabbedFormPreset tabs;
+
+   /** Which tab is the logistics one, so the world marker only shows while a player is looking at it. */
+   private int logisticsTabIndex = -1;
+
+   /** The tile the world marker is over, or -1: written each frame, read by the marker as it draws. */
+   private int markerX = -1;
+
+   private int markerY = -1;
    public final Form craftingForm;
 
    public final Form stationsForm;
@@ -688,6 +702,7 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
       this.craftingForm = this.buildCraftingTab(client, container);
       this.stationsForm = this.buildStationsTab(client, container);
       this.logisticsForm = this.buildLogisticsTab(client, container);
+      this.addWorldMarker(client);
       this.makeCurrent(this.tabs);
 
       // Primed here because refreshList() reads it, and the first draw has not happened yet.
@@ -1286,6 +1301,7 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
     * the same two capabilities with one scroll region each.
     */
    private Form buildLogisticsTab(Client client, T container) {
+      this.logisticsTabIndex = this.tabs.getTabCount();
       Form form = this.tabs.addLocalizedTab(new LocalMessage("ui", "arcanestorage_tab_logistics"), null);
 
       FormFlow flow = new FormFlow(PADDING);
@@ -1431,6 +1447,63 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
    }
 
    /**
+    * Marks the selected device in the world, so a player can see which one they are configuring.
+    *
+    * <p>The tab can only name a device, and a name is something the player chose or a number this mod handed
+    * out -- neither tells them which of the boxes in front of them it is. This draws over the tile itself.
+    *
+    * <p>Uses the game's own zone highlight rather than a sprite of ours: it is the same outline-and-fill a
+    * player already sees when placing a settlement flag or dragging out a work zone, so it needs no art and
+    * reads as part of the game. It pulses, which is the part that does an arrow's job of drawing the eye.
+    *
+    * <p>Registered on the level's HUD manager, which is where anything drawn in world space from a UI belongs
+    * -- the same route the settlement work-zone tool takes. The element removes itself once this form is gone
+    * rather than relying on a close hook, because there are several ways a container stops being open and only
+    * one of them is the player pressing escape.
+    */
+   private void addWorldMarker(Client client) {
+      Level level = client.getLevel();
+      if (level == null) {
+         return;
+      }
+
+      level.hudManager.addElement(new HudDrawElement() {
+         @Override
+         public void addDrawables(List<SortedDrawable> list, GameCamera camera, PlayerMob perspective) {
+            if (StorageTerminalContainerForm.this.isDisposed()) {
+               this.remove();
+               return;
+            }
+
+            int tileX = StorageTerminalContainerForm.this.markerX;
+            int tileY = StorageTerminalContainerForm.this.markerY;
+            if (tileX < 0 || tileY < 0) {
+               return;
+            }
+
+            // Between a third and full strength, about once a second. Enough to catch the eye without being
+            // the brightest thing on the screen while somebody is trying to read a panel.
+            double phase = (Math.sin(this.getTime() / 160.0) + 1.0) / 2.0;
+            int alpha = (int)(70 + phase * 130);
+            final SharedTextureDrawOptions options = Zoning.getRectangleDrawOptions(
+                  new Rectangle(tileX * 32, tileY * 32, 32, 32),
+                  new Color(170, 220, 255, alpha), new Color(90, 160, 255, alpha / 3), camera);
+            list.add(new SortedDrawable() {
+               @Override
+               public int getPriority() {
+                  return -2000000;
+               }
+
+               @Override
+               public void draw(TickManager tickManager) {
+                  options.draw();
+               }
+            });
+         }
+      });
+   }
+
+   /**
     * Keeps the logistics tab current: the issues, the list, and which bus the pane is showing.
     *
     * <p>Per frame rather than on an event, because everything here arrives without the panel doing anything --
@@ -1469,6 +1542,20 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
 
       // The pane is also rebuilt when rules arrive for the bus already selected, which is the ordinary case:
       // selecting sends a request and the answer lands a round trip later.
+      // Where the world marker goes: the selected device, and only while the tab showing it is open. A marker
+      // left up behind the storage tab would be pointing at something the player is no longer looking at.
+      this.markerX = -1;
+      this.markerY = -1;
+      if (this.selectedDevice != NO_DEVICE && this.tabs.getCurrentTabIndex() == this.logisticsTabIndex) {
+         for (BusSummary bus : buses) {
+            if (StorageTerminalContainer.key(bus.tileX, bus.tileY) == this.selectedDevice) {
+               this.markerX = bus.tileX;
+               this.markerY = bus.tileY;
+               break;
+            }
+         }
+      }
+
       boolean rulesArrived = this.deviceRules == null
             && this.getContainer().rules.containsKey(this.selectedDevice);
       if (this.paneBuiltFor != this.selectedDevice || rulesArrived || this.devicePane == null) {
