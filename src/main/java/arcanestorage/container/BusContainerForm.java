@@ -18,6 +18,7 @@ import necesse.gfx.forms.presets.ItemCategoriesFilterForm;
 import necesse.gfx.forms.presets.containerComponent.ContainerForm;
 import necesse.engine.gameLoop.tickManager.TickManager;
 import necesse.entity.mobs.PlayerMob;
+import necesse.engine.GameLog;
 import necesse.gfx.GameColor;
 import necesse.gfx.gameFont.FontOptions;
 import necesse.gfx.ui.ButtonColor;
@@ -43,6 +44,9 @@ public class BusContainerForm<T extends BusContainer> extends ContainerForm<T> {
    private static final int WIDTH = 340;
    private static final int HEIGHT = 420;
 
+   /** Height reserved at the bottom of the panel for the Apply button, kept clear of the scrolling list. */
+   private static final int APPLY_STRIP = 32;
+
    public final ItemCategoriesFilterForm filterForm;
 
    /**
@@ -52,9 +56,6 @@ public class BusContainerForm<T extends BusContainer> extends ContainerForm<T> {
     * is usually a rule the player is editing right now: they should see it clear as they fix it.
     */
    private final FormLabel stateLabel;
-
-   /** Sends the edited rule set. Green while there is something to send, so the panel says what it is waiting for. */
-   private final FormLocalTextButton applyButton;
 
    /** Whether the panel holds edits the server has not been told about. */
    private boolean unapplied;
@@ -106,8 +107,12 @@ public class BusContainerForm<T extends BusContainer> extends ContainerForm<T> {
 
       int searchY = flow.next(28);
       int contentY = flow.next();
+
+      // The list stops short of the bottom edge to leave APPLY_STRIP clear. It has to be clear rather than
+      // merely drawn over: FormContentBox.hitboxFullSize defaults to true, so the box claims the mouse
+      // anywhere in its rectangle whether or not anything of its own is under the cursor.
       final FormContentBox content = this.addComponent(
-         new FormContentBox(0, contentY, WIDTH, HEIGHT - contentY - 4));
+         new FormContentBox(0, contentY, WIDTH, HEIGHT - contentY - APPLY_STRIP));
 
       // Expand state is a client-side setting keyed by name, exactly as the settlement panel does it, so
       // a player's collapsed categories stay collapsed between openings.
@@ -156,12 +161,30 @@ public class BusContainerForm<T extends BusContainer> extends ContainerForm<T> {
             this.edited();
          });
 
-      // Apply sits with the two whole-tree buttons rather than at the bottom of the panel, because it belongs
-      // with the other things that act on the rule set as a whole.
-      this.applyButton = this.addComponent(new FormLocalTextButton(
-            "ui", "arcanestorage_apply", WIDTH / 2 - 60, HEIGHT - 30, 120, FormInputSize.SIZE_24,
+      // Apply sits in the reserved strip below the list, never inside it, and stays responsive whether or not
+      // there is anything to send. A button that goes inactive when it has nothing to do is indistinguishable
+      // from a broken one, and pressing this with no edits pending simply re-sends the set already in force.
+      int applyY = HEIGHT - APPLY_STRIP + 4;
+      FormLocalTextButton applyButton = this.addComponent(new FormLocalTextButton(
+            "ui", "arcanestorage_apply", WIDTH / 2 - 60, applyY, 120, FormInputSize.SIZE_24,
             ButtonColor.GREEN));
-      this.applyButton.onClicked(e -> this.apply());
+      applyButton.onClicked(e -> this.apply());
+
+      // Checked rather than trusted, because nothing headless can see this: forms are client-side, so a
+      // control that draws correctly and receives nothing looks identical to a working one in every test we
+      // can write. This is the assertion the first version of this panel needed and did not have -- it sat
+      // inside the list's rectangle, drew perfectly, and went inert the moment the list was clicked, because
+      // clicking a component raises its priority key and the event loop offers events in that order.
+      int listBottom = HEIGHT - APPLY_STRIP;
+      int buttonBottom = applyY + FormInputSize.SIZE_24.height;
+      if (applyY < listBottom) {
+         GameLog.warn.println("Arcane Storage: the apply button starts at y=" + applyY
+               + " but the filter list runs to y=" + listBottom + "; the list claims the mouse over its whole"
+               + " rectangle once clicked, so the button will draw normally and respond to nothing.");
+      } else if (buttonBottom > HEIGHT) {
+         GameLog.warn.println("Arcane Storage: the apply button ends at y=" + buttonBottom
+               + " but the panel is " + HEIGHT + "px tall; it will be clipped.");
+      }
 
       FormTextInput search = this.addComponent(
          new FormTextInput(4, searchY, FormInputSize.SIZE_24, WIDTH - 8, -1, 500));
@@ -192,7 +215,6 @@ public class BusContainerForm<T extends BusContainer> extends ContainerForm<T> {
       }
 
       this.stateLabel.setText(message);
-      this.applyButton.setActive(this.unapplied);
       super.draw(tickManager, perspective, renderBox);
    }
 
