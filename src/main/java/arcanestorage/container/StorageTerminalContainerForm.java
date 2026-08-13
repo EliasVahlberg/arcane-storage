@@ -65,12 +65,12 @@ import necesse.inventory.item.ItemSearchTester;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import necesse.engine.util.Zoning;
 import necesse.gfx.camera.GameCamera;
-import necesse.gfx.drawOptions.texture.SharedTextureDrawOptions;
-import necesse.gfx.drawables.SortedDrawable;
 import necesse.level.maps.Level;
-import necesse.level.maps.hudManager.HudDrawElement;
+import necesse.engine.GlobalData;
+import necesse.engine.window.GameWindow;
+import necesse.engine.window.WindowManager;
+import necesse.gfx.Renderer;
 import necesse.engine.GameLog;
 import necesse.engine.registries.RecipeTechRegistry;
 import necesse.gfx.forms.components.FormContainerCraftingListContentBox;
@@ -251,6 +251,9 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
    private static final int DEVICE_ROW_PITCH = 26;
 
    /** The issues panel: its font, and how many wrapped lines of reasons it shows before it scrolls. */
+   /** How thick the world marker's outline is. Two pixels reads as a line at any zoom the game allows. */
+   private static final int MARKER_EDGE = 2;
+
    private static final int ISSUE_FONT = 14;
 
    private static final int ISSUE_LINES = 4;
@@ -270,6 +273,9 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
    private int markerX = -1;
 
    private int markerY = -1;
+
+   /** Which device the marker has already reported drawing, so the diagnostic is one line and not one a frame. */
+   private long markerLogged = Long.MIN_VALUE;
    public final Form craftingForm;
 
    public final Form stationsForm;
@@ -702,7 +708,6 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
       this.craftingForm = this.buildCraftingTab(client, container);
       this.stationsForm = this.buildStationsTab(client, container);
       this.logisticsForm = this.buildLogisticsTab(client, container);
-      this.addWorldMarker(client);
       this.makeCurrent(this.tabs);
 
       // Primed here because refreshList() reads it, and the first draw has not happened yet.
@@ -1277,6 +1282,9 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
 
       this.updateProblems();
       this.updateLogistics(this.client);
+
+      // Before the panel, so a marker behind the panel is covered by it rather than drawn over it.
+      this.drawWorldMarker();
       super.draw(tickManager, perspective, renderBox);
    }
 
@@ -1452,55 +1460,63 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
     * <p>The tab can only name a device, and a name is something the player chose or a number this mod handed
     * out -- neither tells them which of the boxes in front of them it is. This draws over the tile itself.
     *
-    * <p>Uses the game's own zone highlight rather than a sprite of ours: it is the same outline-and-fill a
-    * player already sees when placing a settlement flag or dragging out a work zone, so it needs no art and
-    * reads as part of the game. It pulses, which is the part that does an arrow's job of drawing the eye.
+    * <p>Drawn from this form rather than through the level's HUD manager, which was the first attempt. The HUD
+    * route is what the settlement work-zone tool uses and it is the tidier-looking answer, but it made three
+    * things true at once that all had to be right before anything appeared: an element registered from a
+    * constructor whose level might not be set yet, a sort priority whose meaning is not local to this file, and
+    * a lifetime managed by hand. A form's draw runs after the world is drawn, every frame, for exactly as long
+    * as the panel is open -- so drawing here needs none of those to be true and cannot be silently skipped.
     *
-    * <p>Registered on the level's HUD manager, which is where anything drawn in world space from a UI belongs
-    * -- the same route the settlement work-zone tool takes. The element removes itself once this form is gone
-    * rather than relying on a close hook, because there are several ways a container stops being open and only
-    * one of them is the player pressing escape.
+    * <p>The engine's own zone highlight is not used either: {@code Zoning.addRectangleDrawOptions} feathers its
+    * edge by 16px and clamps that to half the rectangle, so on a single 32px tile the fill collapses to nothing
+    * and all that survives is four gradient corners. It is built for zones many tiles across. Four thin quads
+    * give a crisp outline at this size.
     */
-   private void addWorldMarker(Client client) {
-      Level level = client.getLevel();
-      if (level == null) {
+   private void drawWorldMarker() {
+      if (this.markerX < 0 || this.markerY < 0) {
          return;
       }
 
-      level.hudManager.addElement(new HudDrawElement() {
-         @Override
-         public void addDrawables(List<SortedDrawable> list, GameCamera camera, PlayerMob perspective) {
-            if (StorageTerminalContainerForm.this.isDisposed()) {
-               this.remove();
-               return;
-            }
+      GameCamera camera = GlobalData.getCurrentState() == null ? null : GlobalData.getCurrentState().getCamera();
+      GameWindow window = WindowManager.getWindow();
+      if (camera == null || window == null || window.getSceneWidth() <= 0) {
+         return;
+      }
 
-            int tileX = StorageTerminalContainerForm.this.markerX;
-            int tileY = StorageTerminalContainerForm.this.markerY;
-            if (tileX < 0 || tileY < 0) {
-               return;
-            }
+      // The world and the interface are rendered into two different buffers, at two different sizes: the level
+      // goes into the scene buffer and everything drawn from a form into the hud buffer. A tile position minus
+      // the camera is a scene coordinate, and using it here without converting puts the marker somewhere else
+      // entirely -- which is what the first version of this did, and why nothing appeared.
+      double toHudX = (double)window.getHudWidth() / window.getSceneWidth();
+      double toHudY = (double)window.getHudHeight() / window.getSceneHeight();
+      int x = (int)Math.round((this.markerX * 32 - camera.getX()) * toHudX);
+      int y = (int)Math.round((this.markerY * 32 - camera.getY()) * toHudY);
+      int width = (int)Math.round(32 * toHudX);
+      int height = (int)Math.round(32 * toHudY);
+      int edge = Math.max(MARKER_EDGE, (int)Math.round(MARKER_EDGE * toHudX));
 
-            // Between a third and full strength, about once a second. Enough to catch the eye without being
-            // the brightest thing on the screen while somebody is trying to read a panel.
-            double phase = (Math.sin(this.getTime() / 160.0) + 1.0) / 2.0;
-            int alpha = (int)(70 + phase * 130);
-            final SharedTextureDrawOptions options = Zoning.getRectangleDrawOptions(
-                  new Rectangle(tileX * 32, tileY * 32, 32, 32),
-                  new Color(170, 220, 255, alpha), new Color(90, 160, 255, alpha / 3), camera);
-            list.add(new SortedDrawable() {
-               @Override
-               public int getPriority() {
-                  return -2000000;
-               }
+      // Between a third and full strength, about once a second. Enough to catch the eye without being the
+      // brightest thing on screen while somebody is trying to read the panel in front of it.
+      double phase = (Math.sin(System.currentTimeMillis() / 160.0) + 1.0) / 2.0;
+      int alpha = (int)(80 + phase * 150);
+      Color edgeColor = new Color(170, 220, 255, alpha);
 
-               @Override
-               public void draw(TickManager tickManager) {
-                  options.draw();
-               }
-            });
-         }
-      });
+      // Once per marked device, because this is drawing outside any component's box using numbers from two
+      // coordinate spaces, and neither the position nor the conversion can be seen in a headless test. If it is
+      // ever invisible again, this line says whether the code ran and where it put it.
+      if (this.markerLogged != this.selectedDevice) {
+         this.markerLogged = this.selectedDevice;
+         GameLog.debug.println("Arcane Storage: marking " + this.markerX + "," + this.markerY + " at hud "
+               + x + "," + y + " size " + width + "x" + height + "; scene " + window.getSceneWidth() + "x"
+               + window.getSceneHeight() + ", hud " + window.getHudWidth() + "x" + window.getHudHeight()
+               + ", camera " + camera.getX() + "," + camera.getY());
+      }
+
+      Renderer.initQuadDraw(width, height).color(new Color(90, 160, 255, alpha / 4)).draw(x, y);
+      Renderer.initQuadDraw(width, edge).color(edgeColor).draw(x, y);
+      Renderer.initQuadDraw(width, edge).color(edgeColor).draw(x, y + height - edge);
+      Renderer.initQuadDraw(edge, height - edge * 2).color(edgeColor).draw(x, y + edge);
+      Renderer.initQuadDraw(edge, height - edge * 2).color(edgeColor).draw(x + width - edge, y + edge);
    }
 
    /**
