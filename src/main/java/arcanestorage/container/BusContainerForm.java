@@ -35,12 +35,15 @@ import necesse.inventory.itemFilter.ItemCategoriesFilter;
 public class BusContainerForm<T extends BusContainer> extends ContainerForm<T> {
 
    private static final int WIDTH = 340;
-   private static final int HEIGHT = 420;
+
+   // Grown by BusRulesEditor's own name row, which did not exist when this constant was chosen. Asking the
+   // editor for its own minimum rather than hardcoding a second number here, so the two cannot drift again.
+   private static final int HEIGHT = 420 + BusRulesEditor.NAME_ROW_HEIGHT;
 
    /** The state and refusal line: its font, and how many wrapped lines the layout keeps clear for it. */
    private static final int STATE_FONT = 12;
 
-   private static final int STATE_LINES = 4;
+   private static final int STATE_LINES = 5;
 
    public final ItemCategoriesFilterForm filterForm;
 

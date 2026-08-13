@@ -51,7 +51,7 @@ public final class BusRulesEditor {
    private static final int SEARCH_ROW = 28;
 
    /** The name row, which is also this panel's title: one control rather than a heading and a field. */
-   private static final int NAME_ROW = 34;
+   static final int NAME_ROW_HEIGHT = 34;
 
    public final ItemCategoriesFilterForm filterForm;
 
@@ -95,7 +95,7 @@ public final class BusRulesEditor {
       nameInput.setText(name);
       nameInput.onSubmit(e -> onRename.accept(nameInput.getText()));
 
-      int limitY = region.y + NAME_ROW;
+      int limitY = region.y + NAME_ROW_HEIGHT;
       FormLabel limitLabel = host.addComponent(new FormLabel(
             Localization.translate("ui", limitKey), new FontOptions(LIMIT_FONT), -1, region.x + 4, limitY,
             region.width / 2 - 12));
@@ -210,7 +210,7 @@ public final class BusRulesEditor {
 
    /** The smallest region this can be built into without something overlapping something else. */
    public static int minimumHeight() {
-      return NAME_ROW + LIMIT_ROW + SEARCH_ROW + FormInputSize.SIZE_24.height * 3 + APPLY_STRIP;
+      return NAME_ROW_HEIGHT + LIMIT_ROW + SEARCH_ROW + FormInputSize.SIZE_24.height * 3 + APPLY_STRIP;
    }
 
    /**
