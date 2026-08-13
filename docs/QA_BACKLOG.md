@@ -58,6 +58,14 @@ is what a player looks at. Run in this order, since each step sets up the next.
     be doing anything measurable while nothing is happening, and the game should not stutter when a settler
     drops a haul into a bussed chest.
 
+Fixed after the first attempt at this script, so start again from step 2:
+
+- **The Apply button was inert** — no hover, no click, on both bus types. It sat inside the filter list's
+  rectangle, and `FormContentBox` claims the mouse anywhere in its rectangle once clicked, because clicking a
+  component raises the priority key that the event loop sorts on. So it worked until the list was first
+  touched, which is every path to it. The list now stops short of a reserved strip. It is also no longer
+  disabled when there is nothing to send, because a disabled button looks exactly like that bug.
+
 Known and deliberate, so not bugs:
 
 - The stopped sprites are luminance-weighted desaturations of the current placeholder art, generated in a
