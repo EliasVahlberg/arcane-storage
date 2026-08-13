@@ -4,6 +4,7 @@ import arcanestorage.container.BusContainer;
 import arcanestorage.container.BusContainerForm;
 import arcanestorage.container.StorageTerminalContainer;
 import arcanestorage.container.StorageTerminalContainerForm;
+import arcanestorage.network.IndexedInventories;
 import arcanestorage.object.StorageTerminalObject;
 import arcanestorage.object.ExportBusObject;
 import arcanestorage.object.ImportBusObject;
@@ -120,6 +121,12 @@ public class ArcaneStorage {
    }
 
    public void postInit() {
+      // Proven rather than assumed, and at load rather than when it matters. A method patch binds to an exact
+      // signature, so a game update can stop it applying -- and the consequence is invisible: an index that
+      // believes in items somebody carried off, with nothing in any log. The check costs one throwaway
+      // inventory. When it fails the index falls back to recounting on a timer, which is slower but correct.
+      IndexedInventories.recordVerification(IndexedInventories.verifyHook());
+
       // Placeholder costs so both objects can be obtained in a fresh world for testing.
       // Progression and balance are Phase 6.
       Recipes.registerModRecipe(

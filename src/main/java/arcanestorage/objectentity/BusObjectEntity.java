@@ -572,10 +572,10 @@ public abstract class BusObjectEntity extends ObjectEntity {
             int wanted = Math.min(Math.min(allowed, MAX_PER_TRANSFER), item.getAmount());
             int moved = move(level, fromInventory, to, item, wanted);
             if (moved > 0) {
-               // The index is the network's copy of the truth and we just changed the network, so it is
-               // corrected here rather than left to expire. Anything else on this network reads the new
-               // number immediately, which is what makes the shared copy safe to share.
-               index.changed(item.item, into ? moved : -moved);
+               // The index is not corrected here, and the first version of this code was wrong to try. Our own
+               // move goes through Inventory like anyone else's, so the change hook already applied it; doing
+               // it again counted every transfer twice. The drift check found it immediately, which is the
+               // argument for having one.
                return moved;
             }
          }
@@ -657,6 +657,9 @@ public abstract class BusObjectEntity extends ObjectEntity {
       }
 
       if (NetworkIndexes.stillGood(level, this.cachedNetwork, this)) {
+         // The periodic check lives here rather than on a timer of its own: a network with no devices left has
+         // nobody to be wrong for, and one being used is exactly the one worth checking.
+         NetworkIndexes.reconcile(level, this.cachedNetwork);
          return this.cachedNetwork;
       }
 

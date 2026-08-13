@@ -15,6 +15,7 @@ import necesse.inventory.item.ItemCategory;
 import necesse.inventory.itemFilter.ItemCategoriesFilter;
 import arcanestorage.objectentity.StorageTerminalObjectEntity;
 import arcanestorage.network.NetworkConductor;
+import arcanestorage.network.IndexedInventories;
 import arcanestorage.network.NetworkIndex;
 import arcanestorage.network.NetworkIndexes;
 import arcanestorage.network.NetworkStorage;
@@ -74,6 +75,7 @@ public final class ArcaneStorageVerbs {
 
       Harness.registerVerb(new ReportVerb());
       Harness.registerVerb(new ResetVerb());
+      Harness.registerVerb(new IndexPoisonVerb());
       Harness.registerVerb(new WithdrawVerb());
       Harness.registerVerb(new DepositVerb());
       Harness.registerVerb(new DepositAllVerb());
@@ -90,6 +92,7 @@ public final class ArcaneStorageVerbs {
       Harness.registerExpectation(new BusStateQuery());
       Harness.registerExpectation(new TerminalProblemsQuery());
       Harness.registerExpectation(new IndexDriftQuery());
+      Harness.registerExpectation(new HookQuery());
       Harness.registerVerb(new RuleGlobalVerb());
       Harness.registerVerb(new RuleCategoryVerb());
       Harness.registerExpectation(new BusOpenPacketQuery());
@@ -690,6 +693,7 @@ public final class ArcaneStorageVerbs {
          // test can assert that cost is a property of the network rather than of how many devices watch it.
          out.num("indexes", NetworkIndexes.indexedOn(context.level));
          out.num("rebuilds", NetworkIndex.rebuilds);
+         out.num("driftslots", NetworkIndex.driftScans);
       }
    }
 
@@ -829,6 +833,70 @@ public final class ArcaneStorageVerbs {
       }
    }
 
+   /**
+    * Whether the change hook is woven in, and how much traffic it has seen.
+    *
+    * <p>{@code query hook} -> {@code {applied, notifications, relevant, watched}}. Asserted by a test rather
+    * than trusted, because a patch that silently fails to apply leaves an index believing in items that are
+    * gone, and nothing anywhere says so. The notification count also shows the cost of being on that path: it
+    * counts every inventory change in the game, ours or not.
+    */
+   private static final class HookQuery implements TestVerb, TestQuery {
+      public String name() {
+         return "hook";
+      }
+
+      public String usage() {
+         return "query hook";
+      }
+
+      public boolean run(TestContext context) {
+         return true;
+      }
+
+      public void query(TestContext context, Json.Writer out) {
+         out.bool("applied", IndexedInventories.hookWorks());
+         out.num("notifications", IndexedInventories.notifications);
+         out.num("relevant", IndexedInventories.relevant);
+         out.num("watched", IndexedInventories.watched());
+         out.num("resyncs", NetworkIndex.resyncs);
+      }
+   }
+
+   /**
+    * Makes an index wrong on purpose, so the reconciliation can be watched catching it.
+    *
+    * <p>{@code indexpoison <itemStringID> <delta>}. There is no other way to test a safety net: waiting for a
+    * real bug to appear is not a test, and asserting the net exists is not the same as knowing it works. The
+    * poison is applied to the counts only, so the world stays consistent and the drift is exactly the delta.
+    */
+   private static final class IndexPoisonVerb implements TestVerb {
+      public String name() {
+         return "indexpoison";
+      }
+
+      public String usage() {
+         return "indexpoison <itemStringID> <delta>";
+      }
+
+      public boolean run(TestContext context) {
+         Item item = ItemRegistry.getItem(context.arg(1));
+         if (item == null) {
+            return context.check(false, "poison " + context.arg(1), "no such item");
+         }
+
+         int delta = context.intArg(2);
+         int poisoned = 0;
+         for (NetworkIndex index : NetworkIndexes.on(context.level)) {
+            index.changed(item, delta);
+            poisoned++;
+         }
+
+         context.info("poisoned " + poisoned + " index(es) with " + delta + " " + context.arg(1));
+         return poisoned > 0;
+      }
+   }
+
    private static final class BusStatsResetVerb implements TestVerb {
       public String name() {
          return "busstatsreset";
@@ -843,6 +911,8 @@ public final class ArcaneStorageVerbs {
          BusObjectEntity.transfers = 0;
          BusObjectEntity.slotsScanned = 0;
          NetworkIndex.rebuilds = 0;
+         NetworkIndex.resyncs = 0;
+         NetworkIndex.driftScans = 0;
          BusObjectEntity.networkWalks = 0;
          context.info("counters zeroed");
          return true;

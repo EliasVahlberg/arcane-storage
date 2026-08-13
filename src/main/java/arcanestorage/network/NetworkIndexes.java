@@ -113,6 +113,25 @@ public final class NetworkIndexes {
          && index.holds(device);
    }
 
+   /** Runs an index's periodic self-check, if it is due one. */
+   public static void reconcile(Level level, NetworkIndex index) {
+      if (index != null) {
+         index.reconcile(tickOf(level));
+      }
+   }
+
+   /**
+    * Asks every network on a level to check itself next time it is used.
+    *
+    * <p>Called when a terminal opens, which is both the moment a player is most likely to notice a wrong
+    * number and the moment they are about to act on one.
+    */
+   public static void reconcileSoon(Level level) {
+      for (NetworkIndex index : on(level)) {
+         index.reconcileSoon();
+      }
+   }
+
    /**
     * A network's name: the lowest tile order among its members.
     *
@@ -151,6 +170,7 @@ public final class NetworkIndexes {
    /** Drops every index. For the harness, whose scenarios reuse one server across worlds. */
    public static void forget() {
       BY_LEVEL.clear();
+      IndexedInventories.forget();
       topologyChanged();
    }
 

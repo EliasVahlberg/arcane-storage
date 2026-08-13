@@ -89,9 +89,13 @@ def test_how_long_a_mixed_chest_takes_to_drain(storage):
     assert remaining == 0, "five seconds is enough to drain eight item types"
 
 
-@pytest.mark.xfail(strict=True, reason="polling: an idle bus rediscovers its network and rescans every second")
 def test_what_polling_costs_while_nothing_happens(storage):
     """Idle cost, per bus, with nothing to do: the chest is adjacent and empty.
+
+    Passes since the change hook landed. A bus used to rediscover its network every second because a shared
+    count could not be trusted for longer than a bus would have taken to recount it; now that every inventory
+    change is reported as it happens, a build is only invalidated by the layout changing. The one walk left is
+    the discovery that finds the network in the first place.
 
     An earlier version of this put the chest out of reach, which made the test pass for the wrong reason --
     the bus returned before ever walking the network. A bus with no attached container is not idle, it is

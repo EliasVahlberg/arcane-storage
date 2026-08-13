@@ -5,6 +5,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import java.util.IdentityHashMap;
+
+import necesse.engine.GameLog;
 import necesse.entity.objectEntity.ObjectEntity;
 import necesse.inventory.Inventory;
 import necesse.inventory.InventoryItem;
@@ -40,12 +43,18 @@ public final class NetworkIndex {
    /**
     * How long a build may be reused, in ticks.
     *
-    * <p>Twenty is one second, which is exactly how often a bus used to recount from scratch, so a decision
-    * made from a reused build is never staler than one made by the old code. It is also a backstop rather
-    * than the mechanism: {@link NetworkIndexes#topologyChanged()} invalidates immediately when the layout
-    * changes, and this bounds how long anything missed can persist.
+    * <p>Thirty seconds, and it is a backstop rather than the mechanism. Two things could make a build wrong and
+    * neither waits for this: the layout changing bumps {@link NetworkIndexes#topologyChanged()} and every
+    * build under the old version is refused immediately, and the contents changing is reported by the
+    * {@code updateSlot} hook as it happens. What is left for a timer is the case nobody told us about --
+    * membership altered by a path that does not run the destroy hook -- and ten seconds bounds how long such
+    * a thing can persist.
+    *
+    * <p>It was one second before the hook existed, because a bus recounted from scratch that often and a
+    * shared copy must not be staler than the code it replaced. With the hook, holding a build for longer costs
+    * nothing in accuracy and removes the last reason an idle network does any work at all.
     */
-   public static final int FRESH_FOR_TICKS = 20;
+   public static final int FRESH_FOR_TICKS = 600;
 
    /**
     * How many full rebuilds have happened, for diagnosis rather than behaviour.
@@ -56,6 +65,32 @@ public final class NetworkIndex {
    public static long rebuilds;
 
    private final Map<Item, Integer> counts = new HashMap<>();
+
+   /**
+    * What the index last saw in every member slot.
+    *
+    * <p>Needed because {@code updateSlot} says which slot changed and not what it held before, and a count
+    * cannot be corrected without the difference. Two flat arrays per member rather than objects per slot: a
+    * network of sixty-four units is 2560 slots, and this is touched on every inventory change in the game.
+    */
+   private final IdentityHashMap<Inventory, Item[]> shadowItems = new IdentityHashMap<>();
+
+   private final IdentityHashMap<Inventory, int[]> shadowAmounts = new IdentityHashMap<>();
+
+   /** When the counts were last checked against the world, for the periodic reconciliation. */
+   private long lastReconciled;
+
+   /** How many times a check found the counts wrong. Diagnostic; should stay at zero. */
+   public static long resyncs;
+
+   /**
+    * Slots read by drift checks.
+    *
+    * <p>Counted separately from the transfer loop's scans so that "an idle network does no work" cannot be
+    * claimed while a safety net quietly scans the whole network behind it. The check is real work and should
+    * appear as such.
+    */
+   public static long driftScans;
 
    private final List<Inventory> memberInventories = new ArrayList<>();
 
@@ -94,6 +129,10 @@ public final class NetworkIndex {
       this.version++;
       rebuilds++;
 
+      IndexedInventories.release(this);
+      this.shadowItems.clear();
+      this.shadowAmounts.clear();
+
       for (NetworkStorage unit : units) {
          Inventory inventory = unit.getInventory();
          if (inventory == null) {
@@ -102,19 +141,137 @@ public final class NetworkIndex {
 
          this.memberInventories.add(inventory);
 
-         for (int slot = 0; slot < inventory.getSize(); slot++) {
+         int size = inventory.getSize();
+         Item[] items = new Item[size];
+         int[] amounts = new int[size];
+
+         for (int slot = 0; slot < size; slot++) {
             InventoryItem item = inventory.getItem(slot);
             if (item != null) {
                this.counts.merge(item.item, item.getAmount(), Integer::sum);
                this.total += item.getAmount();
+               items[slot] = item.item;
+               amounts[slot] = item.getAmount();
             }
          }
+
+         this.shadowItems.put(inventory, items);
+         this.shadowAmounts.put(inventory, amounts);
       }
+
+      this.lastReconciled = tick;
+      IndexedInventories.claim(this);
    }
+
+   /**
+    * Applies one slot's change, from the hook.
+    *
+    * <p>Runs on whatever thread mutated the inventory, which for a member of a network is always the server
+    * thread: a client's copies of a chest are different objects and are never members. On the server there is
+    * no concurrency to guard against, which is the whole reason the rest of this design insists on staying
+    * there.
+    *
+    * <p>Cheap on purpose. The common case is a stack whose amount moved: one array read, one map update.
+    */
+   void slotChanged(Inventory inventory, int slot) {
+      Item[] items = this.shadowItems.get(inventory);
+      int[] amounts = this.shadowAmounts.get(inventory);
+      if (items == null || slot < 0 || slot >= items.length) {
+         return;
+      }
+
+      Item wasItem = items[slot];
+      int wasAmount = amounts[slot];
+      Item nowItem = IndexedInventories.itemIn(inventory, slot);
+      int nowAmount = IndexedInventories.amountIn(inventory, slot);
+
+      if (wasItem == nowItem && wasAmount == nowAmount) {
+         return;
+      }
+
+      if (wasItem == nowItem) {
+         this.changed(nowItem, nowAmount - wasAmount);
+      } else {
+         // A different kind now occupies the slot, so both counts move. Written as two changes rather than
+         // one so that the item that left is removed even when nothing replaced it.
+         if (wasItem != null) {
+            this.changed(wasItem, -wasAmount);
+         }
+
+         if (nowItem != null) {
+            this.changed(nowItem, nowAmount);
+         }
+      }
+
+      items[slot] = nowItem;
+      amounts[slot] = nowAmount;
+   }
+
+   /**
+    * Checks the counts against the world every so often, and rebuilds if they disagree.
+    *
+    * <p>This is not defensive programming for its own sake. The index is a cache of state the mod does not
+    * own, and Necesse has hit this exact bug class in its own code -- the version history records fixing
+    * crafting lists that did not update when a nearby inventory changed. The check is cheap relative to its
+    * interval and it is the difference between a wrong number being corrected and a wrong number persisting
+    * for as long as the world is loaded.
+    *
+    * @return whether a resync was needed
+    */
+   boolean reconcile(long tick) {
+      if (!this.reconcileRequested && tick - this.lastReconciled < RECONCILE_EVERY_TICKS) {
+         return false;
+      }
+
+      this.reconcileRequested = false;
+      this.lastReconciled = tick;
+      int drift = this.driftAgainstWorld();
+      if (drift == 0) {
+         return false;
+      }
+
+      resyncs++;
+      GameLog.warn.println("Arcane Storage: network index drifted by " + drift
+         + " items and was rebuilt. If this repeats, the change hook is missing a path.");
+      this.rebuild(this.units, this.devices, tick, this.topologyVersion);
+      return true;
+   }
+
+   /**
+    * How often the counts are checked against the world, in ticks.
+    *
+    * <p>Ten seconds, and deliberately shorter than {@link #FRESH_FOR_TICKS}: if the two were equal, a build
+    * would expire and be rebuilt at the same moment the check was due, so drift would be cleared by the
+    * rebuild and the check would never be seen to work. A safety net that cannot be observed working is not
+    * one, which is also why the harness can poison an index on purpose.
+    */
+   public static final int RECONCILE_EVERY_TICKS = 200;
+
+   /**
+    * Forces the next use to check, used when the terminal opens.
+    *
+    * <p>A flag rather than a date far in the past. Setting {@code lastReconciled} to {@code Long.MIN_VALUE}
+    * looks equivalent and is not: the interval test subtracts it from the current tick, which overflows to a
+    * negative number, so the check it was meant to force never ran at all. Found by the test that induces
+    * drift and then opens the terminal.
+    */
+   public void reconcileSoon() {
+      this.reconcileRequested = true;
+   }
+
+   private boolean reconcileRequested;
 
    /** Whether a build may still be trusted, on both counts it can go stale for. */
    boolean isFresh(long tick, long topologyVersion) {
-      return this.topologyVersion == topologyVersion && tick - this.builtTick < FRESH_FOR_TICKS;
+      if (this.topologyVersion != topologyVersion) {
+         return false;
+      }
+
+      // Without the hook there is nothing watching the contents, so a build is only good for as long as the
+      // old per-second recount was. Degrading rather than failing keeps the mod usable after a game update
+      // breaks the patch, and the warning at load says which mode it is in.
+      long window = IndexedInventories.hookWorks() ? FRESH_FOR_TICKS : 20;
+      return tick - this.builtTick < window;
    }
 
    /** Whether a device is on the network this index describes. Identity, over a handful of entries. */
@@ -201,7 +358,10 @@ public final class NetworkIndex {
             continue;
          }
 
-         for (int slot = 0; slot < inventory.getSize(); slot++) {
+         int size = inventory.getSize();
+         driftScans += size;
+
+         for (int slot = 0; slot < size; slot++) {
             InventoryItem item = inventory.getItem(slot);
             if (item != null) {
                truth.merge(item.item, item.getAmount(), Integer::sum);

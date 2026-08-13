@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import arcanestorage.network.NetworkContents;
+import arcanestorage.network.NetworkIndexes;
 import arcanestorage.objectentity.StorageTerminalObjectEntity;
 import arcanestorage.network.NetworkStorage;
 import necesse.engine.network.NetworkClient;
@@ -89,6 +90,13 @@ public class StorageTerminalContainer extends Container {
       terminal.triggerInteracted();
       if (client.isServer()) {
          terminal.startUser(client.playerMob);
+
+         // Opening the terminal is both the moment a wrong count would be noticed and the moment somebody is
+         // about to act on one, so every network here is asked to check itself. Vanilla shipped the same bug
+         // in reverse -- its version history records fixing crafting lists that did not update when a nearby
+         // inventory changed -- which is reason enough not to assume a cache of other people's containers is
+         // always right.
+         NetworkIndexes.reconcileSoon(terminal.getLevel());
       }
 
       // Station slots come first, and deliberately before the network, so their indices are the same
