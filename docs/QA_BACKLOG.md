@@ -23,6 +23,50 @@ Stated by Elias, in order of confirmation:
 
 ## Still needs eyes
 
+### The transfer resolver — Phase 5b, built while Elias was away, none of it seen in game
+
+Everything below is verified headlessly by 148 scenario tests and 19 unit tests; what none of those can see
+is what a player looks at. Run in this order, since each step sets up the next.
+
+1. **Place a terminal, a unit, an import bus and a chest in a row.** Drop a mixed stack of eight or so
+   different things into the chest. It should empty within a moment rather than one kind per second, which
+   was the old behaviour. Watch for anything that looks like a lurch: the budget is eight moves per network
+   per tick, and the question is whether that reads as brisk or as sudden.
+2. **Open the bus panel and change a rule without clicking Apply.** The line under the heading should say
+   "Unapplied changes" and the Apply button should be lit. Check the button's placement at the bottom of the
+   panel — it was put there without being seen, and it may collide with the category tree on a short window.
+3. **Click Apply.** The change should take effect immediately: nothing polls any more, so if a rule appears
+   to do nothing until something else happens, that is a real bug and worth reporting precisely.
+4. **Close the panel with unapplied edits.** They are discarded by design. Judge whether that is acceptable
+   or whether it needs a confirmation — a transaction implies it, but a player may not expect it.
+5. **Now make a contradiction.** Put an export bus on the same chest, tick one item on it and give it a
+   number, then try to give the import bus a *higher* number for the same item and click Apply. It should be
+   refused, in red, in the panel, naming the item and the other bus's coordinates. The refusal is the whole
+   point of the Apply button, so read it as a player would: does it tell you what to do next?
+6. **Force a stop rather than a refusal.** The same contradiction can be reached from the other side —
+   configure both buses to disagree by editing the export bus after the import bus. Both should stop: grey
+   sprites, one chat line each, and a reason on hover. Check the grey reads as "stopped" and not as a
+   different object, and that the chat line is legible without the panel open.
+7. **Walk away and open the terminal.** It should show a red "2 stopped at x,y" banner on the category row.
+   This is the only surface that finds a problem for a player who was elsewhere when it happened, so it
+   matters that it is noticeable without being alarming.
+8. **Fix one of the rules.** Both devices should come back to life and the banner clear.
+9. **Break the chest a bus is pointing at, then put it back.** The bus should say it has no container within
+   about a second, and start working again about a second after the chest returns. A vanilla chest cannot
+   notify us of anything, so this is the one thing still on a heartbeat.
+10. **A larger network, if there is time.** Several units, a few conduits, two or three buses. Nothing should
+    be doing anything measurable while nothing is happening, and the game should not stutter when a settler
+    drops a haul into a bussed chest.
+
+Known and deliberate, so not bugs:
+
+- The stopped sprites are luminance-weighted desaturations of the current placeholder art, generated in a
+  few lines of Python. They need regenerating when real art lands.
+- A device stopped for churn resumes on its own within thirty seconds. If whatever was undoing its work is
+  still there, it stops again after about forty moves. That is intended: a stop that could only be lifted by
+  editing a rule would need the player to work out what to edit.
+- The commits for this work are unsigned. The signing key needs a passphrase typed by a person.
+
 ### Fixed since his last pass, so worth a look first
 
 1. **Tickbox panels no longer overflow.** The cause was not width alone: `FormCheckBox.setText`

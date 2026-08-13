@@ -174,6 +174,29 @@ Each is a test the harness can now write, since it can let time pass (`settle`) 
 The three tests already carrying `xfail(strict=True)` encode 2, 5 and 6, so they flip to passing exactly when
 this is real, and the strict marker means they cannot be fixed silently.
 
+## What was built, and where it departed from this document
+
+`[built Aug 2026]` All five steps are done and pushed. Two deliberate departures, both recorded because the
+reasoning matters more than the plan:
+
+**The queue holds items, not planned deltas.** This document specified that each queued action carry the index
+version it was computed under, be revalidated at drain, and be recomputed on mismatch. The implementation stores
+*what to look at* rather than *what to do*, and computes the move at the moment it is made. That reaches the same
+property — no action is ever applied against a state it was not computed for — by construction rather than by
+checking, because computation and application are never separated in time. It is less machinery and it cannot be
+got wrong. The version counter still exists on the index, and is what the drift check compares.
+
+**"Nothing runs on a timer" has one exception.** Device states are re-derived on a one-second heartbeat, per
+network rather than per bus. The triggers cover rules, layout and contents; what they cannot cover is a vanilla
+container being placed or broken beside a bus, because a chest is not ours and reports nothing. The compensating
+change is that a stale state can no longer stop a device working: only a decision to stop — a rule conflict or a
+churn stop — does that, while a missing container or network is a description the move path checks for itself.
+
+One inefficiency is recorded rather than fixed: the index knows how many of a thing a network holds but not which
+container holds them, so a move scans the source side to find it. That is work in response to an event rather
+than on a timer. A location index — a record per stack, which is what vanilla's settlement storage keeps — would
+turn each scan into a lookup, and is the obvious next improvement if anything ever shows it matters.
+
 ## Implementation plan
 
 Ordered so that the fault reported in play stops first, and so that every step leaves the mod working and adds

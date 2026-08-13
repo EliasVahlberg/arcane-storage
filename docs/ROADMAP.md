@@ -614,9 +614,12 @@ uses for withdrawal, and consistency across tabs is cheap here because both are 
 
 ## Phase 5b — Transfer resolver
 
-Specified in `docs/TRANSFER_RESOLVER.md`. Nothing built.
+Specified in `docs/TRANSFER_RESOLVER.md`. **Built, in five commits, and verified headlessly. The three
+`xfail(strict=True)` tests it was measured against — convergence, idle cost, throughput — have all flipped to
+passing and their markers are gone.** What remains is in-game verification of everything a player sees, listed
+under "Needs a person" below.
 
-Phase 5's transfer loop works item by item, device by device, and cannot be repaired incrementally. Elias hit
+Phase 5's transfer loop worked item by item, device by device, and could not be repaired incrementally. Elias hit
 it in play as "weird lockups"; measurement found three faults and one engine constraint:
 
 - Rules that disagree churn forever — 12 moves in 120 ticks with the network total reading a steady 20, so it
@@ -635,9 +638,49 @@ are rejected when written — an Apply button makes the panel transactional — 
 unsatisfiable configuration fails closed with a reason naming the other device. Breaking hardware is reserved
 for a future throughput constraint, where it is physically motivated.
 
-Acceptance is conservation, convergence, determinism, crash equivalence, zero idle cost, prompt throughput, and
-validation. Three tests already carry `xfail(strict=True)` for convergence, idle cost and throughput, so they
-flip to passing exactly when this is real and cannot be fixed silently.
+### What was built
+
+- [x] **Validation and device states.** Per `(network, item)`, the highest import ceiling against the lowest
+      export floor, flagged only when the two buses share a container — because import from one chest with
+      export to another is the same inequality and terminates, so flagging it would break a useful layout. A
+      stopped device is drawn in grey, says why on hover and in its panel, and announces itself once in chat.
+      The terminal names the tiles of every stopped device on its network.
+- [x] **The per-network index.** One shared copy of item counts and member inventories, named by the network's
+      lowest-ordered member tile so every device arrives at the same name from its own walk. Replaced counting
+      that was quadratic in slots and paid once per device.
+- [x] **Incremental maintenance.** A patch on `Inventory.updateSlot(int)`, with a per-slot shadow so a change
+      can be applied as a difference rather than a rescan. Proved at load rather than assumed, and it degrades
+      to timed recounting with a warning if a game update ever stops it applying. A periodic drift check and a
+      resync when a terminal opens, because this is a cache of state the mod does not own.
+- [x] **The scheduler.** One per network, led by the lowest-ordered device, holding the set of items something
+      has disturbed. Eight moves per network per tick is the whole of the rate policy. A churn backstop stops
+      an item that keeps moving without the network getting closer to its rules, which catches loops closed
+      outside the network — a settler, a hopper, another mod — and is retried after at most thirty seconds.
+- [x] **The Apply button.** Edits are local, the whole set is judged before any of it is adopted, and a refusal
+      names the item and the other device. Nothing is partially applied.
+
+### Measured, before and after
+
+| | Before | After |
+|---|---|---|
+| Idle network, 100 ticks | 5 walks, 200 slot scans per bus | 0 walks, 0 rebuilds, 0 scans |
+| Chest of 8 kinds | 3 kinds still there after 5 s | empty within a tick or two |
+| Contradictory rules | 12 moves per 120 ticks, forever | refused when written |
+| Loop closed by an outside agent | never detected | stopped after 40 moves |
+
+### Needs a person
+
+Everything the tests cannot see. None of it is verified:
+
+1. The grey sprite — that it reads as "stopped" and not as a different object.
+2. The chat line's wording when a device stops.
+3. The hover tip on a stopped bus, and the reason line in its panel.
+4. The Apply button's placement and colour, and whether "Unapplied changes" reads clearly.
+5. The terminal's red "N stopped at x,y" banner.
+6. How prompt the whole thing feels now that work follows changes rather than a timer.
+
+Sprites are luminance-weighted desaturations generated from the current placeholder art and will need
+regenerating when real art lands.
 
 This lands before Phase 6, because every later device inherits the model — and D25's wireless silos and the
 crafting queue both sit on top of it.
