@@ -8,6 +8,7 @@ containers. So what is being tested is the redirection, not the mechanic.
 """
 
 from __future__ import annotations
+import pytest
 
 
 def test_quick_stack_only_tops_up_what_the_network_already_holds(terminal):
@@ -62,6 +63,7 @@ def test_the_buttons_conserve_items_across_a_close(terminal):
     assert terminal.harness.held("stone") == 0
 
 
+@pytest.mark.slow  # builds the largest allowed network; a budget check, not a correctness one
 def test_aggregation_stays_within_budget_on_the_largest_allowed_network(storage):
     """The cost the interface pays on every redraw, at the ceiling rather than at a sample.
 

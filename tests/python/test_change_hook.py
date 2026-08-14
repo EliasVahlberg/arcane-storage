@@ -9,6 +9,8 @@ The reason to test it rather than trust it: a method patch binds to an exact sig
 stop it applying, and the failure is silent -- the index would go on believing in items somebody carried away.
 """
 
+import pytest
+
 
 def test_the_hook_is_actually_woven_in(storage):
     """An assumption that costs nothing to check and everything to get wrong."""

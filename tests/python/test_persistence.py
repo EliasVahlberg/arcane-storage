@@ -15,8 +15,10 @@ inventories come back, and that the walk over them still reaches the same conclu
 """
 
 from __future__ import annotations
+import pytest
 
 
+@pytest.mark.slow  # restarts the server: one JVM boot, by far the most expensive thing here
 def test_networks_and_their_contents_survive_a_restart(storage):
     # A plain pair of units.
     storage.place("terminal", 0, 0)

@@ -87,7 +87,20 @@ doctor: ## Verify the toolchain assumptions on this machine
 		&& echo "AWT         : headful" \
 		|| echo "AWT         : HEADLESS JVM (runServer cannot work; error dialogs throw instead of showing)"
 
-pytest: ## Run the Python suite against a headless server (needs the harness's .venv)
+pytest: ## Run the fast Python suite: everything except the slow tier (the one to run while working)
 	@$(MAKE) --no-print-directory testjar > /dev/null
 	@# The venv lives in the harness repo, because the client is released with the jar.
+	@# -m 'not slow' drops the three server restarts and the largest-network budget check. What is
+	@# left is every correctness test, which is what a change needs to be judged against.
+	@$(HARNESS_VENV) -m pytest tests/python -q -m 'not slow'
+
+pytest-all: ## Run the whole Python suite including the slow tier (before a push or a release)
+	@$(MAKE) --no-print-directory testjar > /dev/null
 	@$(HARNESS_VENV) -m pytest tests/python -q
+
+pytest-clock: ## Run the whole suite on the game's own clock: the control for detached ticks
+	@$(MAKE) --no-print-directory testjar > /dev/null
+	@# The suite detaches game time from the wall clock by default, granting ticks instead of waiting for
+	@# them -- 20s against 333s. This target is the control: it runs the world on its own clock, so
+	@# something that passes here and fails by default means detached ticks are involved. Takes minutes.
+	@$(HARNESS_VENV) -m pytest tests/python -q --clock-ticks

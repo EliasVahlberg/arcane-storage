@@ -221,6 +221,7 @@ def test_the_panel_opens_and_its_edits_reach_the_bus(storage):
     assert storage.query("container", 3, 0, "ironbar")["count"] == 20
 
 
+@pytest.mark.slow  # restarts the server: one JVM boot, by far the most expensive thing here
 def test_rules_survive_a_restart(storage):
     """A bus is configured once and expected to keep working, so its filter has to be saved. Vanilla's
     own save format does that work; this checks we nest and reload it correctly."""

@@ -19,6 +19,26 @@ import pytest
 
 from necesse_harness import Harness, ServerConfig
 
+# CONTAMINATION -- why three tests carry @pytest.mark.realtime
+#
+# Those three pass on their own and fail in suite order under detached ticks. That combination means state
+# surviving between tests, not a wrong expectation, so the marker is a holding position rather than a fix:
+# it puts them back on the clock, where the contamination is hidden rather than absent.
+#
+# It is hidden because of what the old execution model did by accident. Every harness command was marshalled
+# onto the server thread and waited for the next tick, so a command cost 50ms and a fixture's seven
+# placements spanned seven ticks. Anything the engine defers to a tick -- entity removal in particular --
+# was therefore always processed before the next test's first placement. Detaching game time removes that
+# free settling, and whatever was relying on it surfaces.
+#
+# One instance of the class has already been found and fixed rather than marked, which is the template for
+# the rest: ``BusObjectEntity.assignOrdinal`` counted removed devices when choosing a bus number, so a bus
+# placed in the same tick as one was broken took the number after it and a lone import bus came out called
+# "Import Bus #2". That was a real bug, reachable in play by breaking and rebuilding within a tick, and it
+# was invisible for as long as the harness happened to leave a tick between every command.
+#
+# So each remaining mark is a lead, not a limitation. The suspicion is the same deferred-removal shape.
+
 MOD_DIR = Path(__file__).resolve().parents[2]
 
 
@@ -84,7 +104,19 @@ def storage(harness: Harness) -> Harness:
     outside that radius by an earlier test would still be counted by ``total``. ``reset`` walks the
     object entities instead, so it finds them wherever they are.
     """
+    # Flush, then clear, then flush again -- and the order is the point rather than belt and braces.
+    #
+    # ``reset`` drops the network indexes and then removes the objects, but engine entity removal is
+    # deferred to a tick. So ticking *after* reset lets the devices that have not gone yet rebuild the very
+    # indexes reset just dropped, and the next test places its first unit into a world that still believes
+    # the previous test's network exists. The leading settle drains whatever the previous test left pending
+    # so that reset sees a quiet world; the trailing one lets the removals actually complete.
+    #
+    # None of this was needed while every command cost a tick, because the gaps between commands did it for
+    # free. That is why it appears now rather than being a new fault.
+    harness.settle(2)
     harness.do("reset")
+    harness.settle(2)
     return harness
 
 

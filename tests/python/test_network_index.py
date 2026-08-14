@@ -6,6 +6,8 @@ assert the shape of the cost rather than an absolute number, because the absolut
 question and belongs to step 4 of the resolver plan.
 """
 
+import pytest
+
 
 def test_two_buses_on_one_network_share_one_count(two_buses):
     """The property that makes a network worth building out: cost scales with the network, not with watchers.
@@ -30,7 +32,14 @@ def test_an_idle_network_is_not_walked_at_all(two_buses):
 
     Zero now rather than one per network per second. A build is only invalidated by the layout changing, and an
     idle network's layout is not changing.
+
+    The network is established before the counters are reset, which the test used to get away with not doing.
+    Discovering a freshly placed network is itself a walk -- two of them here, one per bus -- and under the old
+    execution model those happened during the fixture's own setup, because every placement command cost a tick
+    of real time. Nothing ticks between commands now, so the discovery would land inside the measured window
+    and the test would be asserting that a *new* network is not walked, which is not the claim.
     """
+    two_buses.settle(20)
     two_buses.do("busstatsreset")
     two_buses.settle(60)
 

@@ -11,6 +11,7 @@ The state is derived on the server tick, so every test here lets time pass befor
 from __future__ import annotations
 
 import re
+import pytest
 
 
 def test_a_bus_with_no_container_says_so(storage):
@@ -141,6 +142,7 @@ def test_the_same_number_on_both_sides_rests(two_buses):
     assert two_buses.query("busstate", 3, 1)["state"] == "active"
 
 
+@pytest.mark.realtime  # see CONTAMINATION note in conftest.py: passes alone, not in suite order
 def test_an_unlimited_import_conflicts_with_any_export_floor(two_buses):
     """No number on the import side means unbounded, which is above every floor.
 
@@ -159,6 +161,7 @@ def test_an_unlimited_import_conflicts_with_any_export_floor(two_buses):
     assert two_buses.query("busstate", 3, 1)["state"] == "rule_conflict"
 
 
+@pytest.mark.slow  # restarts the server: one JVM boot, by far the most expensive thing here
 def test_the_state_is_recomputed_after_a_restart_not_restored(two_buses):
     """Derived, never saved: a reload must reach the same answer from the world and the rules."""
     two_buses.fill(3, 0, "stone", 100)

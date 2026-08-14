@@ -486,6 +486,52 @@ something to point back at.
       broken unit or conduit is asserted in `tests/python/test_topology.py` and
       `tests/python/test_conduits.py`.
 
+## Two failures the faster test suite exposed — real order-dependence, not test noise
+
+The Python suite now detaches game time from the wall clock: it grants ticks instead of waiting for them,
+which took it from 333 seconds to 20. That removed something the suite had been getting for free. Every
+harness command used to be marshalled onto the server thread and wait for the next tick, so a command cost
+50ms and a fixture's seven placements spanned seven ticks — meaning anything the engine defers to a tick was
+always processed between one command and the next. With game time frozen between commands, work that used to
+be spread over several ticks now lands in one, and two places turn out to depend on that.
+
+Both are **real behaviour**, reachable in play by doing two things inside the same tick. Neither is urgent:
+doing two things in one tick needs either a script or luck.
+
+**1. Bus numbering depends on join order, and simultaneous joins have no defined order.**
+`test_the_terminal_reports_names_not_only_coordinates` places two import buses and expects the un-renamed one
+to be "Import Bus #1". It intermittently reads #2. `BusObjectEntity.assignOrdinal` takes the highest ordinal
+among peers and adds one, and it runs when a bus *joins a network* — so when two buses join in the same tick,
+which one is numbered first is whatever order the device list yields.
+
+The fix is to enumerate deterministically, and the design already says so elsewhere: the Station Unit note
+under Phase 4 settles on tile order, `tileX` then `tileY`, for exactly this reason. Applying the same rule to
+bus ordinals would make numbering reproducible. **Not done yet because it changes player-visible numbering**
+and deserves a deliberate decision rather than being folded into a test fix.
+
+One instance of this class was already found and fixed rather than deferred: `assignOrdinal` counted devices
+that had been removed but not yet swept out of `entityManager`, so a bus placed in the same tick as one was
+broken took the number after it, and a network with a single import bus could call it "Import Bus #2".
+
+**2. `test_a_loop_closed_outside_the_network_is_stopped` intermittently fails in suite order.** Passes alone.
+Same shape — the resolver reaching a different conclusion depending on what happened in which tick — but the
+specific dependency has not been identified, so this one is a lead rather than a diagnosis.
+
+**Where to look first, and what has been ruled out.** The pattern is deferred engine work: an object entity
+is removed on a tick rather than on the command that asked for it, and a network rebuild is scheduled rather
+than immediate. That was enough to explain and fix two other failures, by reordering the test fixture to
+flush before clearing and again afterwards — `reset` drops the network indexes *then* removes the objects, so
+ticking after it let devices that had not gone yet rebuild the indexes reset had just dropped.
+
+Ruled out by measurement, so as not to be re-investigated: it is not the frame rate (the same tests fail at
+20 and 200 frames a second), not the mod's clock (`worldEntity.getGameTicks()` increments in
+`WorldEntity.serverTick`, not in `frameTick`, so it stays honest while time is frozen), and not test ordering
+in pytest (`pytest-randomly` is not installed; order is stable). It was also not fixed by simply granting
+more settling ticks, which is what made contamination the likelier explanation than calibration.
+
+`make pytest-clock` runs everything on the game's own clock and is the control: what passes there and fails
+by default is tick-granularity dependent.
+
 ## Category picker — the submitted icons went unused
 
 `art-submissions/2026-08-09-tiers-and-ui/ui/category_{all,ammo,material,misc,placeable,tool}.png`

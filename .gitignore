@@ -80,3 +80,7 @@ latest-log.txt
 .project
 .classpath
 .settings/
+
+# Python bytecode. Generated, and was tracked by oversight.
+__pycache__/
+*.py[cod]

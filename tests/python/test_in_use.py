@@ -15,6 +15,7 @@ second player and never for yourself, since your own client also draws from loca
 from __future__ import annotations
 
 import time
+import pytest
 
 
 def test_an_open_terminal_reports_one_user(terminal):
@@ -26,6 +27,7 @@ def test_an_open_terminal_reports_one_user(terminal):
     assert terminal.users() == 1
 
 
+@pytest.mark.realtime  # asserts against a real 3-second sleep, so game speed changes the question
 def test_the_user_survives_longer_than_the_two_second_timeout(terminal):
     """The real test. Anything that merely opens and checks would pass without the per-tick refresh.
 

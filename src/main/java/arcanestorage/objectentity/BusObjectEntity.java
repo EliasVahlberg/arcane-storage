@@ -559,6 +559,14 @@ public abstract class BusObjectEntity extends ObjectEntity implements DeviceOnNe
     * <p>Deferred to the first tick with a network rather than done when the bus is placed, because a bus is
     * placed before it is connected to anything -- and the number is meant to be a position within a network,
     * so a bus with no network has nothing to be numbered against. It gets one when it joins.
+    *
+    * <p><b>Removed devices are skipped, which they were not originally.</b> Engine entity removal is
+    * deferred: an entity is marked and taken out of {@code entityManager} later, so a bus placed in the same
+    * tick as one was broken could still see it in the network's device list and take the number after it.
+    * The symptom is a network whose only import bus is called "Import Bus #2". This was invisible while every
+    * harness command cost a tick, because the removal was always processed before the next placement; it
+    * became reproducible once game time stopped advancing between commands, which is a fair description of
+    * how a latent same-tick bug behaves.
     */
    private void assignOrdinal(NetworkIndex network) {
       if (this.ordinal != 0 || network == null) {
@@ -567,7 +575,7 @@ public abstract class BusObjectEntity extends ObjectEntity implements DeviceOnNe
 
       int highest = 0;
       for (ObjectEntity device : network.devices()) {
-         if (device instanceof BusObjectEntity && device != this) {
+         if (device instanceof BusObjectEntity && device != this && !device.removed()) {
             BusObjectEntity peer = (BusObjectEntity)device;
             if (peer.movesIntoNetwork() == this.movesIntoNetwork()) {
                highest = Math.max(highest, peer.ordinal);
