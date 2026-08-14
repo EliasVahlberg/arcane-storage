@@ -12,6 +12,7 @@ import arcanestorage.object.StorageConduitObject;
 import arcanestorage.object.StationUnitObject;
 import arcanestorage.object.StorageUnitObject;
 import arcanestorage.object.UnitTier;
+import arcanestorage.recipe.CostTable;
 import arcanestorage.objectentity.BusObjectEntity;
 import arcanestorage.objectentity.ImportBusObjectEntity;
 import arcanestorage.objectentity.StorageTerminalObjectEntity;
@@ -90,6 +91,11 @@ public class ArcaneStorage {
    }
 
    public void init() {
+      // Before anything can ask what something costs. Reading the file here rather than on first use means a
+      // malformed entry stops the mod at startup, with the offending key named, instead of surfacing whenever a
+      // player first opens an upgrade panel.
+      CostTable.load();
+
       ObjectRegistry.registerObject(TERMINAL_STRING_ID, new StorageTerminalObject(), 10.0F, true);
       // Every rung of both ladders. The base tier keeps the original string IDs, which must never change,
       // and the upper three append their era. Registered in tier order so the crafting list reads as a ladder.
@@ -167,12 +173,11 @@ public class ArcaneStorage {
       // inventory. When it fails the index falls back to recounting on a timer, which is slower but correct.
       IndexedInventories.recordVerification(IndexedInventories.verifyHook());
 
-      // The terminal is the way in, so it is deliberately the cheapest thing here and sits at a Workstation
-      // beside the storagebox it costs the same as. Gating the entry point harder would only delay the
-      // player discovering whether they want the mod at all.
+      // Every cost below comes from resources/recipes.properties. None of these numbers are written in Java, and
+      // the reasoning for each is in that file next to the value it explains.
       Recipes.registerModRecipe(
-         new Recipe(TERMINAL_STRING_ID, 1, RecipeTechRegistry.WORKSTATION,
-            new Ingredient[]{new Ingredient("anylog", 8), new Ingredient("ironbar", 2)})
+         new Recipe(TERMINAL_STRING_ID, CostTable.count("recipe.terminal"), RecipeTechRegistry.WORKSTATION,
+            CostTable.materials("recipe.terminal"))
       );
 
       // Both ladders, each rung consuming the one below it. Registered from a table rather than written out
@@ -189,15 +194,16 @@ public class ArcaneStorage {
          ));
       }
       Recipes.registerModRecipe(
-         new Recipe(CONDUIT_STRING_ID, 4, RecipeTechRegistry.NONE, new Ingredient[]{new Ingredient("anylog", 2)})
+         new Recipe(CONDUIT_STRING_ID, CostTable.count("recipe.conduit"), RecipeTechRegistry.NONE,
+            CostTable.materials("recipe.conduit"))
       );
       Recipes.registerModRecipe(
-         new Recipe(IMPORT_BUS_STRING_ID, 1, RecipeTechRegistry.NONE,
-            new Ingredient[]{new Ingredient("anylog", 4), new Ingredient("ironbar", 2)})
+         new Recipe(IMPORT_BUS_STRING_ID, CostTable.count("recipe.importbus"), RecipeTechRegistry.NONE,
+            CostTable.materials("recipe.importbus"))
       );
       Recipes.registerModRecipe(
-         new Recipe(EXPORT_BUS_STRING_ID, 1, RecipeTechRegistry.NONE,
-            new Ingredient[]{new Ingredient("anylog", 4), new Ingredient("ironbar", 2)})
+         new Recipe(EXPORT_BUS_STRING_ID, CostTable.count("recipe.exportbus"), RecipeTechRegistry.NONE,
+            CostTable.materials("recipe.exportbus"))
       );
 
       // Drives the scenario harness. Registered unconditionally: it needs owner permission,

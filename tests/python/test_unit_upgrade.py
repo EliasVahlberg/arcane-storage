@@ -19,6 +19,7 @@ matches the mental model of paying for something.
 
 from __future__ import annotations
 
+import costs
 import pytest
 
 #: (alias prefix, storage stacks, station sockets), mirroring UnitTier.
@@ -29,12 +30,15 @@ TIERS = [
     ("fallen", 320, 8),
 ]
 
-#: The in-place cost of reaching each tier: era materials only, no tier-below unit.
-UPGRADE_COST = {
-    "demonic": {"demonicbar": 25},
-    "tungsten": {"tungstenbar": 40, "quartz": 20},
-    "fallen": {"upgradeshard": 50, "alchemyshard": 50},
-}
+#: The in-place cost of reaching each tier, read from the file the mod itself reads. Not restated here: a test that
+#: supplies the number it then asserts proves only that it was typed twice the same way, and the previous copy of
+#: this dict disagreed with the code for two commits without a single failure.
+UPGRADE_COST = {tier: costs.tier_cost(tier) for tier in ("demonic", "tungsten", "fallen")}
+
+#: Shorthands for the two materials the preservation tests move around by hand.
+DEMONIC_BARS = UPGRADE_COST["demonic"]["demonicbar"]
+TUNGSTEN_BARS = UPGRADE_COST["tungsten"]["tungstenbar"]
+FALLEN_SHARDS = UPGRADE_COST["fallen"]["upgradeshard"]
 
 #: Rungs reachable by upgrading, paired with the tier below them.
 STEPS = [
@@ -111,14 +115,14 @@ def test_the_top_tier_refuses_rather_than_consuming_anything(storage):
     storage.place("fallenunit", 1, 0)
     storage.settle(5)
 
-    storage.give("upgradeshard", 50)
+    storage.give("upgradeshard", FALLEN_SHARDS)
     storage.do("upgrade", 1, 0)
     storage.settle(5)
 
     state = storage.query("upgrade", 1, 0)
     assert state["outcome"] == "at_top_tier"
     assert state["next"] == "none"
-    assert storage.query("playerinv", "upgradeshard")["count"] == 50
+    assert storage.query("playerinv", "upgradeshard")["count"] == FALLEN_SHARDS
 
 
 # --------------------------------------------------------------------------------------------------
@@ -265,18 +269,18 @@ def test_materials_come_from_the_player_before_the_network(storage):
     storage.place("unit", 1, 0)
     storage.settle(5)
 
-    # 25 into the network first, then 25 into the bag.
-    storage.give("demonicbar", 25)
+    # A full cost into the network first, then a full cost into the bag.
+    storage.give("demonicbar", DEMONIC_BARS)
     storage.do("open", 0, 0)
     storage.do("depositall")
     storage.do("close")
     storage.settle(5)
-    storage.give("demonicbar", 25)
+    storage.give("demonicbar", DEMONIC_BARS)
 
     state = storage.query("upgrade", 1, 0)
-    assert state["haveinv_demonicbar"] == 25
-    assert state["havenet_demonicbar"] == 25
-    assert state["have_demonicbar"] == 50
+    assert state["haveinv_demonicbar"] == DEMONIC_BARS
+    assert state["havenet_demonicbar"] == DEMONIC_BARS
+    assert state["have_demonicbar"] == DEMONIC_BARS * 2
     assert state["affordable"] is True
 
     storage.do("upgrade", 1, 0)
@@ -284,7 +288,7 @@ def test_materials_come_from_the_player_before_the_network(storage):
 
     assert storage.query("upgrade", 1, 0)["outcome"] == "upgraded"
     assert storage.query("playerinv", "demonicbar")["count"] == 0
-    assert storage.query("item", 0, 0, "demonicbar")["count"] == 25, (
+    assert storage.query("item", 0, 0, "demonicbar")["count"] == DEMONIC_BARS, (
         "the network was charged even though the player's own stock covered it"
     )
 
@@ -295,7 +299,7 @@ def test_materials_come_from_the_network_when_the_player_has_none(storage):
     storage.place("unit", 1, 0)
     storage.settle(5)
 
-    storage.give("demonicbar", 25)
+    storage.give("demonicbar", DEMONIC_BARS)
     storage.do("open", 0, 0)
     storage.do("depositall")
     storage.do("close")
@@ -303,7 +307,7 @@ def test_materials_come_from_the_network_when_the_player_has_none(storage):
 
     state = storage.query("upgrade", 1, 0)
     assert state["haveinv_demonicbar"] == 0
-    assert state["havenet_demonicbar"] == 25
+    assert state["havenet_demonicbar"] == DEMONIC_BARS
     assert state["affordable"] is True
 
     storage.do("upgrade", 1, 0)
@@ -319,16 +323,20 @@ def test_the_remainder_is_taken_from_the_network(storage):
     storage.place("unit", 1, 0)
     storage.settle(5)
 
-    storage.give("demonicbar", 15)
+    # Split so neither side alone is enough: the point is that the two are added, then drawn in order.
+    in_bag = DEMONIC_BARS // 2
+    in_network = DEMONIC_BARS - in_bag
+
+    storage.give("demonicbar", in_network)
     storage.do("open", 0, 0)
     storage.do("depositall")
     storage.do("close")
     storage.settle(5)
-    storage.give("demonicbar", 10)
+    storage.give("demonicbar", in_bag)
 
     state = storage.query("upgrade", 1, 0)
-    assert state["haveinv_demonicbar"] == 10
-    assert state["havenet_demonicbar"] == 15
+    assert state["haveinv_demonicbar"] == in_bag
+    assert state["havenet_demonicbar"] == in_network
     assert state["affordable"] is True
 
     storage.do("upgrade", 1, 0)
@@ -350,7 +358,7 @@ def test_materials_stored_in_the_unit_being_upgraded_are_spendable(storage):
     storage.place("unit", 1, 0)
     storage.settle(5)
 
-    storage.give("demonicbar", 25)
+    storage.give("demonicbar", DEMONIC_BARS)
     storage.do("open", 0, 0)
     storage.do("depositall")
     storage.do("close")
@@ -358,7 +366,7 @@ def test_materials_stored_in_the_unit_being_upgraded_are_spendable(storage):
 
     # Counted through the terminal rather than per tile: item_at wants a terminal on the tile it is asked
     # about, and what matters here is only that the bars are in the network at all.
-    assert storage.query("item", 0, 0, "demonicbar")["count"] == 25
+    assert storage.query("item", 0, 0, "demonicbar")["count"] == DEMONIC_BARS
 
     storage.do("upgrade", 1, 0)
     storage.settle(5)
@@ -379,11 +387,12 @@ def test_being_short_consumes_nothing_at_all(storage):
     storage.place("unit", 1, 0)
     storage.settle(5)
 
-    storage.give("demonicbar", 24)
+    one_short = DEMONIC_BARS - 1
+    storage.give("demonicbar", one_short)
 
     state = storage.query("upgrade", 1, 0)
-    assert state["have_demonicbar"] == 24
-    assert state["req_demonicbar"] == 25
+    assert state["have_demonicbar"] == one_short
+    assert state["req_demonicbar"] == DEMONIC_BARS
     assert state["affordable"] is False
 
     storage.do("upgrade", 1, 0)
@@ -391,7 +400,7 @@ def test_being_short_consumes_nothing_at_all(storage):
 
     after = storage.query("upgrade", 1, 0)
     assert after["outcome"] == "missing_materials"
-    assert storage.query("playerinv", "demonicbar")["count"] == 24
+    assert storage.query("playerinv", "demonicbar")["count"] == one_short
     assert storage.query("capacity", 0, 0)["total"] == 40
 
 
@@ -405,10 +414,10 @@ def test_a_multi_material_upgrade_short_on_one_charges_neither(storage):
     storage.place("demonicunit", 1, 0)
     storage.settle(5)
 
-    storage.give("tungstenbar", 40)
+    storage.give("tungstenbar", TUNGSTEN_BARS)
 
     state = storage.query("upgrade", 1, 0)
-    assert state["have_tungstenbar"] == 40
+    assert state["have_tungstenbar"] == TUNGSTEN_BARS
     assert state["have_quartz"] == 0
     assert state["affordable"] is False
 
@@ -416,7 +425,9 @@ def test_a_multi_material_upgrade_short_on_one_charges_neither(storage):
     storage.settle(5)
 
     assert storage.query("upgrade", 1, 0)["outcome"] == "missing_materials"
-    assert storage.query("playerinv", "tungstenbar")["count"] == 40, "bars were spent on a refused upgrade"
+    assert storage.query("playerinv", "tungstenbar")["count"] == TUNGSTEN_BARS, (
+        "bars were spent on a refused upgrade"
+    )
     assert storage.query("capacity", 0, 0)["total"] == 80
 
 
@@ -427,14 +438,14 @@ def test_upgrading_something_that_is_not_a_unit_is_refused(storage):
     storage.place("conduit", 1, 0)
     storage.settle(5)
 
-    storage.give("demonicbar", 25)
+    storage.give("demonicbar", DEMONIC_BARS)
     storage.do("upgrade", 1, 0)
     storage.settle(5)
 
     state = storage.query("upgrade", 1, 0)
     assert state["outcome"] == "not_a_unit"
     assert state["tier"] == "none"
-    assert storage.query("playerinv", "demonicbar")["count"] == 25
+    assert storage.query("playerinv", "demonicbar")["count"] == DEMONIC_BARS
 
 
 # --------------------------------------------------------------------------------------------------
@@ -493,7 +504,7 @@ def test_the_upgrade_query_describes_the_next_rung(storage):
     assert state["target"] == "arcanestorageunitdemonic"
     assert state["station"] is False
     assert state["cost"] == "demonicbar"
-    assert state["req_demonicbar"] == 25
+    assert state["req_demonicbar"] == DEMONIC_BARS
     assert state["affordable"] is False
 
     station = storage.place("stationunit", 0, 1)
@@ -531,7 +542,7 @@ def test_the_object_itself_advances_a_tier_not_just_its_entity(storage):
     assert state["tier"] == "demonic", "the object was not replaced, only its entity"
     assert state["next"] == "tungsten"
     assert state["target"] == "arcanestorageunittungsten"
-    assert state["req_tungstenbar"] == 40, "the panel would reoffer the tier it just left"
+    assert state["req_tungstenbar"] == TUNGSTEN_BARS, "the panel would reoffer the tier it just left"
 
 
 def test_a_station_unit_object_advances_too(storage):

@@ -172,22 +172,25 @@ paused-spoiling state vanilla already has.
       unverified in game, deliberately unticked.* **Each rung consumes the rung below it**, which is
       what makes this an upgrade path rather than four unrelated objects — nothing is stranded and no one
       accumulates obsolete units. A consequence worth stating: the lower tiers' string IDs can now never
-      be retired, because a recipe names them. Costs set by the owner Aug 2026:
+      be retired, because a recipe names them.
 
-      | Object | Station | Cost |
-      |---|---|---|
-      | Storage Terminal | Workstation | anylog 80, ironbar 20 |
-      | Storage / Station Unit, base | Workstation | anylog 40, ironbar 10 |
-      | …Demonic | Demonic Workstation | base unit ×1, demonicbar 25 |
-      | …Tungsten | Tungsten Workstation | Demonic unit ×1, tungstenbar 40, quartz 20 |
-      | …Fallen | Fallen Workstation | Tungsten unit ×1, upgradeshard 50, alchemyshard 50 |
-      | Conduit ×4 | hand | ironbar 1 |
-      | Import / Export Bus | hand | anylog 20, ironbar 10 |
+      **The costs are not repeated here. They live in `src/main/resources/recipes.properties`,** which the
+      Java loads at startup and the Python tests parse directly, with the reasoning for each number written
+      beside it.
 
-      Unit materials are **5× the equivalent vanilla station** at each era, and the terminal is 10× a
-      storagebox — it is built once and the whole network hangs off it, so a trivial price would make it
-      read as trivial. **The tier below is consumed at one and deliberately not scaled**: scaling it would
-      compound to 125 base units for one Fallen, which is an accident rather than a curve.
+      That is a correction, not a formatting preference. This document used to carry the whole table, and it
+      was wrong for two commits without anything noticing: the unit materials were changed in the enum and
+      not here, then here and not in the enum, and the terminal, conduit and bus costs stated above were
+      **never in the code at all** — the terminal really cost anylog 8 and ironbar 2 while this table said
+      80 and 20, and the conduit was priced in logs while this table said iron. A commit written to fix the
+      first half asserted the second half was fine without checking it. Prose restating a number the code
+      also holds is a copy, and copies drift silently; a pointer cannot.
+
+      What belongs here instead is the shape rather than the values. The tier below is consumed **at one and
+      deliberately not scaled** — scaling compounds to 125 base units for one Fallen, an accident rather
+      than a curve. Unit materials are kept **modest on purpose**: a player owns many units, and a per-unit
+      price that reads as a grind stops the upgrade being something to look forward to, which is the whole
+      point of having a ladder.
 
       Two things here are still open rather than decided. The conduit and both buses remain **hand-crafted**
       — their costs are set but no station gates them, so a bus is still reachable in the first minutes of a

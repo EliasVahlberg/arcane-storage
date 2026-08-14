@@ -1,6 +1,7 @@
 package arcanestorage.object;
 
 import necesse.engine.registries.RecipeTechRegistry;
+import arcanestorage.recipe.CostTable;
 import necesse.inventory.recipe.Ingredient;
 import necesse.inventory.recipe.Tech;
 
@@ -19,16 +20,15 @@ import necesse.inventory.recipe.Tech;
  * container ceiling, so a first unit is worth precisely one chest and the ladder starts from parity rather
  * than from an advantage.
  *
- * <p><b>The material costs are five times what the equivalent vanilla station charges at the same era</b> --
- * a unit is a serious investment rather than a bit of furniture, and forty stacks of storage should not be
- * cheaper than the bench that fills it. Vanilla charges demonicbar x5 for a Demonic Workstation Duo,
- * tungstenbar x8 with quartz x4 for a Tungsten Workstation, and upgradeshard x15 with alchemyshard x15 for a
- * Fallen Workstation.
+ * <p><b>The material costs are not here.</b> They live in {@code resources/recipes.properties}, read through
+ * {@link arcanestorage.recipe.CostTable}, together with the reasoning for the numbers chosen. This enum holds
+ * the ladder's identity -- how many rungs there are, what each is called, how much it holds, and which station
+ * builds it -- and nothing about price.
  *
- * <p><b>The tier below is consumed at one, and is deliberately not scaled with the materials.</b> Scaling it
- * would compound down the ladder -- five Tungsten units means twenty-five Demonic and one hundred and
- * twenty-five base units -- which is not a cost curve but an accident. One keeps the upgrade readable: exactly
- * one unit goes in and one comes out, and only the materials grow.
+ * <p>The split is there because of what happened when it was not. The costs were fields on these constants and
+ * were also written into a table in the roadmap; the two disagreed for two commits while every test passed, and
+ * the commit that set out to reconcile them checked one file and asserted the other. An earlier version of this
+ * paragraph confidently described a five-times-vanilla curve that the code had never contained.
  *
  * <p><b>Each tier's recipe consumes the tier below it.</b> That is the difference between an upgrade path and
  * four unrelated objects: nothing is stranded, a player's investment carries forward, and no one ends up with
@@ -42,16 +42,16 @@ import necesse.inventory.recipe.Tech;
 public enum UnitTier {
 
    /** Vanilla's container ceiling, and one crafting socket. Craftable the moment a Workstation exists. */
-   BASE("", 40, 1, null, new String[]{"anylog", "40", "ironbar", "10"}),
+   BASE("", 40, 1, null),
 
    /** Demonic era. */
-   DEMONIC("demonic", 80, 2, "demonicbar", new String[]{"demonicbar", "25"}),
+   DEMONIC("demonic", 80, 2, "demonicbar"),
 
    /** Tungsten era. */
-   TUNGSTEN("tungsten", 160, 4, "tungstenbar", new String[]{"tungstenbar", "40", "quartz", "20"}),
+   TUNGSTEN("tungsten", 160, 4, "tungstenbar"),
 
    /** Fallen era, the top of the ladder. */
-   FALLEN("fallen", 320, 8, "upgradeshard", new String[]{"upgradeshard", "50", "alchemyshard", "50"});
+   FALLEN("fallen", 320, 8, "upgradeshard");
 
    /** Appended to the base string IDs. Empty for {@link #BASE}, whose IDs must never change. */
    public final String suffix;
@@ -65,14 +65,11 @@ public enum UnitTier {
    /** The signature material of the era, for tooltips and for describing the tier. Null for {@link #BASE}. */
    public final String material;
 
-   private final String[] costs;
-
-   UnitTier(String suffix, int storageSlots, int stationSockets, String material, String[] costs) {
+   UnitTier(String suffix, int storageSlots, int stationSockets, String material) {
       this.suffix = suffix;
       this.storageSlots = storageSlots;
       this.stationSockets = stationSockets;
       this.material = material;
-      this.costs = costs;
    }
 
    /** The Storage Unit string ID at this tier. */
@@ -110,13 +107,12 @@ public enum UnitTier {
     * and the availability check has to learn about global ingredients first.
     */
    public Ingredient[] upgradeCost() {
-      Ingredient[] materials = new Ingredient[this.costs.length / 2];
+      return CostTable.materials(this.costKey());
+   }
 
-      for (int i = 0; i < this.costs.length; i += 2) {
-         materials[i / 2] = new Ingredient(this.costs[i], Integer.parseInt(this.costs[i + 1]));
-      }
-
-      return materials;
+   /** This tier's key in {@code recipes.properties}. */
+   public String costKey() {
+      return "tier." + this.name().toLowerCase(java.util.Locale.ROOT);
    }
 
    /**
@@ -145,16 +141,15 @@ public enum UnitTier {
     * @param previousId the lower tier's string ID for this ladder, or null at the bottom
     */
    public Ingredient[] ingredients(String previousId) {
-      int extra = previousId == null ? 0 : 1;
-      Ingredient[] all = new Ingredient[this.costs.length / 2 + extra];
+      Ingredient[] materials = this.upgradeCost();
 
-      if (previousId != null) {
-         all[0] = new Ingredient(previousId, 1);
+      if (previousId == null) {
+         return materials;
       }
 
-      for (int i = 0; i < this.costs.length; i += 2) {
-         all[i / 2 + extra] = new Ingredient(this.costs[i], Integer.parseInt(this.costs[i + 1]));
-      }
+      Ingredient[] all = new Ingredient[materials.length + 1];
+      all[0] = new Ingredient(previousId, 1);
+      System.arraycopy(materials, 0, all, 1, materials.length);
 
       return all;
    }
