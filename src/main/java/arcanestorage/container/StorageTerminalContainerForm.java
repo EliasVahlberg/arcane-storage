@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
+import arcanestorage.ui.ArcanePanel;
 import necesse.engine.gameLoop.tickManager.TickManager;
 import necesse.engine.input.Control;
 import necesse.engine.input.InputEvent;
@@ -159,6 +160,19 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
     * the interface felt cramped: the shortfall was worse than the constants said.
     */
    private static final int GRID_SCROLL_BUTTONS = 32;
+
+   /**
+    * Puts a form on the mod's own panel, if the player has not turned that off.
+    *
+    * <p>Applied per tab rather than once, because each tab is a separate {@link Form} with its own
+    * background -- {@code TabbedFormPreset} hands back a new one per tab and the tab strip itself
+    * draws outside the panel, at {@code form.getY() - offset}. Missing one would leave a single tab
+    * looking like a different mod's interface.
+    */
+   private static Form styled(Form form) {
+      form.setBackground(ArcanePanel.of());
+      return form;
+   }
 
    private static final int PADDING = 4;
    private static final int SEARCH_WIDTH = 220;
@@ -430,7 +444,7 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
       // form.getY() - offset, outside the panel entirely.
       this.tabs = this.addComponent(
             new TabbedFormPreset(0, TabbedFormPreset.TabStyle.Fill, FORM_WIDTH, FORM_HEIGHT));
-      this.mainForm = this.tabs.addLocalizedTab(new LocalMessage("ui", "arcanestorage_tab_storage"), null);
+      this.mainForm = styled(this.tabs.addLocalizedTab(new LocalMessage("ui", "arcanestorage_tab_storage"), null));
 
       FormFlow flow = new FormFlow(PADDING);
       // The header is one row: title on the left, search on the right. Its height is driven by
@@ -855,17 +869,40 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
     * disagree with the server about what is installed.
     */
    private Form buildStationsTab(Client client, T container) {
-      Form form = this.tabs.addLocalizedTab(new LocalMessage("ui", "arcanestorage_tab_stations"), null);
+      Form form = styled(this.tabs.addLocalizedTab(new LocalMessage("ui", "arcanestorage_tab_stations"), null));
 
       FormFlow flow = new FormFlow(PADDING);
       int headerY = flow.next(FormInputSize.SIZE_24.height + PADDING);
       form.addComponent(new FormLocalLabel("ui", "arcanestorage_tab_stations", new FontOptions(20), -1,
             PADDING, headerY + 4, FORM_WIDTH - PADDING * 2));
 
-      int slotsY = flow.next(SLOT_PITCH + PADDING);
-      for (int i = 0; i < container.terminal.inventory.getSize(); i++) {
-         form.addComponent(new FormContainerSlot(client, container, container.STATION_START + i,
-               PADDING + i * SLOT_PITCH, slotsY));
+      // Sockets come from Station Units now, so the count is whatever the network offers rather than a
+      // fixed ten, and zero is a normal state rather than an error to guard against. Wrapped onto rows,
+      // because the ladder tops out at eight per unit and a network may hold several: a single row would
+      // run off the form long before the design ran out of sockets.
+      int sockets = container.STATION_START == -1 ? 0 : container.STATION_END - container.STATION_START + 1;
+      int perRow = Math.max(1, (FORM_WIDTH - PADDING * 2) / SLOT_PITCH);
+
+      if (sockets == 0) {
+         // Deliberately says what to do, not what went wrong. An empty tab with no explanation reads as
+         // a broken feature, and this is the one state every new network starts in.
+         form.addComponent(new FormLocalLabel("ui", "arcanestorage_stations_none", new FontOptions(16), -1,
+               PADDING, flow.next(48), FORM_WIDTH - PADDING * 2));
+      } else {
+         // FormFlow.next(add) returns the position *before* advancing, so a row's Y is captured when the
+         // row opens rather than read back afterwards -- the flow has no getter for where it is.
+         int rowY = 0;
+         for (int i = 0; i < sockets; i++) {
+            int column = i % perRow;
+            if (column == 0) {
+               rowY = flow.next(SLOT_PITCH);
+            }
+
+            form.addComponent(new FormContainerSlot(client, container, container.STATION_START + i,
+                  PADDING + column * SLOT_PITCH, rowY));
+         }
+
+         flow.next(PADDING);
       }
 
       // Wrapped over the width of the form rather than sized to the text, because the explanation is
@@ -896,7 +933,7 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
     * the rest server-side. So this list is a view, and the server is the authority.
     */
    private Form buildCraftingTab(Client client, T container) {
-      Form form = this.tabs.addLocalizedTab(new LocalMessage("ui", "arcanestorage_tab_crafting"), null);
+      Form form = styled(this.tabs.addLocalizedTab(new LocalMessage("ui", "arcanestorage_tab_crafting"), null));
 
       // A fresh filter per open, deliberately not Settings.getRecipeFilterSetting, which keeps one
       // per key for the session and would therefore remember the last search and toggle.
@@ -1349,7 +1386,7 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
     */
    private Form buildLogisticsTab(Client client, T container) {
       this.logisticsTabIndex = this.tabs.getTabCount();
-      Form form = this.tabs.addLocalizedTab(new LocalMessage("ui", "arcanestorage_tab_logistics"), null);
+      Form form = styled(this.tabs.addLocalizedTab(new LocalMessage("ui", "arcanestorage_tab_logistics"), null));
 
       FormFlow flow = new FormFlow(PADDING);
       int headerY = flow.next(FormInputSize.SIZE_24.height + PADDING);

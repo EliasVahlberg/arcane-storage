@@ -122,9 +122,20 @@ def storage(harness: Harness) -> Harness:
 
 @pytest.fixture
 def terminal(storage: Harness) -> Terminal:
-    """A terminal at spawn with one unit beside it: the smallest useful network."""
+    """A terminal at spawn, one storage unit, and one station socket: the smallest useful network.
+
+        y=0:   T  U
+        y=1:   S
+
+    The Station Unit is part of the baseline because crafting is half of what a terminal does, and
+    sockets stopped being free when they moved off the terminal onto their own block. A fixture without
+    one can craft nothing that needs a bench, which is a real state a player reaches but a poor default
+    for tests about anything else. It contributes no storage capacity, so counts of the network's units
+    and slots are unaffected.
+    """
     storage.place("terminal", 0, 0)
     storage.place("unit", 1, 0)
+    storage.place("stationunit", 0, 1)
     return Terminal(storage, 0, 0)
 
 @pytest.fixture

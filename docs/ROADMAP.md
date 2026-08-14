@@ -78,7 +78,15 @@ One item accepted during Phase 4 is still open, and is carried below rather than
 ## Carried forward from Phase 4
 
 - [ ] **Station slots move off the terminal onto their own unit** — *accepted from
-      Elias's design pass, Aug 2026; supersedes the ten slots currently on the terminal.*
+      Elias's design pass, Aug 2026; supersedes the ten slots that used to be on the terminal.*
+
+      **Implemented, unverified in game — deliberately still unticked.** The object, its entity, the
+      network interface, the terminal's discovery and tech lookup, the container's slot addressing, the
+      Stations tab, the recipe, the locale, the harness alias and verb, and the load-time migration are
+      all in. Nine new headless tests pass, as do the 40 existing station and crafting ones. What no
+      headless test can see is the tab's layout and the migration actually handing benches back in a
+      real world, and the migration is the one part that can lose a player's property. The checklist is
+      in `docs/QA_BACKLOG.md` under "Station Units". This ticks when that has been walked through.
       A **Station Unit** carries the slots and joins the network by the same connectivity
       rule as a Storage Unit, so station capacity becomes a placed, paid-for resource
       rather than a constant I picked. Ladder **1 → 2 → 4 → 8** slots across vanilla's four
@@ -132,6 +140,18 @@ paused-spoiling state vanilla already has.
 - [ ] **Custom panel sprites for the terminal interface**, so it reads as this mod's
       interface rather than a vanilla form *(deliberately late: it is the one visual
       change that cannot be judged until the layout has stopped moving)*
+
+      **Implemented, unverified in game — deliberately still unticked.** `ArcanePanel` wraps a
+      `GameBackgroundTextures` over `ui/arcanestoragepanel` and `ui/arcanestoragepaneledge`, applied per
+      tab and to the bus rules form. The geometry was verified by reconstructing a panel from the slices,
+      but the engine's own nine-slice reader has never drawn it, and only that counts. Checklist in
+      `docs/QA_BACKLOG.md` under "The custom panel".
+
+      **The trade-off below was decided rather than deferred:** the panel is on by default and
+      `ArcaneStorageSettings.useCustomPanel` turns it off, restoring `GameBackground.form`. A setting
+      because the cost falls on a specific player — anyone who deliberately chose an interface style has
+      that choice overridden for our forms — and that is a real cost but not one worth giving up the
+      mod's own identity for by default.
 
       The mechanism is already known, so this does not need research when it comes up.
       `Form.setBackground(GameBackground)` is public and every form defaults to

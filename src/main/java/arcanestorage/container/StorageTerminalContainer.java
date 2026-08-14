@@ -27,6 +27,7 @@ import necesse.inventory.itemFilter.ItemCategoriesFilter;
 import necesse.inventory.recipe.Recipe;
 import necesse.inventory.recipe.Recipes;
 import necesse.inventory.recipe.Tech;
+import arcanestorage.network.NetworkStations;
 import necesse.engine.registries.RecipeTechRegistry;
 import java.util.Collection;
 import java.util.LinkedHashSet;
@@ -61,10 +62,20 @@ public class StorageTerminalContainer extends Container {
    public static final String AGGREGATE_PURPOSE = "arcanestorageaggregate";
 
    /** First container index belonging to a linked unit, or -1 when nothing is linked. */
-   /** First and last slot holding an installed crafting station. Always present, always ten wide. */
+   /**
+    * First and last slot holding an installed crafting station, or -1 when the network has no Station
+    * Unit.
+    *
+    * <p>No longer "always present, always ten wide": sockets are placed by the player now, so a network
+    * can legitimately offer none. Anything reading these must check for -1 rather than assuming a range,
+    * which is the same discipline {@code NETWORK_START} already needed.
+    */
    public final int STATION_START;
 
    public final int STATION_END;
+
+   /** The Station Units these slots belong to, in the tile order that fixes their indices. */
+   public final java.util.List<NetworkStations> stationUnits;
 
    public int NETWORK_START = -1;
    /** Last container index belonging to a linked unit, or -1 when nothing is linked. */
@@ -125,17 +136,34 @@ public class StorageTerminalContainer extends Container {
          NetworkIndexes.reconcileSoon(terminal.getLevel());
       }
 
-      // Station slots come first, and deliberately before the network, so their indices are the same
-      // on both sides no matter what either side thinks the network contains. Slot indices *are*
-      // sent by the client when it moves an item, and network membership is discovered
-      // independently per side, so a station slot placed after the network could resolve to a unit
-      // slot on the server if the two disagreed about unit count.
-      this.STATION_START = this.addSlot(new OEInventoryContainerSlot(terminal, 0));
-      for (int i = 1; i < terminal.inventory.getSize(); i++) {
-         this.addSlot(new OEInventoryContainerSlot(terminal, i));
+      // Station slots come first, and deliberately before the network, so their indices are the same on
+      // both sides no matter what either side thinks the network contains. Slot indices *are* sent by
+      // the client when it moves an item, and membership is discovered independently per side, so a
+      // station slot placed after the network could resolve to a unit slot on the server if the two
+      // disagreed about unit count.
+      //
+      // The sockets now live on Station Units rather than on the terminal, so their count is no longer
+      // fixed -- a network with no Station Unit has none at all, which is a normal state. Both sides
+      // enumerate the units in tile order, which is what makes an index mean the same thing to each of
+      // them; see StorageTerminalObjectEntity.getLinkedStationUnits.
+      this.stationUnits = terminal.getLinkedStationUnits();
+
+      int stationStart = -1;
+      int stationEnd = -1;
+      for (NetworkStations unit : this.stationUnits) {
+         Inventory sockets = unit.getInventory();
+         for (int i = 0; i < sockets.getSize(); i++) {
+            int index = this.addSlot(new OEInventoryContainerSlot(unit, i));
+            if (stationStart == -1) {
+               stationStart = index;
+            }
+
+            stationEnd = index;
+         }
       }
 
-      this.STATION_END = this.STATION_START + terminal.inventory.getSize() - 1;
+      this.STATION_START = stationStart;
+      this.STATION_END = stationEnd;
 
       this.linkedUnits = terminal.getLinkedUnits();
 

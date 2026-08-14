@@ -9,10 +9,12 @@ import arcanestorage.object.StorageTerminalObject;
 import arcanestorage.object.ExportBusObject;
 import arcanestorage.object.ImportBusObject;
 import arcanestorage.object.StorageConduitObject;
+import arcanestorage.object.StationUnitObject;
 import arcanestorage.object.StorageUnitObject;
 import arcanestorage.objectentity.BusObjectEntity;
 import arcanestorage.objectentity.ImportBusObjectEntity;
 import arcanestorage.objectentity.StorageTerminalObjectEntity;
+import arcanestorage.ui.ArcanePanel;
 import necesse.engine.modLoader.annotations.ModEntry;
 import necesse.engine.registries.ContainerRegistry;
 import necesse.engine.registries.ObjectRegistry;
@@ -38,6 +40,9 @@ public class ArcaneStorage {
 
    /** Registry string ID of the storage unit object; also its texture and locale key. */
    public static final String UNIT_STRING_ID = "arcanestorageunit";
+
+   /** Registry string ID of the station unit object; also its texture and locale key. */
+   public static final String STATION_UNIT_STRING_ID = "arcanestoragestationunit";
 
    /** Registry string ID of the conduit object; also its texture and locale key. */
    public static final String CONDUIT_STRING_ID = "arcanestorageconduit";
@@ -83,6 +88,7 @@ public class ArcaneStorage {
    public void init() {
       ObjectRegistry.registerObject(TERMINAL_STRING_ID, new StorageTerminalObject(), 10.0F, true);
       ObjectRegistry.registerObject(UNIT_STRING_ID, new StorageUnitObject(), 10.0F, true);
+      ObjectRegistry.registerObject(STATION_UNIT_STRING_ID, new StationUnitObject(), 10.0F, true);
       CONDUIT = new StorageConduitObject();
       ObjectRegistry.registerObject(CONDUIT_STRING_ID, CONDUIT, 4.0F, true);
       ObjectRegistry.registerObject(IMPORT_BUS_STRING_ID, new ImportBusObject(), 8.0F, true);
@@ -117,8 +123,10 @@ public class ArcaneStorage {
    }
 
    public void initResources() {
-      // Client-only. objects/arcanestorageterminal.png is loaded automatically by
-      // InventoryObject.loadTextures, so there is nothing to load by hand yet.
+      // Client-only, which is why the panel is loaded here and not in init(): a dedicated server never
+      // calls this, never builds a form, and has no business holding UI textures. Object and item
+      // textures still need no hand-loading -- InventoryObject.loadTextures finds those by string ID.
+      ArcanePanel.load();
    }
 
    public void postInit() {
@@ -135,6 +143,10 @@ public class ArcaneStorage {
       );
       Recipes.registerModRecipe(
          new Recipe(UNIT_STRING_ID, 1, RecipeTechRegistry.NONE, new Ingredient[]{new Ingredient("anylog", 8)})
+      );
+      Recipes.registerModRecipe(
+         new Recipe(STATION_UNIT_STRING_ID, 1, RecipeTechRegistry.NONE,
+            new Ingredient[]{new Ingredient("anylog", 8), new Ingredient("ironbar", 2)})
       );
       Recipes.registerModRecipe(
          new Recipe(CONDUIT_STRING_ID, 4, RecipeTechRegistry.NONE, new Ingredient[]{new Ingredient("anylog", 2)})

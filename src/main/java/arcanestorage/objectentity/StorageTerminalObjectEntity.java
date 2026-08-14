@@ -2,11 +2,13 @@ package arcanestorage.objectentity;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 
 import arcanestorage.ArcaneStorage;
 import arcanestorage.network.NetworkConductor;
+import arcanestorage.network.NetworkStations;
 import arcanestorage.network.NetworkStorage;
 import arcanestorage.network.UnitNetwork;
 import necesse.entity.objectEntity.InventoryObjectEntity;
@@ -17,6 +19,7 @@ import necesse.inventory.recipe.Tech;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import necesse.engine.GameLog;
+import necesse.inventory.Inventory;
 import necesse.inventory.InventoryItem;
 import necesse.inventory.item.placeableItem.objectItem.ObjectItem;
 import necesse.level.gameObject.GameObject;
@@ -223,14 +226,63 @@ public class StorageTerminalObjectEntity extends InventoryObjectEntity {
    public LinkedHashSet<Tech> getInstalledTechs() {
       LinkedHashSet<Tech> techs = new LinkedHashSet<>();
 
-      for (int slot = 0; slot < this.inventory.getSize(); slot++) {
-         CraftingStationObject station = getCraftingStation(this.inventory.getItem(slot));
-         if (station != null) {
-            techs.addAll(Arrays.asList(station.getCraftingTechs()));
+      for (NetworkStations unit : this.getLinkedStationUnits()) {
+         Inventory sockets = unit.getInventory();
+         for (int slot = 0; slot < sockets.getSize(); slot++) {
+            CraftingStationObject station = getCraftingStation(sockets.getItem(slot));
+            if (station != null) {
+               techs.addAll(Arrays.asList(station.getCraftingTechs()));
+            }
          }
       }
 
       return techs;
+   }
+
+   /**
+    * The linked Station Units, in the order their sockets are addressed.
+    *
+    * <p>Discovered by the same walk as the Storage Units and over the same conductors, so a Station Unit
+    * joins a network exactly as a Storage Unit does and there is no second connectivity rule to learn.
+    *
+    * <p><b>Sorted by tile, and that is a correctness requirement rather than presentation.</b> Sockets
+    * are addressed by slot index and the client sends the index when it moves a bench, but each side
+    * discovers membership by walking the network itself. A walk's visit order depends on where it
+    * started, so the only thing making both sides agree is that both sort the result by the one property
+    * neither can be wrong about: position. Without this, installing a bench could put it in a different
+    * socket than the one clicked.
+    */
+   public List<NetworkStations> getLinkedStationUnits() {
+      final Level level = this.getLevel();
+      if (level == null) {
+         return new ArrayList<>();
+      }
+
+      List<NetworkStations> units = UnitNetwork.discover(this.tileX, this.tileY, (x, y) -> {
+         ObjectEntity candidate = level.entityManager.getObjectEntity(x, y);
+         if (candidate instanceof NetworkStations) {
+            NetworkStations member = (NetworkStations)candidate;
+            return member.isOnNetwork() ? member : null;
+         }
+
+         return null;
+      }, (x, y) -> level.getObject(x, y) instanceof NetworkConductor, MAX_UNITS, MAX_CONDUITS);
+
+      units.sort(Comparator.comparingLong(NetworkStations::tileOrder));
+      return units;
+   }
+
+   /**
+    * How many sockets the network offers in total. Zero is a normal state, not an error: a network with
+    * no Station Unit simply cannot craft anything needing a bench, and hand recipes still work.
+    */
+   public int getStationSlotCount() {
+      int total = 0;
+      for (NetworkStations unit : this.getLinkedStationUnits()) {
+         total += unit.getInventory().getSize();
+      }
+
+      return total;
    }
 
    public StorageTerminalObjectEntity(Level level, int x, int y, int slots) {
@@ -320,6 +372,8 @@ public class StorageTerminalObjectEntity extends InventoryObjectEntity {
          return;
       }
 
+      this.releaseLegacyStations();
+
       // Armed rather than merely skipped while nobody is looking, so the first tick after a terminal is opened
       // surveys instead of waiting out the rest of an interval. A logistics tab that took most of a second to
       // list anything would read as an empty network.
@@ -337,6 +391,67 @@ public class StorageTerminalObjectEntity extends InventoryObjectEntity {
       List<BusSummary> found = this.surveyBuses();
       if (!sameAs(this.buses, found)) {
          this.buses = found;
+         this.markDirty();
+      }
+   }
+
+   /**
+    * Whether the legacy socket check has run for this entity yet. Not saved: the check is idempotent, so
+    * running it again after a reload costs one pass over ten empty slots.
+    */
+   private boolean legacyStationsReleased;
+
+   /**
+    * Hands back crafting stations installed in a terminal before sockets moved to Station Units.
+    *
+    * <p><b>This exists because doing nothing would destroy the player's benches.</b> Until this change a
+    * terminal held up to ten stations in its own inventory, and that inventory is still in every existing
+    * save. The slots are no longer reachable from any interface, so the items would sit in the save file
+    * invisible and unrecoverable -- and worse, shrinking the inventory to reflect the new design would let
+    * {@code InventorySave} truncate them away with nothing written anywhere. A silent loss of ten
+    * mid-to-late-game benches is not an acceptable cost for a design improvement.
+    *
+    * <p>So the inventory keeps its size and the contents are dropped on the floor at the terminal. Dropping
+    * is deliberately chosen over the alternatives: moving them into Station Units cannot work, because a
+    * migrating world has none yet, and holding them until one is placed would mean carrying a hidden
+    * inventory forward indefinitely and explaining it in the interface. A pile of items on the ground needs
+    * no explanation and cannot be misread -- the player sees exactly what they had.
+    *
+    * <p>Runs from {@code serverTick} rather than the constructor, because an object entity is built during
+    * load before the level is in a state where a pickup can be added, and the tick is the first moment the
+    * world is known to be ready.
+    */
+   private void releaseLegacyStations() {
+      if (this.legacyStationsReleased) {
+         return;
+      }
+
+      this.legacyStationsReleased = true;
+
+      Level level = this.getLevel();
+      if (level == null) {
+         return;
+      }
+
+      int released = 0;
+      for (int slot = 0; slot < this.inventory.getSize(); slot++) {
+         InventoryItem item = this.inventory.getItem(slot);
+         if (item == null) {
+            continue;
+         }
+
+         level.entityManager.pickups.add(
+               item.copy().getPickupEntity(level, this.tileX * 32 + 16, this.tileY * 32 + 16));
+         this.inventory.setItem(slot, null);
+         released++;
+      }
+
+      if (released > 0) {
+         // Logged as well as dropped, because a player who was not standing there when it happened has no
+         // other way to find out why their crafting tab emptied.
+         GameLog.warn.println("Arcane Storage: dropped " + released
+               + " crafting station(s) from the terminal at " + this.tileX + "," + this.tileY
+               + " -- stations now live in a Station Unit.");
          this.markDirty();
       }
    }

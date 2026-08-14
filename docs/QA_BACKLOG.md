@@ -486,51 +486,91 @@ something to point back at.
       broken unit or conduit is asserted in `tests/python/test_topology.py` and
       `tests/python/test_conduits.py`.
 
-## Two failures the faster test suite exposed — real order-dependence, not test noise
+## What the faster test suite exposed — one failure left, and two real bugs fixed
 
-The Python suite now detaches game time from the wall clock: it grants ticks instead of waiting for them,
-which took it from 333 seconds to 20. That removed something the suite had been getting for free. Every
-harness command used to be marshalled onto the server thread and wait for the next tick, so a command cost
-50ms and a fixture's seven placements spanned seven ticks — meaning anything the engine defers to a tick was
-always processed between one command and the next. With game time frozen between commands, work that used to
-be spread over several ticks now lands in one, and two places turn out to depend on that.
+The Python suite detaches game time from the wall clock: it grants ticks instead of waiting for them, which
+took it from 333 seconds to 20. That removed something the suite had been getting for free. Every harness
+command used to be marshalled onto the server thread and wait for the next tick, so a command cost 50ms and
+a fixture's seven placements spanned seven ticks — meaning anything the engine defers to a tick was always
+processed before the next test's first placement. Removing that free settling surfaced whatever relied on it.
 
-Both are **real behaviour**, reachable in play by doing two things inside the same tick. Neither is urgent:
-doing two things in one tick needs either a script or luck.
+**Two were real bugs and are fixed.**
 
-**1. Bus numbering depends on join order, and simultaneous joins have no defined order.**
-`test_the_terminal_reports_names_not_only_coordinates` places two import buses and expects the un-renamed one
-to be "Import Bus #1". It intermittently reads #2. `BusObjectEntity.assignOrdinal` takes the highest ordinal
-among peers and adds one, and it runs when a bus *joins a network* — so when two buses join in the same tick,
-which one is numbered first is whatever order the device list yields.
+`BusObjectEntity.assignOrdinal` counted peers that had been removed but not yet swept out of
+`entityManager`, because engine entity removal is deferred. A bus placed in the same tick as one was broken
+therefore took the number after it, and a network holding a single import bus could call it "Import Bus #2".
+Reachable in play by breaking and rebuilding within a tick.
 
-The fix is to enumerate deterministically, and the design already says so elsewhere: the Station Unit note
-under Phase 4 settles on tile order, `tileX` then `tileY`, for exactly this reason. Applying the same rule to
-bus ordinals would make numbering reproducible. **Not done yet because it changes player-visible numbering**
-and deserves a deliberate decision rather than being folded into a test fix.
+The `storage` fixture cleared state and then ticked, which is backwards: `reset` drops the network indexes and
+*then* removes the objects, so ticking afterwards let devices that had not gone yet rebuild the indexes reset
+had just dropped. It now settles, resets, then settles again.
 
-One instance of this class was already found and fixed rather than deferred: `assignOrdinal` counted devices
-that had been removed but not yet swept out of `entityManager`, so a bus placed in the same tick as one was
-broken took the number after it, and a network with a single import bus could call it "Import Bus #2".
+**One failure remains, and it moves.** Currently
+`test_scheduler.py::test_a_bus_with_nowhere_to_put_things_says_so_within_a_second` — a bus reads `active`
+where `no_container` is expected, meaning it believes a chest is beside it. It passes alone, and it passes
+when the two-test sequence that looks responsible is reproduced directly (the chest is gone, the state is
+correct), so the contamination reaches further back than the adjacent test. Which test leaves what has not
+been identified.
 
-**2. `test_a_loop_closed_outside_the_network_is_stopped` intermittently fails in suite order.** Passes alone.
-Same shape — the resolver reaching a different conclusion depending on what happened in which tick — but the
-specific dependency has not been identified, so this one is a lead rather than a diagnosis.
+Two earlier failures in this list no longer reproduce at all, and what changed for them was only *which
+tests run next to them* — a new test file shifted the order. That is worth stating plainly because it is the
+strongest evidence available that the remaining problem is cross-test state and not a fault in the mod: a
+failure that a neighbouring file can cure was never about the code under test.
 
-**Where to look first, and what has been ruled out.** The pattern is deferred engine work: an object entity
-is removed on a tick rather than on the command that asked for it, and a network rebuild is scheduled rather
-than immediate. That was enough to explain and fix two other failures, by reordering the test fixture to
-flush before clearing and again afterwards — `reset` drops the network indexes *then* removes the objects, so
-ticking after it let devices that had not gone yet rebuild the indexes reset had just dropped.
-
-Ruled out by measurement, so as not to be re-investigated: it is not the frame rate (the same tests fail at
-20 and 200 frames a second), not the mod's clock (`worldEntity.getGameTicks()` increments in
-`WorldEntity.serverTick`, not in `frameTick`, so it stays honest while time is frozen), and not test ordering
-in pytest (`pytest-randomly` is not installed; order is stable). It was also not fixed by simply granting
-more settling ticks, which is what made contamination the likelier explanation than calibration.
+**Ruled out by measurement, so it is not re-investigated:** not the frame rate (the same tests failed
+identically at 20 and 200 frames a second), not the mod's clock (`worldEntity.getGameTicks()` increments in
+`WorldEntity.serverTick`, not `frameTick`, so it stays honest while time is frozen), not pytest ordering
+(`pytest-randomly` is not installed), and not solved by granting more settling ticks — which is what made
+contamination the likelier explanation than mis-calibrated expectations.
 
 `make pytest-clock` runs everything on the game's own clock and is the control: what passes there and fails
 by default is tick-granularity dependent.
+
+## Station Units — needs eyes, nothing here is confirmed in game
+
+Sockets moved off the terminal onto a placed Station Unit. Compiles, and 9 new headless tests plus the 40
+existing station and crafting tests pass, but **no part of this has been seen in a running game**, and the
+parts most likely to be wrong are the parts a headless test cannot see.
+
+1. **The migration, which is the only item here that can lose a player's property.** A terminal in an
+   existing world holds up to ten benches in its own inventory; on the first server tick after loading, those
+   are dropped as pickups at the terminal's tile and the slots cleared. *Elias has benches installed in his
+   current world*, so this runs the first time that world loads. Check: the benches appear on the floor, the
+   count matches what was installed, and nothing is left behind — reopening the terminal must not show them
+   still installed. A log line under `Arcane Storage: dropped N crafting station(s)` records it.
+2. **The Stations tab with no Station Unit.** Should show the explanatory line, not an empty panel or a row
+   of dead slots.
+3. **The Stations tab with one, then several.** Sockets wrap onto rows at the form's width; one unit is one
+   socket at the base tier.
+4. **Installing a bench by dragging it into a socket**, and the Crafting tab gaining that bench's recipes.
+5. **Breaking a Station Unit with a bench installed** — the bench should drop, and the recipes should go.
+6. **Interacting with a Station Unit** reports `<used>/<total> stations installed` and does not open a
+   container.
+7. **A Station Unit added to settlement storage.** It refuses to be settlement storage at all
+   (`getSettlementStorage` returns null), so a hauler must not walk off with an installed bench. Worth
+   testing precisely because the failure mode is silent and slow.
+8. **Quick-stack inside the terminal** must not file loose items into sockets — the three bulk conventions
+   are refused on the unit rather than merely rejected per item, so the buttons should ignore sockets
+   entirely rather than appearing to do nothing.
+
+## The custom panel — needs eyes
+
+The terminal's four tabs and the bus rules panel now draw on `ui/arcanestoragepanel`. Geometry was verified
+by reconstructing a panel from the slices, but **the engine's own nine-slice reader has never drawn it**, and
+that is the only thing that matters.
+
+1. **The frame sits on the form's edge**, with no 8px bleed outside it on any side. This is the measurement
+   most likely to be wrong: the visible band occupies the inner third of each 12px slice and the outer 8px is
+   transparent, which is supposed to cancel exactly against `edgeMargin = 8`.
+2. **All four corners** are closed, with no gap or doubled pixel.
+3. **The centre tiles seamlessly** across a tall form — the weave period is 16 and the tile is 64, so it
+   should divide evenly.
+4. **Every tab and the bus panel** carry it. A single tab left on the vanilla background is the likely
+   mistake, since the background is set per tab.
+5. **`useCustomPanel = false`** in the mod's settings restores the player's chosen interface style
+   everywhere.
+6. **Content is not shifted.** `contentPadding` is 0 to match the vanilla form; if anything looks nudged,
+   that is the suspect.
 
 ## Category picker — the submitted icons went unused
 

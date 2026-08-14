@@ -1,12 +1,14 @@
 [object]
 arcanestorageterminal=Storage Terminal
 arcanestorageunit=Storage Unit
+arcanestoragestationunit=Station Unit
 arcanestorageconduit=Storage Conduit
 arcanestorageimportbus=Arcane Import Bus
 arcanestorageexportbus=Arcane Export Bus
 
 [ui]
 arcanestorage_unittip=Access with a Storage Terminal
+arcanestorage_stationunittip=Install stations with a Storage Terminal
 arcanestorage_conduittip=Extends a storage network
 arcanestorage_importbustip=Moves a neighbouring container's contents into the network
 arcanestorage_exportbustip=Moves items out of the network into a neighbouring container
@@ -34,6 +36,9 @@ arcanestorage_buslimithint=Any amount
 arcanestorage_importbusrule=Ticked items are pulled in, until the network holds the set amount of each.
 arcanestorage_exportbusrule=Ticked items are pushed out, leaving the set amount of each in the network.
 arcanestorage_unitstatus=Storage Unit: <used>/<total> slots used
+arcanestorage_stationunitstatus=Station Unit: <used>/<total> stations installed
+arcanestorage_stations_none=No Station Unit on this network. Place one touching a Storage Unit, the terminal, or a conduit, and its sockets appear here. Until then only recipes needing no crafting station can be made.
+arcanestorage_stations_moved=Your Storage Terminal's crafting stations have been dropped on the floor beside it. Stations now go in a Station Unit, which is a block you place on the network.
 arcanestorage_capacity=<used> / <total> slots
 arcanestorage_capacity_tip=Slots used across every storage unit on this network
 arcanestorage_summary=<kinds> kinds, <items> items

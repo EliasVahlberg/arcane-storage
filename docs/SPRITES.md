@@ -7,6 +7,97 @@ The technical rules below are read from the game's own drawing code
 (`InventoryObject.loadTextures` and `addDrawables`), not from documentation, so they can be
 relied on. Anything not verified is marked `[unverified]`.
 
+## DELIVERED AND INSTALLED — 14 August 2026
+
+Requests **A, B, C and D** were generated, verified and installed into `src/main/resources/`. **G is still
+not drawn**, because it is blocked on a decision rather than on art. The request below is kept for the
+reasoning and the measurements; what follows corrects it where the work proved it wrong.
+
+| # | What | Outcome |
+|---|---|---|
+| A | Storage Unit relit from above | installed — `objects/arcanestorageunit.png` |
+| B | Bus direction in the silhouette | installed — the blocking defect is fixed |
+| C | Station Unit | installed, and the feature it was for is implemented |
+| D | Terminal nine-slice panel | installed and wired to every form |
+| G | Category shortcut icons | **still not drawn** — awaiting the dropdown-versus-icons decision |
+
+**Verified on install, independently of the submission's own numbers:** hard alpha everywhere (zero partially
+transparent pixels in all eleven files), every palette within the nine-colour ramp, the anchor `#604a8c`
+present, and the Station Unit's silhouette identical to the Storage Unit's at 0 px difference with 276
+interior pixels changed — a guaranteed sibling that is unmistakably not the same object.
+
+### Three corrections this work forced, all of which the request had wrong
+
+**1. There is no arrow on the buses, and there never was.** The request said to keep "the colour split and the
+arrow exactly as they are". The centre feature is a 4-fold symmetric diamond — symmetric about both axes, so
+it points in four directions equally, which is none — and the *Storage Unit's own icon carries the identical
+motif at the identical coordinates*. An object with no direction to communicate has the same "arrow". It is
+shared family decoration, so bus direction was carried by hue alone: one channel worse than the request
+estimated. The diamond is kept on both buses, because removing it as a fake arrow would only make them
+inconsistent with the family.
+
+**2. The bus objects were the Storage Unit recoloured, pixel for pixel** — the same nine-index structure map
+with a different ramp. That is *why* the silhouettes measured 0 apart, and it is also the root cause of
+request A, since the buses inherited the unit's symmetric bevel. A and B were one defect described twice.
+
+**3. Vanilla UI frames are deliberately not lit from above**, which points the opposite way to request A. All
+four edge profiles of `ui/primal/formbackground.png` are identical. Equal brightness on four sides is a defect
+on a world object standing in a lit scene and the convention on flat UI chrome. Applying A's rule to D would
+have been wrong.
+
+### The acceptance measurement request B existed for
+
+`sum((a.alpha>0) != (b.alpha>0))`, import versus export:
+
+| | shipped | now |
+|---|---|---|
+| `objects/` | **0** | **308** |
+| `items/` | **0** | **172** |
+
+The submission reported 572 for the objects pair; measured here with the pair bottom-anchored and padded to
+the taller of the two — which is how the game draws them — it is 308. The direction of the result is what
+matters and is not in doubt.
+
+Direction is now carried by form rather than hue: the import bus has a bulk-intake hopper above the housing
+and the export bus an outlet flaring through its bottom edge. **The import bus object is 32×44, taller than
+one tile.** That needs no code change — `BusObject.addDrawables` and the placement preview both position with
+`drawY - sprite.getHeight() + 32`, verified — but it does mean the object stands 12 px into the tile above,
+which is a real change in how it sits and wants a look in game rather than a look at the file.
+
+Width must stay 32: `frameCount = width / 32` and there is no horizontal centring compensation, so a wider
+sheet would sit off its tile. Height is free.
+
+The two `_inactive` files are **generated** from the revised art by
+`grey = trunc(trunc(0.299R + 0.587G + 0.114B) * 0.75)` — truncation twice, not rounding, which reproduces all
+18 colours of the shipped pair exactly. If a bus sprite changes, rerun the generator rather than hand-editing.
+
+### Two shape families were built, measured and thrown away
+
+Both hit the numeric target and both had to go, which is the useful part. A mouth cut into the housing plus a
+nozzle scored 112 px and read as a **lidded cooking pot**. An open funnel with 3.5 px walls scored 206 px and
+read as **TV antennae**, with a bored tip that split into **cat ears**.
+
+The transferable rules: at 32 px a form needs enough width to retain an interior after outlining — now
+enforced in code as a minimum 40% interior, which the discarded funnel would have failed before rendering —
+and **any shape with two upward points reads as a creature**. Passing a measurement is not the same as reading
+correctly, so the generators end by rendering a sheet to look at.
+
+### What the panel work established
+
+The nine-slice spec in the request below is correct and was re-derived independently: slice 12, `edgeMargin`
+8, corner block point-mirrored, centre tile the full texture width. `contentPadding` is **0**, matching the
+vanilla form — every component in the terminal is positioned against 0, so anything else would shift the
+whole layout.
+
+Two bugs were found in the *verification* harness rather than in the art, and both produce output
+indistinguishable from the art bleeding, so anyone rebuilding this will hit them: tiling the centre from x=0
+spills 3584 px into the margin, and repeating edge strips whole overshoots the corner by 4 px on a 112 px span.
+Strips must be clipped.
+
+The panel is deliberately quiet, since it frames four tabs, an item grid, a dropdown, a capacity bar and a
+filter tree. Its centre weave runs at 7.8% where vanilla runs 17.2%, because vanilla's two colours are 9 luma
+steps apart while the nearest pair in this family is 22 — matching its coverage would read as noise.
+
 ## OUTSTANDING REQUEST — 14 August 2026
 
 Everything the mod still needs drawn, consolidated. This supersedes the scattered per-phase requests

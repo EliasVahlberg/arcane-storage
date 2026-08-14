@@ -3,6 +3,7 @@ package arcanestorage.container;
 import java.awt.Rectangle;
 
 import arcanestorage.objectentity.BusObjectEntity;
+import arcanestorage.ui.ArcanePanel;
 import necesse.engine.localization.Localization;
 import necesse.engine.network.client.Client;
 import necesse.gfx.forms.components.FormFlow;
@@ -65,6 +66,10 @@ public class BusContainerForm<T extends BusContainer> extends ContainerForm<T> {
       // only handle on which bus this is -- and the same row appears in the terminal's logistics tab.
       FormLabel explanation = new FormLabel(
          Localization.translate("ui", explanationKey), new FontOptions(12), -1, 6, 0);
+      // The same panel as the terminal, so a bus's rules read as the same interface reached a different
+      // way rather than as a vanilla dialogue that happens to be nearby.
+      this.setBackground(ArcanePanel.of());
+
       this.addComponent(flow.nextY(explanation, 6));
 
       // Both surfaces that edit a bus's rules -- this panel and the terminal's logistics tab -- build the

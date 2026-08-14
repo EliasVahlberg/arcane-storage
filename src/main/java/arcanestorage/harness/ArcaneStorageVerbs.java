@@ -20,6 +20,7 @@ import arcanestorage.network.IndexedInventories;
 import arcanestorage.network.NetworkIndex;
 import arcanestorage.network.NetworkIndexes;
 import arcanestorage.network.NetworkScheduler;
+import arcanestorage.network.NetworkStations;
 import arcanestorage.network.NetworkStorage;
 import necesse.engine.network.Packet;
 import necesse.engine.network.PacketReader;
@@ -72,6 +73,7 @@ public final class ArcaneStorageVerbs {
       // Lets scenarios read 'place unit 5 0' rather than naming full string IDs.
       Harness.registerObjectAlias("terminal", ArcaneStorage.TERMINAL_STRING_ID);
       Harness.registerObjectAlias("unit", ArcaneStorage.UNIT_STRING_ID);
+      Harness.registerObjectAlias("stationunit", ArcaneStorage.STATION_UNIT_STRING_ID);
       Harness.registerObjectAlias("conduit", ArcaneStorage.CONDUIT_STRING_ID);
       Harness.registerObjectAlias("importbus", ArcaneStorage.IMPORT_BUS_STRING_ID);
       Harness.registerObjectAlias("exportbus", ArcaneStorage.EXPORT_BUS_STRING_ID);
@@ -107,6 +109,7 @@ public final class ArcaneStorageVerbs {
       Harness.registerExpectation(new BusOpenPacketQuery());
 
       Harness.registerExpectation(new UnitsExpectation());
+      Harness.registerExpectation(new StationsExpectation());
       Harness.registerExpectation(new InUseExpectation());
       Harness.registerExpectation(new NetworkItemExpectation());
       Harness.registerExpectation(new CapacityExpectation());
@@ -215,6 +218,7 @@ public final class ArcaneStorageVerbs {
          for (ObjectEntity entity : context.level.entityManager.objectEntities) {
             if (!entity.removed()
                   && (entity instanceof NetworkStorage
+                     || entity instanceof NetworkStations
                      || entity instanceof StorageTerminalObjectEntity
                      || entity instanceof BusObjectEntity)) {
                ours.add(new Point(entity.tileX, entity.tileY));
@@ -343,10 +347,29 @@ public final class ArcaneStorageVerbs {
          }
 
          StorageTerminalObjectEntity terminal = container.terminal;
+
+         // Sockets live on Station Units now, so this installs into the network's sockets rather than into
+         // the terminal. Walks the units in the same tile order the container addresses them in, so a test
+         // that installs two benches knows which socket each landed in.
+         List<NetworkStations> units = terminal.getLinkedStationUnits();
+         if (units.isEmpty()) {
+            context.fail("no Station Unit on this network -- place one before installing " + context.arg(1));
+            return false;
+         }
+
          InventoryItem item = new InventoryItem(context.arg(1), 1);
-         boolean added = terminal.inventory.addItem(terminal.getLevel(), context.client.playerMob, item, "arcanestorageinstall", null);
+         boolean added = false;
+         for (NetworkStations unit : units) {
+            added = unit.getInventory().addItem(
+                  terminal.getLevel(), context.client.playerMob, item, "arcanestorageinstall", null);
+            if (added && item.getAmount() == 0) {
+               break;
+            }
+         }
+
          if (!added || item.getAmount() > 0) {
-            context.fail("the terminal refused to install " + context.arg(1));
+            context.fail("the station units refused to install " + context.arg(1)
+                  + " -- either every socket is full or it needs its own placement");
             return false;
          }
 
@@ -1874,6 +1897,60 @@ public final class ArcaneStorageVerbs {
          int wanted = context.intArg(4);
          return context.check(units.size() == wanted, "units = " + wanted,
                "expected " + wanted + ", found " + units.size());
+      }
+   }
+
+   /**
+    * {@code expect stations <dx> <dy> <n>} -- how many sockets the network offers.
+    *
+    * <p>Also reports the order the sockets are addressed in, as a list of the units' tile keys. That is
+    * the part worth querying rather than counting: the count is visible in the interface anyway, while the
+    * order is an invariant both sides depend on and neither displays. A test can therefore check that the
+    * published order is sorted without needing a mouse or a second client.
+    */
+   private static final class StationsExpectation implements TestVerb, TestQuery {
+      public String name() {
+         return "stations";
+      }
+
+      public String usage() {
+         return "expect stations <dx> <dy> <count>";
+      }
+
+      public int coordinateArgIndex() {
+         return 2;
+      }
+
+      public void query(TestContext context, Json.Writer out) {
+         StorageTerminalObjectEntity terminal = terminalAt(context, 2);
+         if (terminal == null) {
+            out.num("sockets", -1);
+            return;
+         }
+
+         List<NetworkStations> units = terminal.getLinkedStationUnits();
+         List<String> order = new ArrayList<>();
+         int sockets = 0;
+         for (NetworkStations unit : units) {
+            sockets += unit.getInventory().getSize();
+            order.add(String.valueOf(unit.tileOrder()));
+         }
+
+         out.num("sockets", sockets);
+         out.num("units", units.size());
+         out.strings("order", order);
+      }
+
+      public boolean run(TestContext context) {
+         StorageTerminalObjectEntity terminal = terminalAt(context, 2);
+         if (terminal == null) {
+            return noTerminal(context);
+         }
+
+         int found = terminal.getStationSlotCount();
+         int wanted = context.intArg(4);
+         return context.check(found == wanted, "stations = " + wanted,
+               "expected " + wanted + " socket(s), found " + found);
       }
    }
 
