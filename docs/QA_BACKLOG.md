@@ -622,11 +622,10 @@ Nothing here blocks Phase 3. The dropdown is complete and needs no art.
 
 Implemented and covered by 17 headless tests, but nothing below can be seen headlessly.
 
-1. **The three tiers must be distinguishable at a glance on a real tile.** The sprites are drawn and
-   measured — every tier differs in every non-outline pixel — but pixel distance is not legibility. Tungsten
-   and Fallen are the pair to check, since both are desaturated and adjacent in luminance. Also confirm no
-   object still shows the pink `[ER]` placeholder: all twelve files are in the jar, so one appearing would
-   mean a path or string-ID mismatch rather than a missing file.
+1. ~~**The three tiers must be distinguishable at a glance on a real tile.**~~ **Done Aug 2026** — placed
+   and checked; the tiers read apart under game lighting, and no object showed the pink `[ER]` placeholder.
+   The specific worry was Tungsten against Fallen, both desaturated and at identical luminance by
+   construction, which is the pairing that survives an editor and converges in play. It did not.
 2. **The recipes appear at the right stations and are actually reachable.** Headless tests place objects
    directly and so never exercise a recipe at all. Check each rung shows at its era's Workstation, that the
    ingredients are the intended ones, and specifically that **the rung below is consumed** — that is the
@@ -635,7 +634,8 @@ Implemented and covered by 17 headless tests, but nothing below can be seen head
    Fallen units is 20,480 slots against 2,560 at base, which is eight times the aggregation the interface has
    ever been asked to draw. Performance targets are deliberately deferred, but this is the first change that
    makes the deferred number eight times larger, so it is worth one look at whether the view stays usable.
-4. **Mixed-tier networks read correctly in the interface.** Tested numerically; unverified that the tab shows
-   sensible names and totals when tiers are mixed, which is the normal state during an upgrade.
+4. **Mixed-tier networks read correctly in the interface.** Tested numerically, and capacity growth between
+   tiers is confirmed in game. Still unverified that the tab shows sensible *names* when tiers are mixed,
+   which is the normal state during an upgrade.
 5. **Eight sockets of installed benches**, laid out. `buildStationsTab` wraps sockets onto rows computed from
    the form width; one socket has been seen working and eight has not.

@@ -185,15 +185,28 @@ paused-spoiling state vanilla already has.
       container ceiling, so a first unit is worth exactly one chest and the ladder starts from
       parity rather than an advantage. Sockets are the Station Unit's real mechanic; **the
       terminal's mechanic gating (Ladder A) is not done and is not mine to decide** — see below.
+
+      **Half verified in game Aug 2026:** the Storage Unit ladder was placed tier by tier and capacity
+      grows between them as designed. Still unverified, and why the box stays unticked: the **socket
+      ladder** (1 → 2 → 4 → 8), which is the other half of this item and a different code path — sockets
+      are published in tile order and laid out by `buildStationsTab`, and only one socket has ever been
+      seen working. Also unverified that the **recipes** are reachable, since placing an object never
+      exercises one.
 - [ ] A non-spoilage perk on every unit tier that offers one — *not started, and blocked on the
       open question below rather than on effort.*
 - [ ] Localization complete — six new object names added for the tiers; the rest still outstanding.
-- [ ] Textures for all objects and UI elements — *the tier sprites are done; the box stays unticked
-      for what is left.* All twelve tier files (six objects, each with a world sprite and an inventory
-      icon) are hand-drawn, installed and verified: 32x32, hard alpha, at most nine colours, silhouettes
-      pixel-identical to the base tier, every tier distinct. Recolours came from luminance-matched
-      generated ramps, so the shading structure survived the hue change. See request H in `SPRITES.md`.
-      What remains is whether the tiers read apart at a glance in game, which only eyes can answer.
+- [x] Textures for all objects and UI elements — **verified in game Aug 2026.** Every registered object
+      has both a world sprite and an inventory icon (15 object files, 12 icons; the unpaired
+      `arcanestorageterminal_open` is a state variant like the buses' `_inactive` files and correctly has
+      no icon), and the UI panel's nine-slice pair is in place. The tier sprites were the last gap: twelve
+      hand-drawn files, 32x32, hard alpha, at most nine colours, silhouettes pixel-identical to the base
+      tier, recoloured from luminance-matched generated ramps so the shading structure survived the hue
+      change. See request H in `SPRITES.md`.
+
+      Ticked on a placed-tile check, which is the only one that could settle it. The risk was Tungsten
+      against Fallen: both deliberately desaturated and, by construction, at identical luminance per step,
+      so hue at low saturation was all that separated them — the combination that survives an editor
+      side-by-side and then converges under the game's ambient light. It does not converge.
 
 **Deliberately not done in the tiering pass, and needing a decision rather than work:**
 Ladder A gates already-built features behind tiers — craft-from-network at Demonic, the export
