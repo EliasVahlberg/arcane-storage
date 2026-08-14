@@ -69,6 +69,31 @@ public final class NetworkIndexes {
       return tickOf(level) - then;
    }
 
+   /**
+    * Whether an object entity is still the one its level has at its own tile.
+    *
+    * <p><b>This exists because {@code removed()} cannot be trusted to answer it.</b> An entity that has been
+    * displaced -- the object under it set to something else, or replaced by a new entity on the same tile --
+    * can still report {@code removed() == false} while no longer being what anything else finds there. Two
+    * live entities for one tile were observed doing exactly that: both ticked, both walked the network, and
+    * whichever ticked last owned the shared index, so the network spent its effort maintaining the state of a
+    * ghost while every reader saw the other one. The visible symptom was a device stuck in a stale state
+    * forever, which is the one thing the heartbeat exists to prevent.
+    *
+    * <p>Identity against the tile is the check that cannot lie: there is exactly one entity per tile as far as
+    * the rest of the game is concerned, so anything that is not it has no business acting for it. One map
+    * lookup, on devices that are already doing a tile lookup anyway.
+    */
+   public static boolean isCurrent(ObjectEntity entity) {
+      if (entity == null || entity.removed()) {
+         return false;
+      }
+
+      Level level = entity.getLevel();
+      return level != null
+         && level.entityManager.getObjectEntity(entity.tileX, entity.tileY) == entity;
+   }
+
    /** The current topology version, for anything holding a build under it. */
    public static long topologyVersion() {
       return topologyVersion;

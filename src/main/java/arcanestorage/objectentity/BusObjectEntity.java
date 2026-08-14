@@ -285,6 +285,15 @@ public abstract class BusObjectEntity extends ObjectEntity implements DeviceOnNe
          return;
       }
 
+      // A bus that is no longer the entity on its own tile takes no part in anything. Filtering such devices
+      // out of the scheduler's list is not enough on its own, because a walking device *adopts* its own view
+      // of membership into the shared index -- so a ghost left ticking would keep replacing the real bus in
+      // the index it does not belong to, and the network would alternate between maintaining one and the
+      // other depending on tick order. Stopping it here is the only place that closes both halves.
+      if (!NetworkIndexes.isCurrent(this)) {
+         return;
+      }
+
       // A bus no longer decides anything on a timer. It contributes rules, executes what the network's
       // scheduler asks of it, and -- if it happens to be the lowest-ordered device on the network -- drives
       // that scheduler. Every bus still ticks, because that is how the engine reaches us, but a tick with

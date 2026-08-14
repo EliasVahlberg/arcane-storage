@@ -281,9 +281,42 @@ public final class NetworkIndex {
     * for a device that arrived would throw away a correct index for no reason.
     */
    void adoptDevices(List<ObjectEntity> devices) {
-      if (devices != null && !devices.isEmpty()) {
-         this.devices = devices;
+      if (devices == null || devices.isEmpty()) {
+         return;
       }
+
+      // Only when the set actually changes, since this is called by every walking device on every walk and a
+      // standing request to revalidate would make the heartbeat's interval meaningless.
+      if (!sameMembers(this.devices, devices)) {
+         this.devices = devices;
+         this.scheduler().membershipChanged();
+         return;
+      }
+
+      this.devices = devices;
+   }
+
+   /** Whether two membership lists name the same entities, by identity and regardless of order. */
+   private static boolean sameMembers(List<ObjectEntity> before, List<ObjectEntity> after) {
+      if (before.size() != after.size()) {
+         return false;
+      }
+
+      for (ObjectEntity device : after) {
+         boolean present = false;
+         for (ObjectEntity had : before) {
+            if (had == device) {
+               present = true;
+               break;
+            }
+         }
+
+         if (!present) {
+            return false;
+         }
+      }
+
+      return true;
    }
 
    /** Whether a build may still be trusted, on both counts it can go stale for. */

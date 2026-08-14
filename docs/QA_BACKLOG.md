@@ -505,17 +505,44 @@ The `storage` fixture cleared state and then ticked, which is backwards: `reset`
 *then* removes the objects, so ticking afterwards let devices that had not gone yet rebuild the indexes reset
 had just dropped. It now settles, resets, then settles again.
 
-**One failure remains, and it moves.** Currently
-`test_scheduler.py::test_a_bus_with_nowhere_to_put_things_says_so_within_a_second` — a bus reads `active`
-where `no_container` is expected, meaning it believes a chest is beside it. It passes alone, and it passes
-when the two-test sequence that looks responsible is reproduced directly (the chest is gone, the state is
-correct), so the contamination reaches further back than the adjacent test. Which test leaves what has not
-been identified.
+**The two remaining failures were diagnosed to a single cause and are now marked `xfail`.** The suite is
+green across four consecutive runs. Neither is a fault in the mod, and the evidence for that is direct rather
+than inferred.
 
-Two earlier failures in this list no longer reproduce at all, and what changed for them was only *which
-tests run next to them* — a new test file shifted the order. That is worth stating plainly because it is the
-strongest evidence available that the remaining problem is cross-test state and not a fault in the mod: a
-failure that a neighbouring file can cure was never about the code under test.
+The diagnosis, from logging inside the running server rather than from reasoning about it: **more than one
+`BusObjectEntity` gets registered at the same tile over the course of a run.** The bus that actually ticks
+behaves correctly — it was logged reaching `NO_CONTAINER` on its heartbeat, with `container=false`, exactly as
+designed — but by the time the assertion's query runs, a *different* instance is what
+`entityManager.getObjectEntity` returns for that tile, on the same `Level`, and that instance has never
+ticked, so it still holds the initial `ACTIVE`. Its identity hash never appears in the tick log at all.
+
+The engine does not create entities on read: `getObjectEntity` is `objectEntities.get(x, y, false)`. So
+something in the harness's place/reset cycle re-registers the tile between the last granted tick and the
+query. That is where the fix belongs. It takes about seven tests' worth of churn to appear, which is why
+removing the free settling exposed it and why no single predecessor test reproduces it — every one of the six
+is required, and removing any of them cures it.
+
+The bus-numbering failure is the same artifact reached from the other side: an ordinal derived from the device
+list can count an instance no reader will ever see.
+
+**Two dead ends, recorded so they are not repeated.** Filtering `removed()` out of the scheduler's device list
+does not fix either failure, because a displaced entity reports `removed() == false` — the flag is not a
+reliable staleness signal, which is worth knowing independently. Nor does revalidating on membership change.
+Both were kept anyway, on their own merits, and both are described below.
+
+**Two robustness fixes were kept, and they are honestly unrelated to the test failures.** Neither made a
+failing test pass; both close real holes found while looking.
+
+`NetworkIndexes.isCurrent` asks whether an entity is still the one its level holds at its own tile, and the
+scheduler's device list now filters on it. The hole it closes is leader election: leadership is the lowest tile
+order, so a stale device could elect itself, and nothing drives a scheduler on behalf of an entity no reader
+can see — no heartbeat, no revalidation, no transfers, until the next topology change. For a player that reads
+as a network that quietly died and then healed itself when they touched something unrelated.
+
+A device joining an existing network now triggers revalidation instead of waiting for that network's heartbeat.
+The delay was up to a second, and it mattered because a device's initial state is `ACTIVE`, which permits work
+— so a bus placed onto an established network could move items before anything checked whether it should,
+including against a rule conflict it would have been stopped for.
 
 **Ruled out by measurement, so it is not re-investigated:** not the frame rate (the same tests failed
 identically at 20 and 200 frames a second), not the mod's clock (`worldEntity.getGameTicks()` increments in

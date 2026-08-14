@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 
 import necesse.engine.GameLog;
+import necesse.entity.objectEntity.ObjectEntity;
 import necesse.inventory.Inventory;
 import necesse.inventory.InventoryItem;
 import necesse.inventory.item.Item;
@@ -131,6 +132,24 @@ public final class NetworkScheduler {
     */
    public void reconsiderEverything() {
       this.everythingDirty = true;
+      this.validationDue = true;
+   }
+
+   /**
+    * Membership changed, so every device's state must be re-derived before the next heartbeat.
+    *
+    * <p>Called when a walking device adopts its own view of membership into a shared index. Without it, a
+    * device joining an existing network is not evaluated until that network's heartbeat next fires -- which is
+    * up to {@link #HEARTBEAT_TICKS} ticks away, because the heartbeat's phase belongs to the network the device
+    * has just joined and not to the device.
+    *
+    * <p>That delay is not cosmetic. A device's state starts out {@code ACTIVE}, and {@code ACTIVE} permits
+    * work, so a bus placed onto an established network could move items for up to a second before anything
+    * checked whether it should -- long enough to act against a rule conflict it would have been stopped for.
+    * The permissive default is deliberate elsewhere (a device should not refuse to work merely because it has
+    * not been looked at yet), which is precisely why joining has to trigger the look.
+    */
+   void membershipChanged() {
       this.validationDue = true;
    }
 
@@ -415,12 +434,36 @@ public final class NetworkScheduler {
       }
    }
 
-   /** The devices on this network that can act. */
+   /**
+    * The devices on this network that can act.
+    *
+    * <p><b>Devices that are no longer what their tile holds are excluded, and that is load-bearing rather
+    * than tidy.</b> Two things put a stale device in this list: the engine defers entity removal to the end of
+    * a tick, so a broken device lingers; and a displaced entity can still report {@code removed() == false}
+    * while no longer being what the level serves at its tile. {@link NetworkIndexes#isCurrent} covers both,
+    * because only one of the two is detectable from the entity's own flags.
+    *
+    * <p>The worst thing a stale device gets wrong is leader election. Leadership is the lowest tile order, so a
+    * stale device can elect itself, and nothing drives a scheduler on behalf of an entity that either does not
+    * tick or that no reader can see: no heartbeat, no revalidation, no transfers. The network recovers only at
+    * the next topology change, which for a player looks like a network that quietly died and then healed
+    * itself when they touched something unrelated.
+    *
+    * <p>The other two are milder. {@code validate} would re-derive the state of an entity nobody reads -- and
+    * that is exactly the failure which exposed this: a ghost bus's state was maintained perfectly on every
+    * heartbeat while the bus actually standing on the tile never got evaluated once and sat in its initial
+    * state indefinitely. {@code dirtyEverything} would walk a container the device no longer has, scheduling
+    * work for items that are not there.
+    *
+    * <p>This is the second bug of this shape -- {@code BusObjectEntity.assignOrdinal} counted removed peers
+    * and misnumbered buses. <b>Any code that iterates entities and concludes something from the set must first
+    * ask whether each one is still current.</b>
+    */
    private List<DeviceOnNetwork> devices() {
       List<DeviceOnNetwork> found = new ArrayList<>();
 
-      for (Object device : this.index.devices()) {
-         if (device instanceof DeviceOnNetwork) {
+      for (ObjectEntity device : this.index.devices()) {
+         if (device instanceof DeviceOnNetwork && NetworkIndexes.isCurrent(device)) {
             found.add((DeviceOnNetwork)device);
          }
       }
