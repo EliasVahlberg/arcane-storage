@@ -8,6 +8,7 @@ import necesse.engine.localization.message.LocalMessage;
 import necesse.engine.network.client.Client;
 import necesse.entity.mobs.PlayerMob;
 import necesse.gfx.forms.components.FormFlow;
+import necesse.gfx.forms.components.FormInputSize;
 import necesse.gfx.forms.components.FormLabel;
 import necesse.gfx.forms.components.localComponents.FormLocalLabel;
 import necesse.gfx.forms.components.localComponents.FormLocalTextButton;
@@ -15,6 +16,7 @@ import necesse.gfx.forms.components.FormFairTypeLabel;
 import necesse.gfx.forms.presets.containerComponent.ContainerForm;
 import necesse.gfx.fairType.FairType;
 import necesse.gfx.gameFont.FontOptions;
+import necesse.gfx.ui.ButtonColor;
 import necesse.inventory.recipe.Ingredient;
 
 /**
@@ -39,10 +41,26 @@ public class UnitUpgradeContainerForm<T extends UnitUpgradeContainer> extends Co
 
    private static final int WIDTH = 440;
 
-   /** Height without any requirement rows; each row adds {@link #ROW_HEIGHT}. */
-   private static final int BASE_HEIGHT = 208;
+   /**
+    * The vertical slot each requirement row is given.
+    *
+    * <p>It is reserved rather than measured, and that distinction was the layout bug. A row is a
+    * {@link FormFairTypeLabel} built with empty text, because its text is a coloured cost line that only exists
+    * once the server has sent a state; an empty label's height is zero. {@code FormFlow.nextY} advances by the
+    * height a component has <i>at construction</i>, so every row was placed at the same y and the button, laid out
+    * after them, sat on top. Reserving a fixed slot with {@code flow.next(ROW_HEIGHT)} decouples the layout from
+    * text that does not exist yet.
+    *
+    * <p>Wide enough for one line at the row font. A cost line that wrapped would overflow its slot, which the
+    * 440 px width makes unlikely -- the longest real case is an Alchemy Shard count of five digits.
+    */
+   private static final int ROW_HEIGHT = 26;
 
-   private static final int ROW_HEIGHT = 28;
+   /** The slot for the used/total line: one line at its font size, plus breathing room below it. */
+   private static final int USAGE_HEIGHT = 16 + 12;
+
+   /** Bottom padding below the last component, and the only thing that makes the panel's height not exact. */
+   private static final int BOTTOM_PADDING = 12;
 
    private final FormLabel usage;
 
@@ -51,7 +69,11 @@ public class UnitUpgradeContainerForm<T extends UnitUpgradeContainer> extends Co
    private final FormLocalTextButton upgradeButton;
 
    public UnitUpgradeContainerForm(Client client, T container, String nameKey) {
-      super(client, WIDTH, BASE_HEIGHT + ROW_HEIGHT * container.cost.length, container);
+      // A provisional height. The real one is measured from the laid-out content at the end of this constructor,
+      // which is why no arithmetic here tries to predict it: the label heights depend on font metrics, and the row
+      // count depends on the tier. Vanilla does the same in ConfirmationForm -- build, then setHeight -- and the
+      // resize is safe here because nothing has positioned or drawn the form yet.
+      super(client, WIDTH, 200, container);
       this.setBackground(ArcanePanel.of());
 
       FormFlow flow = new FormFlow(12);
@@ -72,8 +94,12 @@ public class UnitUpgradeContainerForm<T extends UnitUpgradeContainer> extends Co
       );
 
       // Used/total, the one fact the chat readout got right and the reason a player right-clicks a unit at all.
+      //
+      // Its slot is reserved too. This label is also built empty and filled in draw(), and FormLabel's height is
+      // its line count times its font size -- so whether an empty one measures as one line or none is a detail of
+      // GameMessage.breakMessage that the layout should not depend on either way.
       this.usage = this.addComponent(
-         flow.nextY(new FormLabel("", new FontOptions(16).color(text), 0, WIDTH / 2, 0), 16)
+         new FormLabel("", new FontOptions(16).color(text), 0, WIDTH / 2, flow.next(USAGE_HEIGHT))
       );
 
       this.rows = new FormFairTypeLabel[container.cost.length];
@@ -102,22 +128,28 @@ public class UnitUpgradeContainerForm<T extends UnitUpgradeContainer> extends Co
          );
 
          for (int i = 0; i < this.rows.length; i++) {
-            FormFairTypeLabel row = new FormFairTypeLabel("", WIDTH / 2, 0);
+            FormFairTypeLabel row = new FormFairTypeLabel("", WIDTH / 2, flow.next(ROW_HEIGHT));
             row.setMaxWidth(WIDTH - 32);
             row.setTextAlign(FairType.TextAlign.CENTER);
-            this.rows[i] = this.addComponent(flow.nextY(row, 2));
+            this.rows[i] = this.addComponent(row);
          }
 
-         flow.next(6);
+         flow.next(10);
 
          this.upgradeButton = this.addComponent(
             flow.nextY(
-               new FormLocalTextButton("ui", "arcanestorage_upgrade", 20, flow.next(0), WIDTH - 40),
-               8
+               new FormLocalTextButton(
+                  "ui", "arcanestorage_upgrade", 20, 0, WIDTH - 40, FormInputSize.SIZE_32, ButtonColor.BASE
+               )
             )
          );
          this.upgradeButton.onClicked(event -> this.container.upgradeAction.runAndSend());
       }
+
+      // Fit the panel to what was actually laid out. The flow's position after the last component is the content's
+      // height, so this is exact apart from the padding below it, and it removes the guessed constant that made
+      // the panel both too tall and, for the top tier with no rows at all, mostly empty.
+      this.setHeight(flow.next(BOTTOM_PADDING));
    }
 
    @Override

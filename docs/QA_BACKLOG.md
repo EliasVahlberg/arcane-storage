@@ -664,6 +664,13 @@ disabled state have never been rendered once.
    button's missing side guard and the bus panel's double-wrapped filter; a new headless test pins the
    server-side half, and nothing can pin the rest.
 
+0d. **The panel now fits its content -- check the cost rows are clear of the button.** The rows were laid out on
+   top of each other and half-hidden under the button, because a `FormFairTypeLabel` built with empty text has
+   zero height and `FormFlow.nextY` advances by the height a component has at construction. Rows and the
+   used/total line now reserve fixed slots, and the panel's height is measured from the laid-out content rather
+   than guessed, so it is 25-27% shorter for a normal rung and about half for the top tier. Check each rung: one
+   material for base to Demonic, two for the rungs above, and no button at all on Fallen.
+
 0c. **Panel size and legibility.** Doubled to 440x208 with larger fonts, and every label now takes its colour
    from the interface style. Unstyled labels default to near-black, and this form draws on the mod's deep purple
    panel rather than the engine's lighter default, so the text was there and correctly laid out and unreadable.
