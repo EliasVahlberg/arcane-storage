@@ -188,10 +188,12 @@ paused-spoiling state vanilla already has.
 - [ ] A non-spoilage perk on every unit tier that offers one — *not started, and blocked on the
       open question below rather than on effort.*
 - [ ] Localization complete — six new object names added for the tiers; the rest still outstanding.
-- [ ] Textures for all objects and UI elements — **six new sprites now pending**, two per upper
-      tier (`objects/` and `items/` for each of the three tiered Storage and Station Units). Until
-      they exist those six objects render as the pink missing-texture placeholder, which is
-      cosmetic and does not affect behaviour. Recorded as a request in `SPRITES.md`.
+- [ ] Textures for all objects and UI elements — *the tier sprites are done; the box stays unticked
+      for what is left.* All twelve tier files (six objects, each with a world sprite and an inventory
+      icon) are hand-drawn, installed and verified: 32x32, hard alpha, at most nine colours, silhouettes
+      pixel-identical to the base tier, every tier distinct. Recolours came from luminance-matched
+      generated ramps, so the shading structure survived the hue change. See request H in `SPRITES.md`.
+      What remains is whether the tiers read apart at a glance in game, which only eyes can answer.
 
 **Deliberately not done in the tiering pass, and needing a decision rather than work:**
 Ladder A gates already-built features behind tiers — craft-from-network at Demonic, the export

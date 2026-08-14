@@ -622,9 +622,11 @@ Nothing here blocks Phase 3. The dropdown is complete and needs no art.
 
 Implemented and covered by 17 headless tests, but nothing below can be seen headlessly.
 
-1. **Six objects render as the pink `[ER]` placeholder** until request H in `SPRITES.md` is drawn. Expected,
-   not a bug, and worth confirming it is only the placeholder and not a genuine load failure — the two look
-   identical, which is a trap this project has hit before.
+1. **The three tiers must be distinguishable at a glance on a real tile.** The sprites are drawn and
+   measured — every tier differs in every non-outline pixel — but pixel distance is not legibility. Tungsten
+   and Fallen are the pair to check, since both are desaturated and adjacent in luminance. Also confirm no
+   object still shows the pink `[ER]` placeholder: all twelve files are in the jar, so one appearing would
+   mean a path or string-ID mismatch rather than a missing file.
 2. **The recipes appear at the right stations and are actually reachable.** Headless tests place objects
    directly and so never exercise a recipe at all. Check each rung shows at its era's Workstation, that the
    ingredients are the intended ones, and specifically that **the rung below is consumed** — that is the

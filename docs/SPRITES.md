@@ -826,10 +826,31 @@ knows which neighbour is its container, so it could draw itself pointing at it �
 that yet, and one frame is what the code expects.
 
 
-## Request H — the six tiered units *(pending)*
+## Request H — the six tiered units *(delivered Aug 2026)*
 
-The tier ladders are implemented and registered, so six objects currently render as the pink
-missing-texture placeholder. Behaviour is unaffected; this is purely cosmetic.
+**Delivered, hand-drawn in Aseprite, verified.** All twelve files (six objects, each needing a world
+sprite and an inventory icon) are installed and in the jar. Verified with PIL before commit: 32x32, hard
+alpha with zero soft pixels, at most nine colours, silhouettes **pixel-identical** to their base-tier
+counterparts, none left as an accidental copy of the base, and all three tiers differing in every
+non-outline pixel. The base sprites were not touched.
+
+The recolours came from generated ramps rather than being picked by eye, which is why the shading survived
+intact: each era's ramp is a hue rotation solved to hold **the same luminance per step** as the base violet,
+so every shade lands at the brightness the original structure map expects. The four `.gpl` palettes live in
+`art-submissions/2026-08-14-tier-ramps/`, are installed as an Aseprite extension at
+`~/.config/aseprite/extensions/arcanestorage-palettes/`, and the ramps as drawn are:
+
+```
+base      #000000 #1a1420 #2e2247 #46356b #604a8c #7a5fa8 #9d86c9 #c7b0e8 #e8dcff
+demonic   #000000 #1f1316 #401f27 #61303c #814453 #9d596a #bf8090 #e2abb9 #fbd8e1
+tungsten  #000000 #15181a #232c32 #37434c #4c5b67 #617380 #8798a5 #b1c1cc #dbe6ed
+fallen    #000000 #191711 #2f2a1a #484129 #62593b #7b704e #a09573 #c8be9f #ebe4cf
+luma          0      23      41      64      88     111     148     189     227
+```
+
+Still unverified in game: whether the three tiers are **distinguishable at a glance on a real tile**, which
+is the only claim that matters and the one no measurement can settle. Pixel distance says they differ;
+nothing says a player can tell a Tungsten unit from a Fallen one across a room.
 
 | String ID | What it is | Capacity |
 |---|---|---|
