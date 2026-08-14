@@ -132,6 +132,9 @@ public final class ArcaneStorageVerbs {
       Harness.registerExpectation(new NetworkTotalExpectation());
       Harness.registerExpectation(new BusFilterExpectation());
       Harness.registerExpectation(new ContainerItemExpectation());
+      Harness.registerVerb(new PairVerb());
+      Harness.registerVerb(new OpenRemoteVerb());
+      Harness.registerExpectation(new BindingQuery());
    }
 
    // ---------------------------------------------------------------------------------------
@@ -167,6 +170,131 @@ public final class ArcaneStorageVerbs {
       }
 
       return (StorageTerminalContainer)context.client.getContainer();
+   }
+
+   /**
+    * {@code pair <dx> <dy>} -- puts a wireless terminal in the player's bag, bound to the terminal at that tile.
+    *
+    * <p>Binds directly rather than simulating the click. What the click adds is
+    * {@code ItemInteractAction} plumbing -- range, animation, which tile the cursor was over -- and none of that
+    * is what these tests are about; the binding, the resolution and the container are. The click path is
+    * therefore one of the things that still needs a human in the game.
+    */
+   private static final class PairVerb implements TestVerb {
+      public String name() {
+         return "pair";
+      }
+
+      public String usage() {
+         return "pair <dx> <dy>";
+      }
+
+      public int coordinateArgIndex() {
+         return 1;
+      }
+
+      public boolean needsPlayer() {
+         return true;
+      }
+
+      public boolean run(TestContext context) {
+         int x = context.tileX(context.intArg(1));
+         int y = context.tileY(context.intArg(2));
+
+         // Rebinds the one already carried rather than handing out another, which is what using the item on a
+         // second terminal does. Adding one per call also made a test read a stale binding off the first copy.
+         necesse.inventory.InventoryItem item = findWireless(context);
+         if (item == null) {
+            item = new necesse.inventory.InventoryItem(ArcaneStorage.WIRELESS_TERMINAL_STRING_ID, 1);
+            new arcanestorage.remote.RemoteBinding(context.level, x, y).write(item);
+            context.client.playerMob.getInv().addItem(item, true, "harnesspair");
+            return true;
+         }
+
+         new arcanestorage.remote.RemoteBinding(context.level, x, y).write(item);
+         return true;
+      }
+   }
+
+   /**
+    * {@code openremote} -- opens the network through the wireless terminal in the player's bag.
+    *
+    * <p>Deliberately does not move the player, which is the difference that matters: the {@code open} verb
+    * stands the player on the target first, because a local container closes itself when nobody is in range.
+    */
+   private static final class OpenRemoteVerb implements TestVerb {
+      public String name() {
+         return "openremote";
+      }
+
+      public String usage() {
+         return "openremote";
+      }
+
+      public boolean needsPlayer() {
+         return true;
+      }
+
+      public boolean run(TestContext context) {
+         necesse.inventory.InventoryItem held = findWireless(context);
+         if (held == null) {
+            context.fail("'openremote' needs a paired wireless terminal; run 'pair <dx> <dy>' first");
+            return false;
+         }
+
+         arcanestorage.remote.RemoteBinding binding = arcanestorage.remote.RemoteBinding.read(held);
+         arcanestorage.remote.RemoteTerminal.Resolved resolved =
+            arcanestorage.remote.RemoteTerminal.resolve(context.client, binding);
+         if (!resolved.ok()) {
+            context.fail("the paired terminal could not be resolved: " + resolved.result);
+            return false;
+         }
+
+         arcanestorage.remote.RemoteTerminalContainer.openAndSend(context.client, binding, resolved);
+         return true;
+      }
+   }
+
+   /** {@code query binding} -- what the wireless terminal in the bag is paired to, if anything. */
+   private static final class BindingQuery implements TestVerb, TestQuery {
+      public String name() {
+         return "binding";
+      }
+
+      public String usage() {
+         return "query binding";
+      }
+
+      public boolean run(TestContext context) {
+         return true;
+      }
+
+      public void query(TestContext context, Json.Writer out) {
+         necesse.inventory.InventoryItem held = findWireless(context);
+         arcanestorage.remote.RemoteBinding binding =
+            held == null ? null : arcanestorage.remote.RemoteBinding.read(held);
+
+         out.bool("carried", held != null);
+         out.bool("paired", binding != null);
+         out.str("level", binding == null ? "none" : binding.levelID);
+         out.num("x", binding == null ? -1 : binding.tileX);
+         out.num("y", binding == null ? -1 : binding.tileY);
+         out.bool("remoteopen",
+            context.client.getContainer() instanceof arcanestorage.remote.RemoteTerminalContainer);
+      }
+   }
+
+   /** The first wireless terminal in the player's main inventory, or null. */
+   static necesse.inventory.InventoryItem findWireless(TestContext context) {
+      necesse.inventory.Inventory inventory = context.client.playerMob.getInv().main;
+      for (int slot = 0; slot < inventory.getSize(); slot++) {
+         necesse.inventory.InventoryItem item = inventory.getItem(slot);
+         if (item != null && item.item instanceof arcanestorage.remote.WirelessTerminalItem) {
+            return item;
+         }
+      }
+
+      return null;
    }
 
    /** {@code report <dx> <dy>} -- dumps what a terminal's network can see. Diagnostic, not an assertion. */

@@ -12,6 +12,9 @@ arcanestorageconduit=Storage Conduit
 arcanestorageimportbus=Arcane Import Bus
 arcanestorageexportbus=Arcane Export Bus
 
+[item]
+arcanestoragewirelessterminal=Wireless Storage Terminal
+
 [ui]
 arcanestorage_unittip=Access with a Storage Terminal
 arcanestorage_stationunittip=Install stations with a Storage Terminal
@@ -70,4 +73,8 @@ arcanestorage_tab_storage=Storage
 arcanestorage_tab_crafting=Crafting
 arcanestorage_tab_stations=Stations
 arcanestorage_group_by_category=Group by category
-arcanestorage_stations_help=One station per socket, and its recipes appear in Crafting. Nearby benches are never used. Stations that burn fuel or work over time cannot be installed.
+arcanestorage_wireless_unpaired=Not paired. Use it on a Storage Terminal.
+arcanestorage_wireless_paired=Paired to <x>,<y>
+arcanestorage_wireless_pairedto=Paired to the terminal at <x>,<y>
+arcanestorage_wireless_alreadypaired=Already paired to this terminal.
+arcanestorage_wireless_gone=That terminal is gone.

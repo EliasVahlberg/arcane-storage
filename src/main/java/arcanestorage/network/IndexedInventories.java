@@ -85,6 +85,10 @@ public final class IndexedInventories {
       // sending, and the coalescing that stops forty deposits becoming forty packets, is its own tick's job.
       arcanestorage.upgrade.UnitUpgradeContainer.inventoryChanged(inventory);
 
+      // And any wireless terminal watching this inventory from another level, which has no other way to learn:
+      // OEInventory's own sync goes out through sendToClientsWithEntity, which is proximity-based.
+      arcanestorage.remote.RemoteTerminalContainer.inventoryChanged(inventory);
+
       NetworkIndex index = OWNERS.get(inventory);
       if (index != null) {
          relevant++;

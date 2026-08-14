@@ -65,7 +65,8 @@ public class CostTableTest {
    /** The keys {@code ArcaneStorage.postInit} asks for by name, which throw rather than defaulting if absent. */
    @Test
    public void everyRecipeTheModRegistersHasCosts() {
-      for (String key : Arrays.asList("recipe.terminal", "recipe.conduit", "recipe.importbus", "recipe.exportbus")) {
+      for (String key : Arrays.asList("recipe.terminal", "recipe.conduit", "recipe.importbus", "recipe.exportbus",
+            "recipe.wirelessterminal")) {
          assertTrue(key + " is missing from recipes.properties", CostTable.materials(key).length > 0);
          assertTrue(key + " yields a non-positive count", CostTable.count(key) > 0);
       }
@@ -80,7 +81,8 @@ public class CostTableTest {
    @Test
    public void theFileContainsNothingUnused() {
       Set<String> expected = new HashSet<>(
-         Arrays.asList("recipe.terminal", "recipe.conduit", "recipe.importbus", "recipe.exportbus")
+         Arrays.asList("recipe.terminal", "recipe.conduit", "recipe.importbus", "recipe.exportbus",
+            "recipe.wirelessterminal")
       );
 
       for (UnitTier tier : UnitTier.values()) {

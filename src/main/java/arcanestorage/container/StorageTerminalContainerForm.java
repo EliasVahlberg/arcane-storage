@@ -454,7 +454,7 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
       this.mainForm
          .addComponent(
             new FormLocalLabel(
-               container.terminal.getInventoryName(),
+               container.getTerminalName(),
                new FontOptions(20),
                -1,
                PADDING,
@@ -905,12 +905,9 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
          flow.next(PADDING);
       }
 
-      // Wrapped over the form's width, and measured rather than given a fixed slot. Both labels used to reserve
-      // enough height for the paragraphs they held; the text is now one or two lines, and a reserved 48 and 64 px
-      // would leave the tab looking padded. Measuring also means a translation that runs longer than the English
-      // cannot collide with whatever sits below it, which a constant chosen against one language always can.
-      form.addComponent(flow.nextY(new FormLocalLabel("ui", "arcanestorage_stations_help", new FontOptions(16), -1,
-            PADDING, 0, FORM_WIDTH - PADDING * 2), PADDING));
+      // No help paragraph. A socket with a bench in it explains itself, and the two constraints the text used to
+      // spell out -- nearby benches are ignored, fuelled and timed stations are refused -- are both enforced by the
+      // slot rejecting the item, which is where a player meets them anyway.
 
       return form;
    }
@@ -981,7 +978,7 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
       // draw: a strip built lazily would be unclickable on the frame it appeared.
       List<Tech> initialSources = new ArrayList<>();
       initialSources.add(RecipeTechRegistry.NONE);
-      initialSources.addAll(container.terminal.getInstalledTechs());
+      initialSources.addAll(container.getInstalledTechs());
       this.rebuildBenchStrip(benchBox, initialSources);
 
       // Sits over the top of the list area rather than in the flow, because it is only ever visible
@@ -1056,7 +1053,7 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
                   // crafting pool.
                   List<Tech> sources = new ArrayList<>();
                   sources.add(RecipeTechRegistry.NONE);
-                  sources.addAll(container.terminal.getInstalledTechs());
+                  sources.addAll(container.getInstalledTechs());
 
                   if (!sources.equals(this.knownBenches)) {
                      this.knownBenches = sources;
@@ -1773,9 +1770,7 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
     * a device stops, a rule set is refused, a bus is broken by a passing mob.
     */
    private void updateLogistics(Client client) {
-      List<BusSummary> buses = this.getContainer().terminal == null
-            ? new ArrayList<>()
-            : this.getContainer().terminal.getBuses();
+      List<BusSummary> buses = this.getContainer().getBuses();
 
       StringBuilder signature = new StringBuilder();
       StringBuilder issueSignature = new StringBuilder();
@@ -1850,8 +1845,8 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
       // without going looking. It now points at the tab that explains rather than trying to explain itself in
       // a row whose height is fixed -- which is what made it a poor notice.
       int stopped = 0;
-      if (this.getContainer().terminal != null) {
-         for (BusSummary summary : this.getContainer().terminal.getBuses()) {
+      {
+         for (BusSummary summary : this.getContainer().getBuses()) {
             if (!summary.state.isActive()) {
                stopped++;
             }

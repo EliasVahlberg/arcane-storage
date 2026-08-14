@@ -7,6 +7,7 @@ import java.util.List;
 import arcanestorage.objectentity.BusObjectEntity;
 import arcanestorage.network.NetworkContents;
 import arcanestorage.network.NetworkIndexes;
+import arcanestorage.objectentity.BusSummary;
 import arcanestorage.objectentity.StorageTerminalObjectEntity;
 import arcanestorage.network.NetworkStorage;
 import necesse.engine.localization.Localization;
@@ -31,6 +32,8 @@ import arcanestorage.network.NetworkStations;
 import necesse.engine.registries.RecipeTechRegistry;
 import java.util.Collection;
 import java.util.LinkedHashSet;
+import necesse.engine.localization.message.GameMessage;
+import necesse.level.gameObject.container.CraftingStationObject;
 import necesse.inventory.container.Container;
 import necesse.inventory.container.ContainerActionResult;
 import necesse.inventory.container.ContainerAction;
@@ -83,6 +86,14 @@ public class StorageTerminalContainer extends Container {
 
    public final StorageTerminalObjectEntity terminal;
 
+   /**
+    * The paired terminal's name as the server sent it, or null for a local terminal.
+    *
+    * <p>Only ever set on the client half of a remote container. The server half has the real object entity and
+    * asks it, so there is exactly one source of this string per side and no chance of the two disagreeing.
+    */
+   private final GameMessage remoteName;
+
    /** Client-requested withdrawal, validated and executed server-side. */
    /** Purpose recorded on deposits, kept distinct from aggregation reads. */
    public static final String DEPOSIT_PURPOSE = "arcanestoragedeposit";
@@ -122,10 +133,31 @@ public class StorageTerminalContainer extends Container {
    private final LinkedHashSet<Inventory> craftPool;
 
    public StorageTerminalContainer(NetworkClient client, int uniqueSeed, StorageTerminalObjectEntity terminal) {
+      this(client, uniqueSeed, terminal, terminal.getLinkedStationUnits(), terminal.getLinkedUnits(), null);
+   }
+
+   /**
+    * The membership-taking constructor, which is what lets a wireless terminal reuse all of this.
+    *
+    * <p>The lists are passed in rather than walked from the terminal, because a remote client cannot walk
+    * anything: it holds only the level it stands on. On that path {@code terminal} is null and the lists are
+    * the stand-ins from {@link arcanestorage.remote.RemoteNetworkShape}, sized from the open packet so that
+    * every slot index means the same thing on both sides. Everything after this point -- slot registration,
+    * the craft pool, the recipe list -- is then literally the same code for both cases, which is the point.
+    *
+    * <p>Note the terminal is still the real object entity on the <i>server</i> side of a remote container. Only
+    * the client half is a stand-in, so nothing that moves items ever works on a mirror.
+    */
+   protected StorageTerminalContainer(NetworkClient client, int uniqueSeed, StorageTerminalObjectEntity terminal,
+         List<NetworkStations> stationUnits, List<NetworkStorage> units, GameMessage remoteName) {
       super(client, uniqueSeed);
       this.terminal = terminal;
-      terminal.triggerInteracted();
-      if (client.isServer()) {
+      this.remoteName = remoteName;
+      if (terminal != null) {
+         terminal.triggerInteracted();
+      }
+
+      if (client.isServer() && terminal != null) {
          terminal.startUser(client.playerMob);
 
          // Opening the terminal is both the moment a wrong count would be noticed and the moment somebody is
@@ -146,7 +178,7 @@ public class StorageTerminalContainer extends Container {
       // fixed -- a network with no Station Unit has none at all, which is a normal state. Both sides
       // enumerate the units in tile order, which is what makes an index mean the same thing to each of
       // them; see StorageTerminalObjectEntity.getLinkedStationUnits.
-      this.stationUnits = terminal.getLinkedStationUnits();
+      this.stationUnits = stationUnits;
 
       int stationStart = -1;
       int stationEnd = -1;
@@ -165,7 +197,7 @@ public class StorageTerminalContainer extends Container {
       this.STATION_START = stationStart;
       this.STATION_END = stationEnd;
 
-      this.linkedUnits = terminal.getLinkedUnits();
+      this.linkedUnits = units;
 
       for (NetworkStorage unit : this.linkedUnits) {
          for (int i = 0; i < unit.getInventory().getSize(); i++) {
@@ -201,7 +233,9 @@ public class StorageTerminalContainer extends Container {
       // Workstation would quietly eat the Workstation installed in the terminal. Computed once:
       // getCraftInventories is called per recipe per craftability check, so it must not allocate.
       this.craftPool = new LinkedHashSet<>(this.craftInventories);
-      this.craftPool.remove(terminal.inventory);
+      if (terminal != null) {
+         this.craftPool.remove(terminal.inventory);
+      }
 
       this.withdrawAction = this.registerAction(new StorageTerminalContainer.WithdrawAction());
       this.depositAllAction = this.registerAction(new StorageTerminalContainer.DepositAllAction());
@@ -431,7 +465,7 @@ public class StorageTerminalContainer extends Container {
 
    /** Whether the network could take this item, in a free slot or on top of a matching stack. */
    public boolean canFit(InventoryItem item) {
-      return NetworkContents.canFit(this.terminal.getLevel(), this.linkedUnits, item, AGGREGATE_PURPOSE);
+      return NetworkContents.canFit(this.level(), this.linkedUnits, item, AGGREGATE_PURPOSE);
    }
 
    /**
@@ -496,7 +530,7 @@ public class StorageTerminalContainer extends Container {
          return true;
       }
 
-      for (Tech tech : this.terminal.getInstalledTechs()) {
+      for (Tech tech : this.getInstalledTechs()) {
          if (recipe.matchTech(tech)) {
             return true;
          }
@@ -577,18 +611,66 @@ public class StorageTerminalContainer extends Container {
       return moved;
    }
 
+   /**
+    * The level whose items these are, or the viewer's own level when this is a remote client.
+    *
+    * <p>Used only where a level is a parameter to an item comparison. {@code InventoryItem.equals} takes one to
+    * let items answer questions about the world they are in, and no item in the game answers differently on one
+    * level than another -- so the viewer's level is a safe stand-in on the one path where the real one is out of
+    * reach. Anything that <i>moves</i> items runs server-side, where the real level is always present.
+    */
+   protected Level level() {
+      if (this.terminal != null) {
+         return this.terminal.getLevel();
+      }
+
+      return this.client.playerMob == null ? null : this.client.playerMob.getLevel();
+   }
+
+   /** The paired terminal's name, whichever side is asking. */
+   public GameMessage getTerminalName() {
+      return this.terminal != null ? this.terminal.getInventoryName() : this.remoteName;
+   }
+
+   /**
+    * The crafting stations installed on this network.
+    *
+    * <p>Computed from the Station Units held by this container rather than asked of the terminal, which is what
+    * makes it work remotely for free: the mirrored sockets hold the same bench items, and which recipes a bench
+    * unlocks is a property of the item. The terminal's own version of this method does the same walk.
+    */
+   public LinkedHashSet<Tech> getInstalledTechs() {
+      LinkedHashSet<Tech> techs = new LinkedHashSet<>();
+      for (NetworkStations unit : this.stationUnits) {
+         Inventory sockets = unit.getInventory();
+         for (int slot = 0; slot < sockets.getSize(); slot++) {
+            CraftingStationObject station = StorageTerminalObjectEntity.getCraftingStation(sockets.getItem(slot));
+            if (station != null) {
+               techs.addAll(java.util.Arrays.asList(station.getCraftingTechs()));
+            }
+         }
+      }
+
+      return techs;
+   }
+
+   /** The network's buses, for the Logistics tab. Empty on a remote client until the first push arrives. */
+   public List<BusSummary> getBuses() {
+      return this.terminal == null ? new ArrayList<>() : this.terminal.getBuses();
+   }
+
    public List<InventoryItem> getAggregatedItems() {
       if (this.isNetworkEmpty()) {
          return new ArrayList<>();
       }
 
-      return NetworkContents.aggregate(this.terminal.getLevel(), this.linkedUnits, AGGREGATE_PURPOSE);
+      return NetworkContents.aggregate(this.level(), this.linkedUnits, AGGREGATE_PURPOSE);
    }
 
    @Override
    public void tick() {
       super.tick();
-      if (this.client.isServer()) {
+      if (this.client.isServer() && this.terminal != null) {
          this.terminal.startUser(this.client.playerMob);
       }
    }
@@ -596,7 +678,7 @@ public class StorageTerminalContainer extends Container {
    @Override
    public void onClose() {
       super.onClose();
-      if (this.client.isServer()) {
+      if (this.client.isServer() && this.terminal != null) {
          this.terminal.stopUser(this.client.playerMob);
       }
    }
@@ -642,6 +724,17 @@ public class StorageTerminalContainer extends Container {
          }
       }
 
+      return this.isWithinReach(client);
+   }
+
+   /**
+    * Whether the player is close enough, which is the one validity rule a wireless terminal replaces.
+    *
+    * <p>Split out rather than branched inside {@link #isValid} so that the checks above it -- the terminal still
+    * existing, every unit still on the network -- cannot be skipped by accident on the remote path. Those are
+    * the ones that prevent writing into a detached inventory, and they are not negotiable for either case.
+    */
+   protected boolean isWithinReach(ServerClient client) {
       Level level = client.getLevel();
       return level.getObject(this.terminal.tileX, this.terminal.tileY)
          .isInInteractRange(level, this.terminal.tileX, this.terminal.tileY, client.playerMob);

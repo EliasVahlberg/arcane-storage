@@ -19,6 +19,7 @@ import arcanestorage.objectentity.StorageTerminalObjectEntity;
 import arcanestorage.ui.ArcanePanel;
 import necesse.engine.modLoader.annotations.ModEntry;
 import necesse.engine.registries.ContainerRegistry;
+import necesse.engine.registries.ItemRegistry;
 import necesse.engine.registries.ObjectRegistry;
 import necesse.engine.registries.RecipeTechRegistry;
 import necesse.inventory.recipe.Ingredient;
@@ -77,6 +78,11 @@ public class ArcaneStorage {
    /** The in-place upgrade panel, opened by right-clicking any tiered unit. */
    public static int UPGRADE_CONTAINER = -1;
 
+   /** The wireless terminal's container. Registered plain, not as an OE container -- see RemoteTerminalContainer. */
+   public static int REMOTE_TERMINAL_CONTAINER = -1;
+
+   public static final String WIRELESS_TERMINAL_STRING_ID = "arcanestoragewirelessterminal";
+
    /**
     * The mod's client settings, handed to the loader from {@link #initSettings()} and persisted by
     * the game. Static because the UI reads it and there is exactly one.
@@ -107,6 +113,20 @@ public class ArcaneStorage {
       ObjectRegistry.registerObject(CONDUIT_STRING_ID, CONDUIT, 4.0F, true);
       ObjectRegistry.registerObject(IMPORT_BUS_STRING_ID, new ImportBusObject(), 8.0F, true);
       ObjectRegistry.registerObject(EXPORT_BUS_STRING_ID, new ExportBusObject(), 8.0F, true);
+
+      ItemRegistry.registerItem(WIRELESS_TERMINAL_STRING_ID, new arcanestorage.remote.WirelessTerminalItem(), 200.0F, true);
+
+      // Registered with the plain variant on purpose. Every typed variant resolves the level as the player's own
+      // (registerLevelContainer: client.getLevel() / world.getLevel(client)), which is the one assumption a
+      // wireless terminal breaks -- so this one carries its level in the content packet and resolves it itself.
+      REMOTE_TERMINAL_CONTAINER = ContainerRegistry.registerContainer(
+         (client, uniqueSeed, content) -> new StorageTerminalContainerForm<>(
+            client, new arcanestorage.remote.RemoteTerminalContainer(client.getClient(), uniqueSeed, content)
+         ),
+         (client, uniqueSeed, content, serverObject) -> new arcanestorage.remote.RemoteTerminalContainer(
+            client, uniqueSeed, content
+         )
+      );
 
       TERMINAL_CONTAINER = ContainerRegistry.registerOEContainer(
          (client, uniqueSeed, objectEntity, content) -> new StorageTerminalContainerForm<>(
@@ -157,6 +177,12 @@ public class ArcaneStorage {
       // has no slot to travel with. Vanilla registers its shop stock and wealth updates for the same reason.
       necesse.inventory.container.events.ContainerEventRegistry.registerUpdate(
          arcanestorage.upgrade.UpgradeStateEvent.class);
+
+      // The wireless terminal's slot mirror. Registered for the same reason and with a sharper one behind it: a
+      // remote client has no other route to a network's contents at all, since OEInventory syncs through
+      // sendToClientsWithEntity, which is proximity-based.
+      necesse.inventory.container.events.ContainerEventRegistry.registerUpdate(
+         arcanestorage.remote.SlotMirrorEvent.class);
    }
 
    public void initResources() {
@@ -178,6 +204,13 @@ public class ArcaneStorage {
       Recipes.registerModRecipe(
          new Recipe(TERMINAL_STRING_ID, CostTable.count("recipe.terminal"), RecipeTechRegistry.WORKSTATION,
             CostTable.materials("recipe.terminal"))
+      );
+
+      // Fallen-era, and hand-craftable on purpose: by the time these shards exist the player has a network, and
+      // needing a workstation would only mean walking to one to make the thing that saves the walking.
+      Recipes.registerModRecipe(
+         new Recipe(WIRELESS_TERMINAL_STRING_ID, CostTable.count("recipe.wirelessterminal"),
+            RecipeTechRegistry.NONE, CostTable.materials("recipe.wirelessterminal"))
       );
 
       // Both ladders, each rung consuming the one below it. Registered from a table rather than written out

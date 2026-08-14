@@ -301,8 +301,34 @@ Worth doing, not worth blocking on, and none started.
   through paired connectors instead of one contiguous mass. Addresses the
   relocation complaint that dogs Magic Storage, and is probably the clearest way
   not to read as a port.
-- **Remote and wireless access** — genuinely absent from vanilla. Note that
-  gating it to endgame is itself a common complaint about Magic Storage.
+- ~~**Remote and wireless access**~~ — **the basic mechanism is built** (Aug 2026), untiered and
+  unrestricted: a Wireless Storage Terminal item pairs to a placed terminal by being used on it, and
+  opens that network's full interface from anywhere, including from a level the server has unloaded.
+
+  Three findings shaped it, and they are worth keeping because each closed off an approach:
+
+  1. **Nothing needed inventing to reach an unloaded level.** `World.getLevel(LevelIdentifier)` loads
+     from disk through `LevelSave.loadSave`, catches the level up on world time, and generates one if
+     there is no file. Every design that started by persisting the network's contents somewhere —
+     onto the item, into world data — would have been a second copy of items that already exist
+     authoritatively, which is the one thing this mod must never hold.
+  2. **Loading is not keeping.** `Server` unloads any level whose `unloadLevelBuffer` passes the
+     30-second cooldown, saving it and dropping it. A container holding slots on it would go on
+     writing into an object nothing saves again. Vanilla's own answer is to reset that counter —
+     `ArenaEntrancePortalMob`, `AscendedWizardMob` and `ServerSettlementData` all do exactly that —
+     so the fix is one line per tick, plus an identity check that closes the container if the level
+     is ever swapped underneath it.
+  3. **The engine has no remote-inventory sync, so this mod now has one.** There is no
+     container-slot packet at all; a client sees a container's contents only because it already has
+     the underlying inventories, and an object entity's reach that client through
+     `sendToClientsWithEntity`, which is proximity. So the server mirrors changed slots to the
+     viewer by container slot index. Mirroring rather than forking the UI is what lets the same
+     1884-line form, every tab and the crafting preview work remotely without knowing.
+
+  **Deliberately not built:** the D18 sub-tiers (settlement/waystone range, then same-level, then
+  anywhere). The reach check lives in one overridable method, so tiering it later is a policy change
+  rather than a rework — and gating it at all is one of the loudest complaints about Magic Storage,
+  which is a reason to be slow about it rather than fast.
 - **Recursive crafting** — ships disabled by default in Magic Storage, which says
   something about its cost-to-benefit.
 - **Batch crafting** with a max-craftable indicator.

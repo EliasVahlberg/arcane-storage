@@ -8,6 +8,26 @@ Restructured 11 Aug 2026 because it had grown into a diary and he was right that
 Revised again the same evening: the bash scenario suite it kept citing no longer exists, so every
 reference now points at the pytest file that owns the assertion. See `docs/TESTING.md`.
 
+## Needs eyes — the wireless terminal (Aug 2026)
+
+**0a. The click path, which no test touches.** `tests/python/test_wireless_terminal.py` binds the item directly,
+because what a click adds is `ItemInteractAction` plumbing rather than anything the feature is about. So this is
+unproven: holding the item and clicking a placed Storage Terminal should pair it and say so, and clicking anywhere
+else should open the network. `overridesObjectInteract` returns true, which is what stops the click opening the
+terminal normally instead — if pairing does nothing, that is the first thing to suspect.
+
+**0b. The case the feature exists for.** The harness has one level and one player, so nothing tests a network on
+an unloaded level. Worth doing properly: pair on the surface, go down to a cave, wait past 30 seconds so the
+surface unloads (the server logs `Unloaded level`), then open it. Expect the level to load, the contents to be
+right, and — after closing — the level to unload again about 30 seconds later. Depositing something and then
+walking back to check it is really there is the test that matters.
+
+**0c. A sprite is missing.** `items/arcanestoragewirelessterminal.png`, 32x32. It shows the pink `[ER]`
+placeholder until it exists. Nothing else about the item is blocked on it.
+
+**0d. Bandwidth, if a large network ever feels slow to open.** The mirror sends every non-empty slot the first
+time and only changes afterwards. A full Fallen network is over a thousand stacks, which has never been tried.
+
 ## Confirmed in game
 
 **The reworked rule panel and logistics tab, 14 Aug 2026.** *"UI looks good, works as specified earlier."*
@@ -663,13 +683,6 @@ disabled state have never been rendered once.
    reopening the panel offers the *next* rung. **This was the third bug to hide in the no-client gap**, after the
    button's missing side guard and the bus panel's double-wrapped filter; a new headless test pins the
    server-side half, and nothing can pin the rest.
-
-0f. **Shortened text -- read the stations tab and the bus panel once each.** 26 of 70 strings were cut, 47%
-   shorter across those. Two things want eyes rather than a diff: the stations tab now measures its text instead of
-   reserving 48 and 64 px for the paragraphs that used to be there, so check nothing collides or looks padded; and
-   one fact was deliberately dropped from the stations help -- that an upgraded station also covers the recipes of
-   the station it replaced, so a Demonic Workstation is a Workstation too. That saves a socket for anyone who knows
-   it. If it should stay, a socket tooltip is a better home for it than the tab's help paragraph.
 
 0d. **The cost rows should now sit clear of the button.** Two attempts, and the second is the one that matches
    vanilla. The rows are `FormFairTypeLabel`s whose text was only set in `draw()`, and `FormFlow.nextY` advances by
