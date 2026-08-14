@@ -42,16 +42,16 @@ import necesse.inventory.recipe.Tech;
 public enum UnitTier {
 
    /** Vanilla's container ceiling, and one crafting socket. Craftable the moment a Workstation exists. */
-   BASE("", 40, 1, null, new String[]{"anylog", "8", "ironbar", "2"}),
+   BASE("", 40, 1, null, new String[]{"anylog", "40", "ironbar", "10"}),
 
    /** Demonic era. */
-   DEMONIC("demonic", 80, 2, "demonicbar", new String[]{"demonicbar", "5"}),
+   DEMONIC("demonic", 80, 2, "demonicbar", new String[]{"demonicbar", "25"}),
 
    /** Tungsten era. */
-   TUNGSTEN("tungsten", 160, 4, "tungstenbar", new String[]{"tungstenbar", "8", "quartz", "4"}),
+   TUNGSTEN("tungsten", 160, 4, "tungstenbar", new String[]{"tungstenbar", "40", "quartz", "20"}),
 
    /** Fallen era, the top of the ladder. */
-   FALLEN("fallen", 320, 8, "upgradeshard", new String[]{"upgradeshard", "10", "alchemyshard", "10"});
+   FALLEN("fallen", 320, 8, "upgradeshard", new String[]{"upgradeshard", "50", "alchemyshard", "50"});
 
    /** Appended to the base string IDs. Empty for {@link #BASE}, whose IDs must never change. */
    public final String suffix;
@@ -88,6 +88,35 @@ public enum UnitTier {
    /** The tier below, or null at the bottom. */
    public UnitTier below() {
       return this.ordinal() == 0 ? null : values()[this.ordinal() - 1];
+   }
+
+   /** The tier above, or null at the top. */
+   public UnitTier next() {
+      return this.ordinal() == values().length - 1 ? null : values()[this.ordinal() + 1];
+   }
+
+   /**
+    * What an <b>in-place</b> upgrade to this tier costs: the era materials, and nothing else.
+    *
+    * <p>The difference from {@link #ingredients(String)} is the tier below. A crafting recipe consumes one,
+    * because it builds a new unit from scratch; an in-place upgrade does not, because <b>the unit standing
+    * on the tile is that ingredient</b>. Charging for it twice would mean feeding a second unit into the one
+    * being upgraded, which is not what the ladder means.
+    *
+    * <p>Every tier above {@link #BASE} costs only real item IDs, which this relies on: {@code anylog} is a
+    * {@code GlobalIngredientRegistry} entry rather than an item, so no inventory can be asked how many it
+    * holds. Only {@code BASE} uses it, and {@code BASE} is never an upgrade target -- there is nothing below
+    * it to upgrade from. If a future tier is given a global ingredient, this returns something uncountable
+    * and the availability check has to learn about global ingredients first.
+    */
+   public Ingredient[] upgradeCost() {
+      Ingredient[] materials = new Ingredient[this.costs.length / 2];
+
+      for (int i = 0; i < this.costs.length; i += 2) {
+         materials[i / 2] = new Ingredient(this.costs[i], Integer.parseInt(this.costs[i + 1]));
+      }
+
+      return materials;
    }
 
    /**
