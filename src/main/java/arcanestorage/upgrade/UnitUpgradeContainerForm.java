@@ -37,12 +37,12 @@ import necesse.inventory.recipe.Ingredient;
  */
 public class UnitUpgradeContainerForm<T extends UnitUpgradeContainer> extends ContainerForm<T> {
 
-   private static final int WIDTH = 220;
+   private static final int WIDTH = 440;
 
    /** Height without any requirement rows; each row adds {@link #ROW_HEIGHT}. */
-   private static final int BASE_HEIGHT = 104;
+   private static final int BASE_HEIGHT = 208;
 
-   private static final int ROW_HEIGHT = 22;
+   private static final int ROW_HEIGHT = 28;
 
    private final FormLabel usage;
 
@@ -54,14 +54,27 @@ public class UnitUpgradeContainerForm<T extends UnitUpgradeContainer> extends Co
       super(client, WIDTH, BASE_HEIGHT + ROW_HEIGHT * container.cost.length, container);
       this.setBackground(ArcanePanel.of());
 
-      FormFlow flow = new FormFlow(6);
+      FormFlow flow = new FormFlow(12);
+
+      // Every label is coloured explicitly. A label's default is dark, and this form's background is the mod's
+      // own deep purple panel rather than the engine's lighter default, so unstyled text arrives as near-black on
+      // near-black -- present, correctly laid out, and unreadable. Taken from the interface style rather than
+      // hard-coded so it follows the player's theme, which is also where the requirement rows get their colours.
+      final java.awt.Color text = this.getInterfaceStyle().activeTextColor;
 
       this.addComponent(
-         flow.nextY(new FormLocalLabel(new LocalMessage("object", nameKey), new FontOptions(16), 0, WIDTH / 2, 0), 4)
+         flow.nextY(
+            new FormLocalLabel(
+               new LocalMessage("object", nameKey), new FontOptions(24).color(text), 0, WIDTH / 2, 0
+            ),
+            8
+         )
       );
 
       // Used/total, the one fact the chat readout got right and the reason a player right-clicks a unit at all.
-      this.usage = this.addComponent(flow.nextY(new FormLabel("", new FontOptions(12), 0, WIDTH / 2, 0), 8));
+      this.usage = this.addComponent(
+         flow.nextY(new FormLabel("", new FontOptions(16).color(text), 0, WIDTH / 2, 0), 16)
+      );
 
       this.rows = new FormFairTypeLabel[container.cost.length];
 
@@ -70,7 +83,8 @@ public class UnitUpgradeContainerForm<T extends UnitUpgradeContainer> extends Co
          this.addComponent(
             flow.nextY(
                new FormLocalLabel(
-                  new LocalMessage("ui", "arcanestorage_attoptier"), new FontOptions(12), 0, WIDTH / 2, 0
+                  new LocalMessage("ui", "arcanestorage_attoptier"), new FontOptions(16).color(text), 0,
+                  WIDTH / 2, 0
                ),
                6
             )
@@ -81,7 +95,7 @@ public class UnitUpgradeContainerForm<T extends UnitUpgradeContainer> extends Co
          this.addComponent(
             flow.nextY(
                new FormLocalLabel(
-                  new LocalMessage("ui", "arcanestorage_upgradecost"), new FontOptions(12), -1, 8, 0
+                  new LocalMessage("ui", "arcanestorage_upgradecost"), new FontOptions(16).color(text), -1, 14, 0
                ),
                4
             )
@@ -89,7 +103,7 @@ public class UnitUpgradeContainerForm<T extends UnitUpgradeContainer> extends Co
 
          for (int i = 0; i < this.rows.length; i++) {
             FormFairTypeLabel row = new FormFairTypeLabel("", WIDTH / 2, 0);
-            row.setMaxWidth(WIDTH - 16);
+            row.setMaxWidth(WIDTH - 32);
             row.setTextAlign(FairType.TextAlign.CENTER);
             this.rows[i] = this.addComponent(flow.nextY(row, 2));
          }
@@ -98,8 +112,8 @@ public class UnitUpgradeContainerForm<T extends UnitUpgradeContainer> extends Co
 
          this.upgradeButton = this.addComponent(
             flow.nextY(
-               new FormLocalTextButton("ui", "arcanestorage_upgrade", 10, flow.next(0), WIDTH - 20),
-               4
+               new FormLocalTextButton("ui", "arcanestorage_upgrade", 20, flow.next(0), WIDTH - 40),
+               8
             )
          );
          this.upgradeButton.onClicked(event -> this.container.upgradeAction.runAndSend());
@@ -120,7 +134,7 @@ public class UnitUpgradeContainerForm<T extends UnitUpgradeContainer> extends Co
             )
       );
 
-      FontOptions costFont = new FontOptions(14);
+      FontOptions costFont = new FontOptions(18);
 
       for (int i = 0; i < this.rows.length; i++) {
          Ingredient ingredient = this.container.cost[i];

@@ -503,3 +503,49 @@ def test_the_upgrade_query_describes_the_next_rung(storage):
     station_state = storage.query("upgrade", 0, 1)
     assert station_state["station"] is True
     assert station_state["target"] == "arcanestoragestationunitdemonic"
+
+
+def test_the_object_itself_advances_a_tier_not_just_its_entity(storage):
+    """The tile must *be* the next tier afterwards, not merely hold a bigger inventory.
+
+    These are separate facts and they came apart in practice. ``Level.setObject`` replaces the object entity, so
+    capacity grew and every headless assertion passed -- while the object ID the world draws, names and reopens
+    the panel from stayed on the tier below. The tier read here comes from ``level.getObject``, so it fails if the
+    object is not swapped even when the entity is.
+
+    The client half of that bug is still not covered: the harness has no client, and the missing piece was a
+    packet telling clients the object changed. Nothing here can see a texture.
+    """
+    storage.place("terminal", 0, 0)
+    storage.place("unit", 1, 0)
+    storage.settle(5)
+
+    assert storage.query("upgrade", 1, 0)["tier"] == "base"
+
+    stock_player(storage, "demonic")
+    storage.do("upgrade", 1, 0)
+    storage.settle(5)
+
+    state = storage.query("upgrade", 1, 0)
+    assert state["outcome"] == "upgraded"
+    assert state["tier"] == "demonic", "the object was not replaced, only its entity"
+    assert state["next"] == "tungsten"
+    assert state["target"] == "arcanestorageunittungsten"
+    assert state["req_tungstenbar"] == 40, "the panel would reoffer the tier it just left"
+
+
+def test_a_station_unit_object_advances_too(storage):
+    """The same, on the ladder whose object IDs differ."""
+    storage.place("terminal", 0, 0)
+    storage.place("unit", 1, 0)
+    storage.place("stationunit", 0, 1)
+    storage.settle(5)
+
+    stock_player(storage, "demonic")
+    storage.do("upgrade", 0, 1)
+    storage.settle(5)
+
+    state = storage.query("upgrade", 0, 1)
+    assert state["tier"] == "demonic"
+    assert state["station"] is True
+    assert state["target"] == "arcanestoragestationunittungsten"

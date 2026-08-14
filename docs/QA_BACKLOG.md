@@ -655,6 +655,20 @@ disabled state have never been rendered once.
    lint test now fails the build if any `executePacket` calls `getServerClient()` without an `isServer` check,
    since no Python test can reach that branch.
 
+0b. **The upgraded object now changes in the world -- confirm it does.** Fixed Aug 2026: `setObject` alters the
+   server's world only and sends nothing, because its usual callers are placement paths where the client already
+   predicted the change. Nothing predicted this one, so capacity grew while the texture, the name and the panel's
+   own tier stayed a rung behind -- the entity was right and the world was wrong. A `PacketChangeObject` now goes
+   to every client that can see the tile, following `LadderDownObjectEntity`. Check the sprite, the name and that
+   reopening the panel offers the *next* rung. **This was the third bug to hide in the no-client gap**, after the
+   button's missing side guard and the bus panel's double-wrapped filter; a new headless test pins the
+   server-side half, and nothing can pin the rest.
+
+0c. **Panel size and legibility.** Doubled to 440x208 with larger fonts, and every label now takes its colour
+   from the interface style. Unstyled labels default to near-black, and this form draws on the mod's deep purple
+   panel rather than the engine's lighter default, so the text was there and correctly laid out and unreadable.
+   Worth checking against a non-default interface theme, since the colour is no longer fixed.
+
 1. **Right-click a unit of each tier.** The panel replaced a chat message, so the regression to watch for is
    nothing appearing at all. A Fallen unit should show "Already at the highest tier" and **no button**, which is
    a different code path from the other three.

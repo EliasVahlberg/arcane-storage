@@ -10,6 +10,7 @@ import arcanestorage.object.UnitTier;
 import arcanestorage.objectentity.StorageTerminalObjectEntity;
 import java.util.ArrayList;
 import java.util.List;
+import necesse.engine.network.packet.PacketChangeObject;
 import necesse.engine.network.server.ServerClient;
 import necesse.engine.registries.ItemRegistry;
 import necesse.engine.registries.ObjectRegistry;
@@ -376,6 +377,23 @@ public final class UnitUpgrade {
 
       // Destroys the old entity and builds the new one, at the new tier's slot count.
       level.setObject(x, y, targetObjectId);
+
+      // And tells every client that can see the tile.
+      //
+      // setObject changes the object on the server only. It marks the region dirty, updates lighting,
+      // settlement rooms and level jobs, and replaces the object entity -- but sends nothing, because most of
+      // its callers are placement paths where the client has already predicted the change or will be sent it by
+      // the item that caused it. Nothing had predicted this one, so the first version of this upgrade left every
+      // client drawing the old object: the capacity grew, and the texture, the name and the panel's own idea of
+      // which tier it was looking at all stayed on the tier below. The entity was right and the world was wrong.
+      //
+      // LadderDownObjectEntity is the precedent for an object entity swapping the object under itself and
+      // broadcasting the result, and this follows it exactly.
+      if (level.getServer() != null) {
+         level.getServer().network.sendToClientsWithTile(
+            new PacketChangeObject(level, 0, x, y, targetObjectId), level, x, y
+         );
+      }
 
       ObjectEntity replacement = level.entityManager.getObjectEntity(x, y);
       if (!(replacement instanceof InventoryObjectEntity)) {
