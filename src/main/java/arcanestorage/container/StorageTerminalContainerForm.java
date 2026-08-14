@@ -56,6 +56,7 @@ import necesse.gfx.forms.components.localComponents.FormLocalTextButton;
 import necesse.gfx.forms.presets.containerComponent.ContainerFormSwitcher;
 import necesse.engine.Settings;
 import necesse.gfx.ui.ButtonColor;
+import necesse.gfx.gameFont.FontManager;
 import necesse.gfx.gameFont.FontOptions;
 import necesse.inventory.InventoryItem;
 import necesse.inventory.container.Container;
@@ -259,7 +260,13 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
 
    private static final int ISSUE_FONT = 14;
 
-   private static final int ISSUE_LINES = 4;
+   /** One row of the issues area: the summary line, and the pitch the per-device boxes wrap at. */
+   private static final int ISSUE_ROW = 22;
+
+   /** Chrome around a box's name, so the text is not flush against its own edge. */
+   private static final int ISSUE_BOX_PADDING = 16;
+
+   private static final int COPY_BUTTON_WIDTH = 56;
 
    /** Translucent so the panel beneath still reads as part of the interface rather than a hole cut in it. */
    private static final Color ISSUE_BACKING = new Color(150, 40, 36, 150);
@@ -296,6 +303,26 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
 
    private FormLabel issueLabel;
 
+   /** Where the issues area starts, and the invisible form its per-device boxes are flowed into. */
+   private int issuesY;
+
+   private Form issueBoxGroup;
+
+   private final List<FormTextButton> issueBoxes = new ArrayList<>();
+
+   private FormLocalTextButton copyButton;
+
+   /** Every stopped device's reason, newline separated, as the copy button would put it on the clipboard. */
+   private String issueClipboardText = "";
+
+   /** Which stopped devices the issues area was last built for, so it is rebuilt only when that changes. */
+   private String shownIssues = "\u0000";
+
+   /** Where the lists start and how tall they are, both following the issues area's height. */
+   private int contentTop;
+
+   private int contentHeight;
+
    private FormContentBox deviceListBox;
 
    private final List<FormTextButton> deviceButtons = new ArrayList<>();
@@ -314,7 +341,8 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
 
    private Form devicePane;
 
-   private FormLabel deviceMessage;
+   /** The scroll box the whole pane lives in, so the editor gets its natural height instead of being squeezed. */
+   private FormContentBox devicePaneBox;
 
    private BusRulesEditor deviceRules;
 
@@ -1328,26 +1356,143 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
       form.addComponent(new FormLocalLabel("ui", "arcanestorage_tab_logistics", new FontOptions(20), -1,
             PADDING, headerY + 4, FORM_WIDTH - PADDING * 2));
 
-      // Reserved whether or not anything is wrong, so the lists below do not move when a device stops. The
-      // backing and its text are hidden together rather than the space being reclaimed.
-      int issuesY = flow.next(ISSUE_FONT * ISSUE_LINES + PADDING * 2);
-      this.issueBacking = form.addComponent(new FormColorFill(PADDING, issuesY,
-            FORM_WIDTH - PADDING * 2, ISSUE_FONT * ISSUE_LINES + PADDING, ISSUE_BACKING));
+      // The issues area takes the height it needs and no more. It was a fixed four-line block of prose naming
+      // every stopped device with its full reason, which is more text than fits: two stopped buses already
+      // clipped it. A reason is long because it names an item, a place and another device, and none of that is
+      // worth reading until you know which device you care about -- so the area now shows one box per stopped
+      // device carrying only its name, and the reason is a hover away.
+      this.issuesY = flow.next(0);
+      this.issueBacking = form.addComponent(new FormColorFill(PADDING, this.issuesY,
+            FORM_WIDTH - PADDING * 2, ISSUE_ROW, ISSUE_BACKING));
       this.issueLabel = form.addComponent(new FormLabel("", new FontOptions(ISSUE_FONT), -1,
-            PADDING * 2, issuesY + PADDING, FORM_WIDTH - PADDING * 4));
+            PADDING * 2, this.issuesY + PADDING, FORM_WIDTH - PADDING * 4 - COPY_BUTTON_WIDTH - PADDING));
 
-      int listY = flow.next(0);
-      int listHeight = FORM_HEIGHT - listY - PADDING;
+      // Only worth offering when there is something to copy, and it is the whole set rather than one device:
+      // somebody asking for help wants to paste all of it at once. Added and removed rather than hidden --
+      // FormComponent has no hidden flag, only Form does, and a button left in place would still take clicks.
+      this.issueBoxGroup = form.addComponent(new Form(FORM_WIDTH - PADDING * 2, ISSUE_ROW));
+      this.issueBoxGroup.drawBase = false;
+      this.issueBoxGroup.setPosition(PADDING * 2, this.issuesY + ISSUE_ROW);
+
+      this.contentTop = this.issuesY + ISSUE_ROW + PADDING;
+      this.contentHeight = FORM_HEIGHT - this.contentTop - PADDING;
       this.deviceListBox = form.addComponent(
-            new FormContentBox(PADDING, listY, DEVICE_LIST_WIDTH, listHeight));
-
-      if (listHeight < BusRulesEditor.minimumHeight()) {
-         GameLog.warn.println("Arcane Storage: the logistics tab leaves " + listHeight
-               + "px for the rules editor, which needs at least " + BusRulesEditor.minimumHeight()
-               + "px; its controls will overlap.");
-      }
+            new FormContentBox(PADDING, this.contentTop, DEVICE_LIST_WIDTH, this.contentHeight));
 
       return form;
+   }
+
+   /**
+    * Lays out one box per stopped device, wrapped across as many rows as they need.
+    *
+    * <p>Rebuilt only when the set of stopped devices changes, which is what the caller's signature check is
+    * for: this allocates buttons and measures text, and the tab is redrawn every frame.
+    *
+    * @return the height the issues area now occupies
+    */
+   private int rebuildIssues(List<BusSummary> buses) {
+      for (FormTextButton box : this.issueBoxes) {
+         this.issueBoxGroup.removeComponent(box);
+      }
+
+      this.issueBoxes.clear();
+
+      StringBuilder clipboard = new StringBuilder();
+      int stopped = 0;
+      int available = FORM_WIDTH - PADDING * 4;
+      int x = 0;
+      int y = 0;
+      FontOptions boxFont = new FontOptions(ISSUE_FONT);
+
+      for (BusSummary bus : buses) {
+         if (bus.state.isActive()) {
+            continue;
+         }
+
+         stopped++;
+         String reason = bus.name() + " " + bus.where() + " - " + bus.message();
+         if (clipboard.length() > 0) {
+            clipboard.append('\n');
+         }
+
+         clipboard.append(reason);
+
+         // Sized to its own name, so the row packs as many as fit rather than reserving a column width for
+         // the longest. Clamped to the available width, because a player may name a bus anything.
+         int width = Math.min(available,
+               FontManager.bit.getWidthCeil(bus.name(), boxFont) + ISSUE_BOX_PADDING);
+         if (x > 0 && x + width > available) {
+            x = 0;
+            y += ISSUE_ROW;
+         }
+
+         long key = StorageTerminalContainer.key(bus.tileX, bus.tileY);
+         FormTextButton box = this.issueBoxGroup.addComponent(new FormTextButton(
+               bus.name(), reason, x, y, width, FormInputSize.SIZE_20, ButtonColor.RED));
+
+         // Clicking the problem selects the device, so the fix is one click from the diagnosis rather than a
+         // hunt down the list for a name you just read.
+         box.onClicked(e -> this.selectDevice(key));
+         this.issueBoxes.add(box);
+         x += width + PADDING;
+      }
+
+      this.issueClipboardText = clipboard.toString();
+      this.issueBacking.visible = stopped > 0;
+
+      // Added and removed rather than hidden: FormComponent has no hidden flag, and a button left in place
+      // would still take a click over the space where nothing is drawn.
+      if (stopped == 0 && this.copyButton != null) {
+         this.logisticsForm.removeComponent(this.copyButton);
+         this.copyButton = null;
+      } else if (stopped > 0 && this.copyButton == null) {
+         this.copyButton = this.logisticsForm.addComponent(new FormLocalTextButton("ui",
+               "arcanestorage_copy_issues", FORM_WIDTH - PADDING * 2 - COPY_BUTTON_WIDTH, this.issuesY + 2,
+               COPY_BUTTON_WIDTH, FormInputSize.SIZE_20, ButtonColor.BASE));
+         this.copyButton.setTooltip(Localization.translate("ui", "arcanestorage_copy_issues_tip"));
+         this.copyButton.onClicked(e -> {
+            GameWindow window = WindowManager.getWindow();
+            if (window != null) {
+               window.putClipboard(this.issueClipboardText);
+            }
+         });
+      }
+
+      this.issueLabel.setText(stopped == 0
+            ? Localization.translate("ui", "arcanestorage_no_issues")
+            : Localization.translate("ui", "arcanestorage_stopped_count", "count", String.valueOf(stopped)),
+            FORM_WIDTH - PADDING * 4 - (stopped == 0 ? 0 : COPY_BUTTON_WIDTH + PADDING));
+
+      int boxRows = stopped == 0 ? 0 : y / ISSUE_ROW + 1;
+      int height = ISSUE_ROW + boxRows * ISSUE_ROW + (stopped == 0 ? 0 : PADDING);
+      this.issueBoxGroup.setHeight(Math.max(1, boxRows * ISSUE_ROW));
+      this.issueBacking.setSize(FORM_WIDTH - PADDING * 2, height);
+      return height;
+   }
+
+   /**
+    * Moves the device list and the rules pane to sit under an issues area of the given height.
+    *
+    * <p>The lists shrink rather than the issues area being capped, because a stopped device is the reason a
+    * player opened this tab: it gets the room it needs and the configuration below gives it up.
+    */
+   private void reflowLogistics(int issuesHeight) {
+      int top = this.issuesY + issuesHeight + PADDING;
+      if (top == this.contentTop) {
+         return;
+      }
+
+      this.contentTop = top;
+      this.contentHeight = FORM_HEIGHT - top - PADDING;
+      this.deviceListBox.setY(top);
+      this.deviceListBox.setHeight(this.contentHeight);
+      if (this.devicePane != null) {
+         this.devicePane.setPosition(this.devicePane.getX(), top);
+         this.devicePane.setHeight(this.contentHeight);
+         if (this.devicePaneBox != null) {
+            this.devicePaneBox.setHeight(this.contentHeight - PADDING);
+         }
+      }
    }
 
    /**
@@ -1409,16 +1554,16 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
       if (this.devicePane != null) {
          this.logisticsForm.removeComponent(this.devicePane);
          this.devicePane = null;
-         this.deviceMessage = null;
+         this.devicePaneBox = null;
          this.deviceRules = null;
       }
 
       this.paneBuiltFor = this.selectedDevice;
 
       int paneX = PADDING * 2 + DEVICE_LIST_WIDTH;
-      int paneY = this.deviceListBox.getY();
+      int paneY = this.contentTop;
       int paneWidth = FORM_WIDTH - paneX - PADDING;
-      int paneHeight = FORM_HEIGHT - paneY - PADDING;
+      int paneHeight = this.contentHeight;
 
       Form pane = this.logisticsForm.addComponent(new Form(paneWidth, paneHeight));
       pane.setPosition(paneX, paneY);
@@ -1442,26 +1587,36 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
          return;
       }
 
-      // No title label: the editor's first row is the name, and it is editable. The coordinates that used to
-      // sit here are in the issues panel, which is where a player who has to go and find the thing is looking.
-      int messageY = PADDING;
-      this.deviceMessage = pane.addComponent(new FormLabel("", new FontOptions(ISSUE_FONT), -1,
-            PADDING, messageY, paneWidth - PADDING * 2));
+      // The whole pane scrolls, rather than the category tree scrolling inside a pane that is too short for
+      // the editor around it. Previously only the tree had a bar, so the amount row, the search box and the
+      // Apply button were squeezed into whatever the pane had left -- and the pane is shorter than the bus's
+      // own panel, which is what the editor's proportions were chosen against. One bar over everything also
+      // avoids two scroll regions a few pixels apart, and the nested hit-testing hazard that comes with them.
+      FormContentBox box = pane.addComponent(
+            new FormContentBox(0, PADDING, paneWidth, paneHeight - PADDING));
+      this.devicePaneBox = box;
 
-      // A fixed block for the message, tall enough for the longest reason a device can give at this width.
-      int messageLines = Math.max(2,
-            (BusSummary.worstCaseReasonHeight(ISSUE_FONT, paneWidth - PADDING * 2) + ISSUE_FONT - 1)
-                  / ISSUE_FONT);
-      int rulesY = messageY + ISSUE_FONT * messageLines + PADDING;
+      // No title label, and no message label either: the editor's first row is the name and its second is the
+      // status line, so the pane has nothing of its own to draw. The coordinates that used to sit here are on
+      // the device's own box in the issues area, which is where a player who has to go and find the thing is
+      // looking.
       final BusSummary bus = selected;
-      this.deviceRules = BusRulesEditor.addTo(pane, client, filter,
+      final int contentWidth = paneWidth - box.getScrollBarWidth();
+      this.deviceRules = BusRulesEditor.addTo(box, client, filter,
             bus.importing ? "arcanestorage_importbuslimit" : "arcanestorage_exportbuslimit",
-            "arcanestoragebus", new Rectangle(0, rulesY, paneWidth, paneHeight - rulesY),
+            "arcanestoragebus", new Rectangle(0, 0, contentWidth, paneHeight - PADDING),
             bus.name(),
             renamed -> this.getContainer().setNameAction.runAndSend(bus.tileX, bus.tileY, renamed),
             edited -> {
                this.getContainer().refusal = null;
                this.getContainer().setRulesAction.runAndSend(bus.tileX, bus.tileY, edited);
+            },
+            BusRulesEditor.Scroll.HOST_SCROLLS_ALL,
+            () -> {
+               if (this.deviceRules != null && this.devicePaneBox != null) {
+                  this.devicePaneBox.setContentBox(
+                        new Rectangle(contentWidth, this.deviceRules.getNaturalHeight() + PADDING));
+               }
             });
    }
 
@@ -1583,26 +1738,23 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
             ? new ArrayList<>()
             : this.getContainer().terminal.getBuses();
 
-      StringBuilder issues = new StringBuilder();
       StringBuilder signature = new StringBuilder();
+      StringBuilder issueSignature = new StringBuilder();
       for (BusSummary bus : buses) {
          signature.append(bus.tileX).append(',').append(bus.tileY).append(bus.state)
                .append(bus.ordinal).append(bus.customName).append(';');
-         if (bus.state.isActive()) {
-            continue;
+         if (!bus.state.isActive()) {
+            issueSignature.append(bus.tileX).append(',').append(bus.tileY).append(bus.state)
+                  .append(bus.conflictItemID).append(bus.ordinal).append(bus.customName).append(';');
          }
-
-         if (issues.length() > 0) {
-            issues.append('\n');
-         }
-
-         issues.append(bus.name()).append(' ').append(bus.where()).append(" - ").append(bus.message());
       }
 
-      this.issueBacking.visible = issues.length() > 0;
-      this.issueLabel.setText(issues.length() == 0
-            ? Localization.translate("ui", "arcanestorage_no_issues")
-            : issues.toString(), FORM_WIDTH - PADDING * 4);
+      // The issues area allocates buttons and measures text, so it is rebuilt only when the set of stopped
+      // devices changes -- not every frame, which is how often this runs.
+      if (!issueSignature.toString().equals(this.shownIssues)) {
+         this.shownIssues = issueSignature.toString();
+         this.reflowLogistics(this.rebuildIssues(buses));
+      }
 
       if (!signature.toString().equals(this.shownDevices)) {
          this.shownDevices = signature.toString();
@@ -1611,27 +1763,13 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
 
       // The pane is also rebuilt when rules arrive for the bus already selected, which is the ordinary case:
       // selecting sends a request and the answer lands a round trip later.
-      // Where the world marker goes: the selected device, and only while the tab showing it is open. A marker
-      // left up behind the storage tab would be pointing at something the player is no longer looking at.
-      this.markerX = -1;
-      this.markerY = -1;
-      if (this.selectedDevice != NO_DEVICE && this.tabs.getCurrentTabIndex() == this.logisticsTabIndex) {
-         for (BusSummary bus : buses) {
-            if (StorageTerminalContainer.key(bus.tileX, bus.tileY) == this.selectedDevice) {
-               this.markerX = bus.tileX;
-               this.markerY = bus.tileY;
-               break;
-            }
-         }
-      }
-
       boolean rulesArrived = this.deviceRules == null
             && this.getContainer().rules.containsKey(this.selectedDevice);
       if (this.paneBuiltFor != this.selectedDevice || rulesArrived || this.devicePane == null) {
          this.rebuildDevicePane(client, buses);
       }
 
-      if (this.deviceMessage != null) {
+      if (this.deviceRules != null) {
          BusSummary selected = null;
          for (BusSummary bus : buses) {
             if (StorageTerminalContainer.key(bus.tileX, bus.tileY) == this.selectedDevice) {
@@ -1647,11 +1785,18 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
             message = GameColor.RED.getColorCode() + this.getContainer().refusal;
          } else if (selected != null && !selected.state.isActive()) {
             message = GameColor.RED.getColorCode() + selected.message();
-         } else if (this.deviceRules != null && this.deviceRules.hasUnappliedEdits()) {
+         } else if (this.deviceRules.hasUnappliedEdits()) {
             message = Localization.translate("ui", "arcanestorage_unapplied");
          }
 
-         this.deviceMessage.setText(message, this.devicePane.getWidth() - PADDING * 2);
+         // The editor owns its status line and reflows around it, in both surfaces, so the pane only has to
+         // keep its scroll extent in step with the result.
+         this.deviceRules.setStatus(message);
+         if (this.deviceRules.consumeHeightChanged() && this.devicePaneBox != null) {
+            this.devicePaneBox.setContentBox(new Rectangle(
+                  this.devicePane.getWidth() - this.devicePaneBox.getScrollBarWidth(),
+                  this.deviceRules.getNaturalHeight() + PADDING));
+         }
       }
    }
 

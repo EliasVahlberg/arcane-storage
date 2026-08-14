@@ -3,17 +3,16 @@ package arcanestorage.container;
 import java.awt.Rectangle;
 
 import arcanestorage.objectentity.BusObjectEntity;
-import arcanestorage.objectentity.BusSummary;
 import necesse.engine.localization.Localization;
 import necesse.engine.network.client.Client;
 import necesse.gfx.forms.components.FormFlow;
 import necesse.gfx.forms.components.FormInputSize;
 import necesse.gfx.forms.components.FormLabel;
 import necesse.gfx.forms.presets.ItemCategoriesFilterForm;
+import necesse.gfx.forms.ContainerComponent;
 import necesse.gfx.forms.presets.containerComponent.ContainerForm;
 import necesse.engine.gameLoop.tickManager.TickManager;
 import necesse.entity.mobs.PlayerMob;
-import necesse.engine.GameLog;
 import necesse.gfx.GameColor;
 import necesse.gfx.gameFont.FontOptions;
 import necesse.inventory.itemFilter.ItemCategoriesFilter;
@@ -36,29 +35,28 @@ public class BusContainerForm<T extends BusContainer> extends ContainerForm<T> {
 
    private static final int WIDTH = 340;
 
-   // Grown by BusRulesEditor's own name row, which did not exist when this constant was chosen. Asking the
-   // editor for its own minimum rather than hardcoding a second number here, so the two cannot drift again.
-   private static final int HEIGHT = 420 + BusRulesEditor.NAME_ROW_HEIGHT;
-
-   /** The state and refusal line: its font, and how many wrapped lines the layout keeps clear for it. */
-   private static final int STATE_FONT = 12;
-
-   private static final int STATE_LINES = 5;
+   /**
+    * The panel's height with nothing wrong.
+    *
+    * <p>It grows from here when the status line wraps, rather than reserving room for the longest message a
+    * device can produce. The reservation approach was wrong twice -- it was sized in whole lines against a
+    * message whose length is not under this file's control, since it names an item, a pair of coordinates and
+    * a name the player chose -- and it cost every panel that space even when nothing was wrong.
+    */
+   private static final int BASE_HEIGHT = 420 + BusRulesEditor.NAME_ROW_HEIGHT;
 
    public final ItemCategoriesFilterForm filterForm;
 
    private final BusRulesEditor rules;
 
-   /**
-    * Why the bus has stopped, or empty when it has not.
-    *
-    * <p>Refreshed while the panel is open rather than fixed at construction, because the reason a bus stopped
-    * is usually a rule the player is editing right now: they should see it clear as they fix it.
-    */
-   private final FormLabel stateLabel;
+   /** The height the window is currently set to, so it is only re-anchored when it actually changes. */
+   private int shownHeight = BASE_HEIGHT;
+
+   /** Where the editor starts, so the window's height can be measured from the same origin the editor uses. */
+   private final int rulesTop;
 
    public BusContainerForm(Client client, T container, String nameKey, String explanationKey, String limitKey) {
-      super(client, WIDTH, HEIGHT, container);
+      super(client, WIDTH, BASE_HEIGHT, container);
       final ItemCategoriesFilter filter = container.filter;
       FormFlow flow = new FormFlow(5);
 
@@ -69,43 +67,25 @@ public class BusContainerForm<T extends BusContainer> extends ContainerForm<T> {
          Localization.translate("ui", explanationKey), new FontOptions(12), -1, 6, 0);
       this.addComponent(flow.nextY(explanation, 6));
 
-      // A fixed block, reserved whether or not anything is wrong. The first version passed the empty label to
-      // flow.nextY, which advances by a component's height *as it is then* -- and an empty label is zero lines
-      // tall, so nothing was reserved and the text landed on the amount row below. Nothing here may depend on
-      // the length of a message that is not set yet.
-      int stateY = flow.next(STATE_FONT * STATE_LINES + 4);
-      this.stateLabel = new FormLabel("", new FontOptions(STATE_FONT), -1, 6, stateY, WIDTH - 12);
-      this.addComponent(this.stateLabel);
-
-      // Measured against the longest reason that can appear there. Its length is not under this file's
-      // control: it names an item, a pair of coordinates, and the other device -- whose name the player chose.
-      int worstHeight = Math.max(
-            BusSummary.worstCaseReasonHeight(STATE_FONT, WIDTH - 12),
-            new FormLabel(Localization.translate("ui", "arcanestorage_refused",
-                  "item", "Pearlescent Diamond Broadsword", "x", "-12345", "y", "-12345"),
-                  new FontOptions(STATE_FONT), -1, 0, 0, WIDTH - 12).getHeight());
-      if (worstHeight > STATE_FONT * STATE_LINES) {
-         GameLog.warn.println("Arcane Storage: the bus panel reserves " + STATE_LINES
-               + " lines for its state line but the longest reason needs " + (worstHeight / STATE_FONT)
-               + "; it will overlap the amount row.");
-      }
-
       // Both surfaces that edit a bus's rules -- this panel and the terminal's logistics tab -- build the
-      // same editor, so neither can drift from the other or from the validation both must obey.
+      // same editor, so neither can drift from the other or from the validation both must obey. The status
+      // line belongs to the editor too, directly under the name row, for the same reason.
       //
       // The mode dropdown the settlement panel puts beside its number stays absent: its four modes describe a
       // container, and two of them cap a container's entire item count, which for a network means "the network
       // may hold 20 things in total" -- zero headroom in any real network, so an import bus stops dead and an
       // export bus treats everything as surplus. Both were observed in game.
       int rulesY = flow.next(0);
+      this.rulesTop = rulesY;
       this.rules = BusRulesEditor.addTo(this, client, filter, limitKey, "arcanestoragebus",
-            new Rectangle(0, rulesY, WIDTH, HEIGHT - rulesY),
+            new Rectangle(0, rulesY, WIDTH, BASE_HEIGHT - rulesY),
             container.bus == null ? Localization.translate("object", nameKey) : container.bus.name(),
             container.setNameAction::runAndSend,
             f -> {
                this.container.refusal = null;
                this.container.setFilterAction.runAndSend(f);
-            });
+            },
+            BusRulesEditor.Scroll.OWN_LIST, null);
       this.filterForm = this.rules.filterForm;
    }
 
@@ -139,7 +119,24 @@ public class BusContainerForm<T extends BusContainer> extends ContainerForm<T> {
          this.rules.refreshName(bus.name());
       }
 
-      this.stateLabel.setText(message, WIDTH - 12);
+      // The editor owns the status line and reflows itself around it, so the only thing left for the window is
+      // to be tall enough to contain the result and to re-anchor when that changes -- setPosFocus computes the
+      // offset from the height once, so a form that grows without re-anchoring grows downward through the
+      // hotbar instead of upward.
+      //
+      // Measured from the top of the editor rather than from the top of the window: the editor's natural height
+      // does not include the explanation line above it, and leaving that out made the window grow by less than
+      // the status line pushed the controls down, which put the Apply button below the panel's own bottom edge.
+      this.rules.setStatus(message);
+      if (this.rules.consumeHeightChanged()) {
+         int wanted = Math.max(BASE_HEIGHT, this.rulesTop + this.rules.getNaturalHeight());
+         if (wanted != this.shownHeight) {
+            this.shownHeight = wanted;
+            this.setHeight(wanted);
+            ContainerComponent.setPosFocus(this);
+         }
+      }
+
       super.draw(tickManager, perspective, renderBox);
    }
 

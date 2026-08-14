@@ -32,9 +32,9 @@ public class FormColorFill extends FormComponent implements FormPositionContaine
 
    protected FormPosition position;
 
-   private final int width;
+   private int width;
 
-   private final int height;
+   private int height;
 
    private final Color color;
 
@@ -46,6 +46,12 @@ public class FormColorFill extends FormComponent implements FormPositionContaine
       this.width = width;
       this.height = height;
       this.color = color;
+   }
+
+   /** For a backing whose content flexes: it has to end up the size of whatever it is standing behind. */
+   public void setSize(int width, int height) {
+      this.width = width;
+      this.height = height;
    }
 
    @Override

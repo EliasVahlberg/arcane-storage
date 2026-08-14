@@ -10,6 +10,12 @@ reference now points at the pytest file that owns the assertion. See `docs/TESTI
 
 ## Confirmed in game
 
+**The transfer resolver, 14 Aug 2026.** All ten steps of the script below were run and behave as written --
+the resolver, the Apply transaction, the refusal, the two-sided stop, the terminal's banner, the recovery, and
+the broken-container heartbeat. Phase 5b is confirmed end to end.
+
+The UI feedback from that pass is implemented and is what needs eyes next, under "Still needs eyes".
+
 **Phase 5b, 13 Aug 2026.** The Apply button works once it is outside the filter list's rectangle. A rule set that
 contradicts a bus sharing the same container is refused when applied, and the soft-fail path -- the device
 stopping rather than churning -- was seen to detect the feedback-loop case correctly. Not yet looked at: the grey
@@ -32,7 +38,35 @@ Stated by Elias, in order of confirmation:
 
 ## Still needs eyes
 
+### The reworked rule panel and logistics tab — 14 Aug 2026, none of it seen
+
+From the UI notes taken during the ten-step pass. Three changes, and the layout arithmetic behind all of them
+is invisible to the harness, so this is the class of thing that has been wrong twice before.
+
+1. **The bus panel reads name, status, amount, filter.** The name is the top row. The status line sits directly
+   under it and takes no space at all when nothing is wrong -- the large empty block above the name is gone,
+   because it was a fixed reservation sized against the longest message any device could produce. When a status
+   does appear and wraps, **the whole window grows by exactly that much** rather than squeezing the controls.
+   Check that it grows upward and stays anchored above the hotbar: the window is re-anchored on each height
+   change, and if that is wrong it will grow down through the inventory instead.
+2. **The logistics tab shows one box per stopped device**, red, carrying only the device's name, wrapped across
+   as many rows as they need. **The full reason is a hover tooltip** on the box, and **clicking a box selects
+   that device**, so the fix is one click from the diagnosis. Above them is a one-line count. With nothing
+   wrong, the area collapses to that single line and the lists below gain the space back.
+   Previously this was four lines of prose that two stopped buses already overflowed.
+3. **A Copy button appears beside the count** when at least one device has stopped, and puts every reason on
+   the clipboard, one per line. It is removed entirely when nothing is wrong rather than greyed out. Worth
+   pasting somewhere to check the text is legible out of context.
+4. **The terminal's rules pane scrolls as a whole.** Previously only the category tree had a bar, so the name,
+   amount, search and Apply rows were squeezed into a pane shorter than the bus panel those proportions were
+   chosen for. Now one bar covers everything and the editor gets its natural height. Check there is exactly one
+   scrollbar, that Apply is reachable by scrolling to the bottom, and that the tree's own rows still respond --
+   nested scroll regions are what made Apply inert once already.
+
 ### The transfer resolver — Phase 5b, built while Elias was away, none of it seen in game
+
+**Confirmed 14 Aug 2026 — all ten steps behave as written.** Kept because it is the script to re-run whenever
+the resolver or the bus panel changes, and the UI rework above changes what steps 2, 5 and 7 look like.
 
 Everything below is verified headlessly by 148 scenario tests and 19 unit tests; what none of those can see
 is what a player looks at. Run in this order, since each step sets up the next.
@@ -75,21 +109,22 @@ Fixed after the first attempt at this script, so start again from step 2:
   touched, which is every path to it. The list now stops short of a reserved strip. It is also no longer
   disabled when there is nothing to send, because a disabled button looks exactly like that bug.
 
-### The logistics tab — new, none of it seen
+### The logistics tab — confirmed working 13–14 Aug, except the reworked parts above
 
-Open the terminal and pick the Logistics tab. There should be four tabs now.
+Elias's words on the first pass: *"working nicely... correctly turns them red when there is an issue and they
+are disabled."* Steps 1–8 below were exercised during the ten-step resolver pass. Steps 1, 2, 4 and 5 are the
+ones the 14 Aug rework changed, so re-read them against the reworked list at the top of this section.
 
 1. **With nothing wrong**, the issues panel should be absent rather than an empty red box, and the line should
    read that every device is working. The device list on the left should name both buses with their
    coordinates.
 2. **Pick a device.** Its rules should appear on the right, briefly showing "Reading this device's rules" while
-   they are fetched. Check the editor is usable in a pane that is shorter than the bus's own panel -- this is
-   the layout most likely to be wrong, since the pane is about 380px tall and the panel was 420.
+   they are fetched. *The pane now scrolls as a whole, so the editor is no longer squeezed into it.*
 3. **Change something and Apply.** It should take effect exactly as it does from the bus's own panel.
 4. **Make a contradiction from here**: give the export bus a floor, then try to give the import bus a higher
-   ceiling for the same item. The refusal should appear in the pane, above the editor.
-5. **Now let a contradiction stand** so both buses stop. The issues panel should turn red and name both devices
-   with reasons, and both rows in the list should turn red. This is the thing the storage tab's one-line banner
+   ceiling for the same item. The refusal should appear *in the editor's status line, under the name row*.
+5. **Now let a contradiction stand** so both buses stop. *Both should appear as red name boxes with the reason
+   on hover*, and both rows in the list should turn red. This is the thing the storage tab's one-line banner
    could not do, so it is the point of the whole tab -- judge whether it reads as informative rather than
    alarming.
 6. **Check the storage tab's banner** still says the count and now points here.
@@ -321,11 +356,13 @@ whatever form asks for one -- so moving it into its own container later is a cha
   render; the feature was cut for time before that last check happened.
 
   If revisited: rebuild with the call site uncommented, open the logistics tab, select a bus, and
-  look. If it still does not render, the diagnostic logging already in `drawWorldMarker()` (an
-  unconditional per-frame trace, a guard-failure trace, and a try/catch around the draw calls)
-  should be the starting point rather than new theories — three rounds of plausible-sounding
-  coordinate/lifecycle theories were all wrong or unconfirmed, and empirical tracing is what
-  finally found the real mechanism.
+  look. Note that the UI rework of 14 Aug removed the block in `updateLogistics` that set `markerX`
+  and `markerY`, since nothing read them any more — so re-enabling needs that restored too, or the
+  method returns at its own first guard. If it still does not render, the diagnostic logging already
+  in `drawWorldMarker()` (an unconditional per-frame trace, a guard-failure trace, and a try/catch
+  around the draw calls) should be the starting point rather than new theories — three rounds of
+  plausible-sounding coordinate/lifecycle theories were all wrong or unconfirmed, and empirical
+  tracing is what finally found the real mechanism.
 
 ---
 

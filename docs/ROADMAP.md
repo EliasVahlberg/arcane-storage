@@ -697,14 +697,20 @@ is a balancing question rather than a technical one and is written up in the bac
 
 ### Needs a person
 
-Everything the tests cannot see. None of it is verified:
+**The ten-step resolver script is confirmed, 14 Aug 2026** — the resolver, the Apply transaction, the refusal,
+the two-sided stop, the banner, the recovery and the broken-container heartbeat all behave as specified. What
+came out of that pass was UI feedback rather than defects, and it is implemented: the panel now reads
+name-status-amount-filter with a status line that takes no space until there is something wrong and grows the
+window when there is, stopped devices appear as flow-wrapped name boxes with their reason on hover and a Copy
+button for the set, and the terminal's rules pane scrolls as a whole instead of only its category tree.
+
+Still unverified, all of it visual:
 
 1. The grey sprite — that it reads as "stopped" and not as a different object.
 2. The chat line's wording when a device stops.
-3. The hover tip on a stopped bus, and the reason line in its panel.
-4. The Apply button's placement and colour, and whether "Unapplied changes" reads clearly.
-5. The terminal's red "N stopped at x,y" banner.
-6. How prompt the whole thing feels now that work follows changes rather than a timer.
+3. The reworked panel and tab layouts, listed step by step in `docs/QA_BACKLOG.md`.
+4. The terminal's red "N stopped at x,y" banner.
+5. How prompt the whole thing feels now that work follows changes rather than a timer.
 
 Sprites are luminance-weighted desaturations generated from the current placeholder art and will need
 regenerating when real art lands.
