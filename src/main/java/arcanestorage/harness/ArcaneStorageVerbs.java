@@ -7,6 +7,7 @@ import java.util.Locale;
 
 import arcanestorage.ArcaneStorage;
 import arcanestorage.object.UnitTier;
+import arcanestorage.upgrade.UnitUpgrade;
 import arcanestorage.container.StorageTerminalContainer;
 import arcanestorage.network.NetworkContents;
 import arcanestorage.object.StorageConduitObject;
@@ -113,6 +114,9 @@ public final class ArcaneStorageVerbs {
       Harness.registerExpectation(new BusStateQuery());
       Harness.registerExpectation(new TerminalProblemsQuery());
       Harness.registerExpectation(new IndexDriftQuery());
+      Harness.registerVerb(new UpgradeVerb());
+      Harness.registerExpectation(new UpgradeQuery());
+      Harness.registerExpectation(new PlayerItemQuery());
       Harness.registerExpectation(new HookQuery());
       Harness.registerVerb(new RuleGlobalVerb());
       Harness.registerVerb(new RuleCategoryVerb());
@@ -1731,6 +1735,134 @@ public final class ArcaneStorageVerbs {
    }
 
    /** The bus at a tile, or null with no message: callers report their own verb's name. */
+   /**
+    * The last upgrade attempt's outcome, so a refusal can be asserted without the verb having to fail.
+    *
+    * <p>A verb that fails is awkward to test against a refusal that is <i>expected</i> -- the interesting
+    * assertion for "abort when short" is not that the call errored but that <b>nothing was consumed</b>, which
+    * needs the run to continue afterwards.
+    */
+   private static UnitUpgrade.Result lastUpgrade;
+
+   private static final class UpgradeVerb implements TestVerb {
+      public String name() {
+         return "upgrade";
+      }
+
+      public String usage() {
+         return "upgrade <dx> <dy>";
+      }
+
+      public int coordinateArgIndex() {
+         return 1;
+      }
+
+      public boolean needsPlayer() {
+         return true;
+      }
+
+      public boolean run(TestContext context) {
+         int x = context.tileX(context.intArg(1));
+         int y = context.tileY(context.intArg(2));
+         lastUpgrade = UnitUpgrade.attempt(context.level, x, y, context.client);
+         return true;
+      }
+   }
+
+   private static final class UpgradeQuery implements TestVerb, TestQuery {
+      public String name() {
+         return "upgrade";
+      }
+
+      public String usage() {
+         return "query upgrade <dx> <dy>";
+      }
+
+      public int coordinateArgIndex() {
+         return 2;
+      }
+
+      public boolean run(TestContext context) {
+         return true;
+      }
+
+      public void query(TestContext context, Json.Writer out) {
+         int x = context.tileX(context.intArg(2));
+         int y = context.tileY(context.intArg(3));
+
+         out.str("outcome", lastUpgrade == null ? "none" : lastUpgrade.outcome.name().toLowerCase(java.util.Locale.ROOT));
+         out.num("carried", lastUpgrade == null ? -1 : lastUpgrade.carried);
+         out.num("dropped", lastUpgrade == null ? -1 : lastUpgrade.dropped);
+         out.num("slotsbefore", lastUpgrade == null ? -1 : lastUpgrade.slotsBefore);
+         out.num("slotsafter", lastUpgrade == null ? -1 : lastUpgrade.slotsAfter);
+
+         UnitTier tier = UnitUpgrade.tierAt(context.level, x, y);
+         out.str("tier", tier == null ? "none" : tier.name().toLowerCase(java.util.Locale.ROOT));
+         out.str("next", tier == null || tier.next() == null ? "none"
+            : tier.next().name().toLowerCase(java.util.Locale.ROOT));
+         out.str("target", UnitUpgrade.targetId(context.level, x, y) == null
+            ? "none" : UnitUpgrade.targetId(context.level, x, y));
+         out.bool("station", UnitUpgrade.isStation(context.level, x, y));
+         out.bool("affordable", UnitUpgrade.affordable(context.level, context.client.playerMob, x, y));
+
+         necesse.inventory.recipe.Ingredient[] cost = UnitUpgrade.cost(context.level, x, y);
+         java.util.List<arcanestorage.network.NetworkStorage> pool = UnitUpgrade.pool(context.level, x, y);
+         StringBuilder names = new StringBuilder();
+
+         if (cost != null) {
+            for (necesse.inventory.recipe.Ingredient ingredient : cost) {
+               String id = ingredient.ingredientStringID;
+               if (names.length() > 0) {
+                  names.append(',');
+               }
+
+               names.append(id);
+               out.num("req_" + id, ingredient.getIngredientAmount());
+               out.num("haveinv_" + id, UnitUpgrade.inPlayer(context.level, context.client.playerMob, ingredient));
+               out.num("havenet_" + id, UnitUpgrade.inNetwork(pool, ingredient));
+               out.num("have_" + id,
+                  UnitUpgrade.available(context.level, context.client.playerMob, pool, ingredient));
+            }
+         }
+
+         out.str("cost", names.toString());
+         out.num("poolsize", pool.size());
+      }
+   }
+
+   /**
+    * How many of an item the player is carrying.
+    *
+    * <p>Needed because the upgrade's own query only reports the materials of the <i>next</i> tier, so it
+    * cannot answer "was the player's stock left alone" after the tier has already moved on.
+    *
+    * <p>Uses the same four inventory flags the upgrade consumes with, so the number a test reads is the number
+    * the upgrade would have spent -- not a wider view that would hide a discrepancy.
+    */
+   private static final class PlayerItemQuery implements TestVerb, TestQuery {
+      public String name() {
+         return "playerinv";
+      }
+
+      public String usage() {
+         return "query playerinv <item>";
+      }
+
+      public boolean needsPlayer() {
+         return true;
+      }
+
+      public boolean run(TestContext context) {
+         return true;
+      }
+
+      public void query(TestContext context, Json.Writer out) {
+         necesse.inventory.recipe.Ingredient probe =
+            new necesse.inventory.recipe.Ingredient(context.arg(2), 1);
+         out.num("count", UnitUpgrade.inPlayer(context.level, context.client.playerMob, probe));
+      }
+   }
+
    private static BusObjectEntity busAt(TestContext context, int argIndex) {
       ObjectEntity entity = context.level.entityManager.getObjectEntity(
          context.tileX(context.intArg(argIndex)), context.tileY(context.intArg(argIndex + 1)));
@@ -1941,13 +2073,19 @@ public final class ArcaneStorageVerbs {
          List<NetworkStations> units = terminal.getLinkedStationUnits();
          List<String> order = new ArrayList<>();
          int sockets = 0;
+         int installed = 0;
          for (NetworkStations unit : units) {
             sockets += unit.getInventory().getSize();
+            installed += unit.getInventory().getUsedSlots();
             order.add(String.valueOf(unit.tileOrder()));
          }
 
          out.num("sockets", sockets);
          out.num("units", units.size());
+
+         // Benches actually in sockets, as opposed to sockets available. Added for the upgrade tests: growing
+         // a Station Unit is only correct if the count of installed benches is unchanged by it.
+         out.num("installed", installed);
          out.strings("order", order);
       }
 
