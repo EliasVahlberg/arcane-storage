@@ -664,6 +664,13 @@ disabled state have never been rendered once.
    button's missing side guard and the bus panel's double-wrapped filter; a new headless test pins the
    server-side half, and nothing can pin the rest.
 
+0f. **Shortened text -- read the stations tab and the bus panel once each.** 26 of 70 strings were cut, 47%
+   shorter across those. Two things want eyes rather than a diff: the stations tab now measures its text instead of
+   reserving 48 and 64 px for the paragraphs that used to be there, so check nothing collides or looks padded; and
+   one fact was deliberately dropped from the stations help -- that an upgraded station also covers the recipes of
+   the station it replaced, so a Demonic Workstation is a Workstation too. That saves a socket for anyone who knows
+   it. If it should stay, a socket tooltip is a better home for it than the tab's help paragraph.
+
 0d. **The cost rows should now sit clear of the button.** Two attempts, and the second is the one that matches
    vanilla. The rows are `FormFairTypeLabel`s whose text was only set in `draw()`, and `FormFlow.nextY` advances by
    the bounding box a component has *at construction* -- zero for an empty one -- so every row landed at the same y

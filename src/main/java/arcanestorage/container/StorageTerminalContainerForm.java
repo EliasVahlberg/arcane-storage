@@ -886,8 +886,8 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
       if (sockets == 0) {
          // Deliberately says what to do, not what went wrong. An empty tab with no explanation reads as
          // a broken feature, and this is the one state every new network starts in.
-         form.addComponent(new FormLocalLabel("ui", "arcanestorage_stations_none", new FontOptions(16), -1,
-               PADDING, flow.next(48), FORM_WIDTH - PADDING * 2));
+         form.addComponent(flow.nextY(new FormLocalLabel("ui", "arcanestorage_stations_none", new FontOptions(16),
+               -1, PADDING, 0, FORM_WIDTH - PADDING * 2), PADDING));
       } else {
          // FormFlow.next(add) returns the position *before* advancing, so a row's Y is captured when the
          // row opens rather than read back afterwards -- the flow has no getter for where it is.
@@ -905,10 +905,12 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
          flow.next(PADDING);
       }
 
-      // Wrapped over the width of the form rather than sized to the text, because the explanation is
-      // three sentences and the tab is otherwise empty -- there is no layout pressure to save space.
-      form.addComponent(new FormLocalLabel("ui", "arcanestorage_stations_help", new FontOptions(16), -1,
-            PADDING, flow.next(64), FORM_WIDTH - PADDING * 2));
+      // Wrapped over the form's width, and measured rather than given a fixed slot. Both labels used to reserve
+      // enough height for the paragraphs they held; the text is now one or two lines, and a reserved 48 and 64 px
+      // would leave the tab looking padded. Measuring also means a translation that runs longer than the English
+      // cannot collide with whatever sits below it, which a constant chosen against one language always can.
+      form.addComponent(flow.nextY(new FormLocalLabel("ui", "arcanestorage_stations_help", new FontOptions(16), -1,
+            PADDING, 0, FORM_WIDTH - PADDING * 2), PADDING));
 
       return form;
    }
