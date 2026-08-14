@@ -79,6 +79,12 @@ public final class IndexedInventories {
    public static void slotChanged(Inventory inventory, int slot) {
       notifications++;
 
+      // Any open upgrade panel showing this inventory's network now has stale numbers. Told here rather than
+      // from a timer, because this is already the one place in the mod that knows a container changed -- the
+      // same signal that keeps a network's aggregate counts correct. The panel only marks itself dirty; the
+      // sending, and the coalescing that stops forty deposits becoming forty packets, is its own tick's job.
+      arcanestorage.upgrade.UnitUpgradeContainer.inventoryChanged(inventory);
+
       NetworkIndex index = OWNERS.get(inventory);
       if (index != null) {
          relevant++;

@@ -237,6 +237,10 @@ public final class NetworkIndexes {
    public static void forget() {
       BY_LEVEL.clear();
       IndexedInventories.forget();
+
+      // Open panels are per-scenario state too: a container left in the set would keep a dead level's
+      // inventories reachable and mark itself dirty against a world that no longer exists.
+      arcanestorage.upgrade.UnitUpgradeContainer.forget();
       topologyChanged();
    }
 

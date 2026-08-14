@@ -639,3 +639,29 @@ Implemented and covered by 17 headless tests, but nothing below can be seen head
    which is the normal state during an upgrade.
 5. **Eight sockets of installed benches**, laid out. `buildStationsTab` wraps sockets onto rows computed from
    the form width; one socket has been seen working and eight has not.
+
+
+## The unit upgrade panel — only eyes can check this
+
+The operation underneath is covered by 21 headless tests, including that nothing is lost. The panel is not
+coverable at all: forms are client-side and the harness has no client, so layout, colour and the button's
+disabled state have never been rendered once.
+
+1. **Right-click a unit of each tier.** The panel replaced a chat message, so the regression to watch for is
+   nothing appearing at all. A Fallen unit should show "Already at the highest tier" and **no button**, which is
+   a different code path from the other three.
+2. **The requirement rows colour correctly.** Drawn with `Ingredient.getTooltipText`, the same call vanilla's
+   Upgrade Station uses, so a met requirement takes the interface's active colour and an unmet one its error
+   colour. Worth confirming against a vanilla crafting cost side by side — if they disagree, the wrong colour
+   pair is being passed.
+3. **The button greys out and un-greys without reopening.** This is the whole point of pushing rather than
+   polling: deposit the last missing bar into a chest on the network from a *second* client, and the first
+   client's button should enable on its own. Equally, spend the materials elsewhere and it should grey out.
+4. **The used/total figure tracks deposits live**, for the same reason.
+5. **Two clients on the same unit.** Both should update, since the event is sent per client with a container
+   open on that tile.
+6. **An open terminal during an upgrade.** Known-suspect: the terminal's container holds slot references to the
+   unit inventories, and an upgrade replaces the object entity underneath it. The panel closes itself on success,
+   but a terminal open at the same moment may show stale slots until reopened. Not yet tested either way.
+7. **Panel width against long item names.** Rows are centred and wrapped at 204px; `alchemyshard` with a
+   five-digit held count is about the worst case.

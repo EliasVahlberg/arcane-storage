@@ -1,5 +1,8 @@
 package arcanestorage.object;
 
+import arcanestorage.ArcaneStorage;
+import arcanestorage.upgrade.UnitUpgradeContainer;
+
 import necesse.entity.pickup.ItemPickupEntity;
 import necesse.entity.mobs.Attacker;
 import arcanestorage.network.NetworkIndexes;
@@ -80,18 +83,8 @@ public class StorageUnitObject extends StorageBoxInventoryObject implements Netw
       }
 
       ObjectEntity entity = level.entityManager.getObjectEntity(x, y);
-      if (entity instanceof StorageUnitObjectEntity) {
-         StorageUnitObjectEntity unit = (StorageUnitObjectEntity)entity;
-         client.sendChatMessage(
-            Localization.translate(
-               "ui",
-               "arcanestorage_unitstatus",
-               "used",
-               String.valueOf(unit.getUsedSlots()),
-               "total",
-               String.valueOf(unit.slots)
-            )
-         );
+      if (entity != null) {
+         UnitUpgradeContainer.open(ArcaneStorage.UPGRADE_CONTAINER, client, entity);
       }
    }
 

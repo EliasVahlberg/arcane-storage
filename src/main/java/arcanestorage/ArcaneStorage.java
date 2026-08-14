@@ -73,6 +73,9 @@ public class ArcaneStorage {
    /** Shared by both buses: the panel differs only in its two labels. */
    public static int BUS_CONTAINER = -1;
 
+   /** The in-place upgrade panel, opened by right-clicking any tiered unit. */
+   public static int UPGRADE_CONTAINER = -1;
+
    /**
     * The mod's client settings, handed to the loader from {@link #initSettings()} and persisted by
     * the game. Static because the UI reads it and there is exactly one.
@@ -125,6 +128,29 @@ public class ArcaneStorage {
             client, uniqueSeed, (BusObjectEntity)objectEntity, content
          )
       );
+
+      // One container for both ladders and every rung. What differs between a Storage Unit and a Station Unit
+      // here is a label and which string ID the next tier is, both of which the container reads off the tile.
+      UPGRADE_CONTAINER = ContainerRegistry.registerOEContainer(
+         (client, uniqueSeed, objectEntity, content) -> {
+            arcanestorage.upgrade.UnitUpgradeContainer container =
+               new arcanestorage.upgrade.UnitUpgradeContainer(client.getClient(), uniqueSeed, objectEntity, content);
+            return new arcanestorage.upgrade.UnitUpgradeContainerForm<>(
+               client, container,
+               container.station
+                  ? (container.tier == null ? STATION_UNIT_STRING_ID : container.tier.stationId())
+                  : (container.tier == null ? UNIT_STRING_ID : container.tier.storageId())
+            );
+         },
+         (client, uniqueSeed, objectEntity, content, serverObject) ->
+            new arcanestorage.upgrade.UnitUpgradeContainer(client, uniqueSeed, objectEntity, content)
+      );
+
+      // Registered so the panel's numbers can be pushed rather than polled. The event carries derived totals,
+      // which is the one thing the engine's container-slot synchronisation cannot deliver on its own -- a sum
+      // has no slot to travel with. Vanilla registers its shop stock and wealth updates for the same reason.
+      necesse.inventory.container.events.ContainerEventRegistry.registerUpdate(
+         arcanestorage.upgrade.UpgradeStateEvent.class);
    }
 
    public void initResources() {

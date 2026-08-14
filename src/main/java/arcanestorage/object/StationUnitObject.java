@@ -1,5 +1,8 @@
 package arcanestorage.object;
 
+import arcanestorage.ArcaneStorage;
+import arcanestorage.upgrade.UnitUpgradeContainer;
+
 import java.awt.Color;
 import java.util.ArrayList;
 
@@ -86,12 +89,8 @@ public class StationUnitObject extends StorageBoxInventoryObject implements Netw
       }
 
       ObjectEntity entity = level.entityManager.getObjectEntity(x, y);
-      if (entity instanceof StationUnitObjectEntity) {
-         StationUnitObjectEntity unit = (StationUnitObjectEntity)entity;
-         client.sendChatMessage(
-               Localization.translate("ui", "arcanestorage_stationunitstatus",
-                     "used", String.valueOf(unit.getUsedSlots()),
-                     "total", String.valueOf(unit.slots)));
+      if (entity != null) {
+         UnitUpgradeContainer.open(ArcaneStorage.UPGRADE_CONTAINER, client, entity);
       }
    }
 
