@@ -1,6 +1,8 @@
 package arcanestorage.upgrade;
 
+import arcanestorage.container.FormColorFill;
 import arcanestorage.ui.ArcanePanel;
+import java.awt.Color;
 import java.awt.Rectangle;
 import necesse.engine.gameLoop.tickManager.TickManager;
 import necesse.engine.localization.Localization;
@@ -42,25 +44,34 @@ public class UnitUpgradeContainerForm<T extends UnitUpgradeContainer> extends Co
    private static final int WIDTH = 440;
 
    /**
-    * The vertical slot each requirement row is given.
+    * The font of a requirement row, shared by layout and drawing.
     *
-    * <p>It is reserved rather than measured, and that distinction was the layout bug. A row is a
-    * {@link FormFairTypeLabel} built with empty text, because its text is a coloured cost line that only exists
-    * once the server has sent a state; an empty label's height is zero. {@code FormFlow.nextY} advances by the
-    * height a component has <i>at construction</i>, so every row was placed at the same y and the button, laid out
-    * after them, sat on top. Reserving a fixed slot with {@code flow.next(ROW_HEIGHT)} decouples the layout from
-    * text that does not exist yet.
-    *
-    * <p>Wide enough for one line at the row font. A cost line that wrapped would overflow its slot, which the
-    * 440 px width makes unlikely -- the longest real case is an Alchemy Shard count of five digits.
+    * <p>Shared deliberately. The row's height is measured once at construction and its text is rebuilt every frame;
+    * if those two used different font sizes the panel would be laid out for one row height and draw another, which
+    * is the same class of fault as the bug this replaced and harder to see.
     */
-   private static final int ROW_HEIGHT = 26;
+   private static final FontOptions COST_FONT = new FontOptions(18);
+
+   /**
+    * Drawn over the panel's centre, inset so the purple frame still reads as a border.
+    *
+    * <p>The alternative was to keep the panel's own brightness and pick a text colour to suit it, which is what the
+    * first attempt did by taking the interface style's active colour. That is theme-correct and was still hard to
+    * read, because the panel is the mod's own art and darker than the engine's, and the style's colours are chosen
+    * for the engine's. Fixing the background instead means the text colour can simply be white and stay legible
+    * whatever theme is set.
+    */
+   private static final Color BACKING = new Color(10, 7, 16, 235);
+
+   private static final Color TEXT = Color.WHITE;
 
    /** The slot for the used/total line: one line at its font size, plus breathing room below it. */
    private static final int USAGE_HEIGHT = 16 + 12;
 
    /** Bottom padding below the last component, and the only thing that makes the panel's height not exact. */
    private static final int BOTTOM_PADDING = 12;
+
+   private final FormColorFill backing;
 
    private final FormLabel usage;
 
@@ -76,13 +87,12 @@ public class UnitUpgradeContainerForm<T extends UnitUpgradeContainer> extends Co
       super(client, WIDTH, 200, container);
       this.setBackground(ArcanePanel.of());
 
+      // First, so it draws behind every label. Sized at the end, once the content's height is known.
+      this.backing = this.addComponent(new FormColorFill(4, 4, WIDTH - 8, 0, BACKING));
+
       FormFlow flow = new FormFlow(12);
 
-      // Every label is coloured explicitly. A label's default is dark, and this form's background is the mod's
-      // own deep purple panel rather than the engine's lighter default, so unstyled text arrives as near-black on
-      // near-black -- present, correctly laid out, and unreadable. Taken from the interface style rather than
-      // hard-coded so it follows the player's theme, which is also where the requirement rows get their colours.
-      final java.awt.Color text = this.getInterfaceStyle().activeTextColor;
+      final Color text = TEXT;
 
       this.addComponent(
          flow.nextY(
@@ -128,10 +138,21 @@ public class UnitUpgradeContainerForm<T extends UnitUpgradeContainer> extends Co
          );
 
          for (int i = 0; i < this.rows.length; i++) {
-            FormFairTypeLabel row = new FormFairTypeLabel("", WIDTH / 2, flow.next(ROW_HEIGHT));
+            FormFairTypeLabel row = new FormFairTypeLabel("", WIDTH / 2, 0);
             row.setMaxWidth(WIDTH - 32);
             row.setTextAlign(FairType.TextAlign.CENTER);
-            this.rows[i] = this.addComponent(row);
+
+            // Its real text, before the flow measures it. This is the whole fix, and it is what vanilla's Upgrade
+            // Station does -- setCustomFairType then nextY. A row is not a line of text but a line containing a
+            // 32 px item icon, so its height is the icon's and no constant chosen here would have been right; the
+            // reserved 26 px that replaced the previous zero-height bug was still short enough to slide the last
+            // row under the button. The amount passed is only a placeholder, since draw() rebuilds this every
+            // frame with the pushed count -- what matters at this point is that the row has its true height.
+            row.setCustomFairType(
+               container.cost[i].getTooltipText(COST_FONT, 0, TEXT, this.getInterfaceStyle().errorTextColor, true, null)
+            );
+
+            this.rows[i] = this.addComponent(flow.nextY(row, 4));
          }
 
          flow.next(10);
@@ -150,6 +171,7 @@ public class UnitUpgradeContainerForm<T extends UnitUpgradeContainer> extends Co
       // height, so this is exact apart from the padding below it, and it removes the guessed constant that made
       // the panel both too tall and, for the top tier with no rows at all, mostly empty.
       this.setHeight(flow.next(BOTTOM_PADDING));
+      this.backing.setSize(WIDTH - 8, this.getHeight() - 8);
    }
 
    @Override
@@ -166,8 +188,6 @@ public class UnitUpgradeContainerForm<T extends UnitUpgradeContainer> extends Co
             )
       );
 
-      FontOptions costFont = new FontOptions(18);
-
       for (int i = 0; i < this.rows.length; i++) {
          Ingredient ingredient = this.container.cost[i];
 
@@ -177,9 +197,9 @@ public class UnitUpgradeContainerForm<T extends UnitUpgradeContainer> extends Co
 
          this.rows[i].setCustomFairType(
             ingredient.getTooltipText(
-               costFont,
+               COST_FONT,
                have,
-               this.getInterfaceStyle().activeTextColor,
+               TEXT,
                this.getInterfaceStyle().errorTextColor,
                true,
                null

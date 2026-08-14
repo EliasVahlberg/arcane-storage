@@ -664,12 +664,21 @@ disabled state have never been rendered once.
    button's missing side guard and the bus panel's double-wrapped filter; a new headless test pins the
    server-side half, and nothing can pin the rest.
 
-0d. **The panel now fits its content -- check the cost rows are clear of the button.** The rows were laid out on
-   top of each other and half-hidden under the button, because a `FormFairTypeLabel` built with empty text has
-   zero height and `FormFlow.nextY` advances by the height a component has at construction. Rows and the
-   used/total line now reserve fixed slots, and the panel's height is measured from the laid-out content rather
-   than guessed, so it is 25-27% shorter for a normal rung and about half for the top tier. Check each rung: one
-   material for base to Demonic, two for the rungs above, and no button at all on Fallen.
+0d. **The cost rows should now sit clear of the button.** Two attempts, and the second is the one that matches
+   vanilla. The rows are `FormFairTypeLabel`s whose text was only set in `draw()`, and `FormFlow.nextY` advances by
+   the bounding box a component has *at construction* -- zero for an empty one -- so every row landed at the same y
+   with the button on top. Reserving a fixed 26 px slot fixed the stacking but not the overlap, because a row is not
+   a line of text: it contains a 32 px item icon, so no constant chosen here was going to be right. Each row now
+   gets its real text before being laid out, exactly as `UpgradeStationContainerForm` does, and the flow measures
+   it. Check each rung -- one material for base to Demonic, two above it, no button on Fallen -- and that no icon
+   is clipped top or bottom.
+
+0e. **Legibility is now the background's job, not the text colour's.** A near-opaque dark quad is drawn over the
+   panel's centre, inset 4 px so the purple frame still reads as a border, and all text is plain white. The earlier
+   attempt took the interface style's active colour, which is theme-correct and still hard to read, because the
+   panel is the mod's own art and darker than the one those colours are chosen for. Only the "not enough" colour
+   still comes from the style. Check it against a non-default theme, and check the frame still looks intentional
+   rather than like a border around a black box.
 
 0c. **Panel size and legibility.** Doubled to 440x208 with larger fonts, and every label now takes its colour
    from the interface style. Unstyled labels default to near-black, and this form draws on the mod's deep purple
