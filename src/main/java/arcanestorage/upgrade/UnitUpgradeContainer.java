@@ -236,6 +236,22 @@ public class UnitUpgradeContainer extends Container {
 
       @Override
       public void executePacket(PacketReader reader) {
+         // Runs on both sides, and must do nothing on the client.
+         //
+         // ContainerCustomAction.runAndSendAction sends the packet and then calls executePacket locally, so the
+         // clicking client executes this too -- where getServerClient() throws a ClassCastException, because a
+         // NetworkClient on that side is a ClientClient. Observed in game: the upgrade itself succeeded, since
+         // the packet is sent before the local call and the server's copy ran normally, but the client logged
+         // an error for work it had no business doing.
+         //
+         // Every action in StorageTerminalContainer already opens with this guard. This one did not, and no test
+         // could have caught it: the harness has no client, so client.isServer() is always true there and the
+         // client branch is unreachable. That is the second bug in this mod to hide in exactly that gap -- the
+         // first was the bus panel decoding its filter from a double-wrapped packet.
+         if (!UnitUpgradeContainer.this.client.isServer()) {
+            return;
+         }
+
          ServerClient serverClient = UnitUpgradeContainer.this.client.getServerClient();
          Level level = serverClient.getLevel();
 

@@ -647,6 +647,14 @@ The operation underneath is covered by 21 headless tests, including that nothing
 coverable at all: forms are client-side and the harness has no client, so layout, colour and the button's
 disabled state have never been rendered once.
 
+0. ~~**The Upgrade button threw a ClassCastException.**~~ **Fixed Aug 2026, needs one confirmation.**
+   `executePacket` ran on the clicking client as well as the server, where `getServerClient()` is an
+   unconditional cast. The upgrade itself worked -- the packet is sent before the local call, so the server did
+   the work and closed the panel -- and only the client logged an error, but the panel's own close never ran on
+   that side. Worth one click per ladder to confirm the panel now closes cleanly and the log is silent. A JUnit
+   lint test now fails the build if any `executePacket` calls `getServerClient()` without an `isServer` check,
+   since no Python test can reach that branch.
+
 1. **Right-click a unit of each tier.** The panel replaced a chat message, so the regression to watch for is
    nothing appearing at all. A Fallen unit should show "Already at the highest tier" and **no button**, which is
    a different code path from the other three.
