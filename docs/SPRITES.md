@@ -7,11 +7,310 @@ The technical rules below are read from the game's own drawing code
 (`InventoryObject.loadTextures` and `addDrawables`), not from documentation, so they can be
 relied on. Anything not verified is marked `[unverified]`.
 
-## OUTSTANDING REQUEST — August 2026
+## OUTSTANDING REQUEST — 14 August 2026
 
-**One item, not blocking.** The conduit shapes below are delivered and installed.
+Everything the mod still needs drawn, consolidated. This supersedes the scattered per-phase requests
+below, which are kept for their per-sprite intent notes.
 
-### 1. Conduit connection shapes — DELIVERED, August 2026
+**Nine files are genuinely new work.** Another 24 are already delivered and sitting in
+`art-submissions/`, waiting on the features that use them rather than on art. Read
+[The file contract](#the-file-contract) before starting anything — the frame and anchoring rules are
+read from the game's drawing code and are not negotiable.
+
+| # | What | New files | Blocking? | Phase |
+|---|---|---|---|---|
+| A | Storage Unit lighting revision | 1 revised | no | shipped, cosmetic |
+| B | Bus direction in the silhouette | 4 revised + 2 regenerated | **yes, a real defect** | 5, shipped |
+| C | Station Unit | 2 new + 6 derived | yes, when the feature lands | 3 |
+| D | Terminal panel — nine-slice background | 2 new | no | 6 |
+| E | Tier variants | none — 15 delivered | no | 6 |
+| F | Remote access items | none — 3 delivered | no | 6 |
+| G | Category shortcut icons | 0 or ~8, pending a decision | no | 3 |
+
+---
+
+### A. Storage Unit lighting — one 32×32 revision, carried over
+
+`objects/arcanestorageunit.png` is lit flat rather than from above, so a wall of units reads as
+bevelled metal next to vanilla's top-lit furniture. The submission flagged this itself.
+
+The constraint that makes it hard, and it is a hard requirement rather than a preference: **a unit must
+never look openable.** The player cannot open one — that is the whole point of the object — so any top
+highlight that reads as a *lid seam* is worse than the current flat lighting. Light it from above
+without implying a hinge.
+
+Unchanged from the earlier request. Still not blocking, and still the only thing wrong with an
+otherwise-finished sprite.
+
+---
+
+### B. Bus direction has to survive greyscale — and it currently does not
+
+**This is the one item here that fixes a defect rather than adding polish**, and it was found by
+measuring the shipped files rather than by looking at them.
+
+The delivered buses encode direction twice, exactly as asked: colour (import 66 px of green and *zero*
+amber; export 72 px of amber and *zero* green) and an arrow. That was the right instinct. The problem
+is what "the arrow" turned out to be — **an interior fill, not a shape.** Measured on the shipped art:
+
+```
+objects/arcanestorageimportbus.png  vs  objects/arcanestorageexportbus.png
+  -> silhouette pixels differing: 0        (outlines are pixel-identical)
+items/arcanestorageimportbus.png    vs  items/arcanestorageexportbus.png
+  -> silhouette pixels differing: 0        (same for the icons)
+```
+
+Two consequences, one of which is now visible in play:
+
+1. **A stopped bus is drawn desaturated**, and the mod does that itself — `BusObject` swaps in
+   `objects/<id>_inactive.png` while the device is stopped, which is a grey copy of the same art.
+   Confirmed working in game on 14 Aug. But greyscale destroys the *entire* direction signal, because
+   hue was carrying all of it: a stopped import and a stopped export differ by 888 interior pixels of
+   grey value on an identical outline. At 32 px, on a cave floor, beside a chest, that is not a
+   distinction a player will make — and a stopped bus is precisely when they are hunting for which
+   device is which.
+2. **The colour-blind claim in the original submission was overstated**, mine to correct since I
+   accepted it. It said the arrow alone still carries direction for a colour-blind player. It does not
+   carry it *as shape*; a protanope is reading the same value difference as the greyscale case above.
+
+**What to draw.** Add a third, redundant channel: **make the outlines differ.** Keep the colour split
+and the arrow exactly as they are — both work — and change the silhouette so the two buses are
+different shapes. Cheapest options, in the order I would try them:
+
+- Put the arrow *through* the outline: let the import bus's intake notch bite into its own edge and the
+  export bus's spout protrude past it, so one reads concave and the other convex.
+- Or move the mounting bracket: the bracket is on the left in both. An import bus clamped on one side
+  and an export bus clamped on the other differ in outline at a glance and also hint at flow direction.
+
+**Acceptance, and it is measurable rather than a judgement call:** the object silhouettes must differ by
+a visible margin, and so must the icons. Worth checking as `sum((a[i].alpha>0) != (b[i].alpha>0))` over
+the two files — the current answer is 0 for both pairs, and anything in the low hundreds is plenty.
+
+**Files.** `objects/arcanestorage{import,export}bus.png` and `items/arcanestorage{import,export}bus.png`,
+all 32×32. The two `_inactive.png` files are **generated, not drawn** — regenerate them from the revised
+art rather than hand-editing, since they are desaturations of it.
+
+**One frame only, and this is a code limit rather than a preference.** `BusObject.addDrawables` calls
+`sprite.initDraw()` on the whole texture with no sprite section, so a multi-frame sheet would stretch
+the entire sheet across one tile. Facing frames would be welcome eventually — a bus knows which
+neighbour is its container — but they need a code change first, so do not draw them yet.
+
+---
+
+### C. Station Unit — a new object, 32×32, plus three derived tiers
+
+New and not previously requested, from the design decision at ROADMAP line 359: the ten crafting-station
+slots currently on the terminal move onto **their own placed object**, which joins a network by the same
+connectivity rule as a Storage Unit. Slot count is a ladder of **1 → 2 → 4 → 8** across vanilla's four
+station tiers.
+
+**Role.** Carries crafting-station slots. Placing more of them is how a player buys more station
+capacity, the same way placing Storage Units buys item capacity.
+
+**What it has to communicate**, in priority order:
+
+1. **That it is a unit** — same family, same footprint, obviously a sibling of the Storage Unit, because
+   it obeys the same connectivity rule and players should expect that from the shape.
+2. **That it is not the Storage Unit.** These two will stand side by side in the same block, and
+   confusing them means a player wonders why their items are not showing up. This needs to survive being
+   one tile in a wall of near-identical tiles, which is the same tiling constraint the Storage Unit has.
+3. **That it holds tools rather than goods** — a rack, a mount, a bracket, a socket. Something that reads
+   as "a thing goes in here" rather than "things are kept in here".
+
+Like the Storage Unit it is **never opened by the player** — its slots are reached through the terminal —
+so it needs no lid affordance and should not have one. Whether it gets an `_open` state depends on a
+decision not yet made about whether it can be interacted with directly; assume not for now.
+
+**Files.** `objects/arcanestoragestationunit.png` and `items/arcanestoragestationunit.png`, 32×32, one
+frame. The three upper tiers follow the settled naming — `arcanestorage{demonic,tungsten,fallen}stationunit`
+— and are **derived by recolour, not drawn**, using the same frame-only recolour as request E. So this is
+two files of real work and six generated.
+
+**String IDs are provisional**, since the feature is unbuilt. The art does not depend on them.
+
+---
+
+### D. Terminal panel — a nine-slice background, and the layout is now fully specified
+
+Phase 6, deliberately last: it is the one visual change that could not be judged until the layout stopped
+moving, and as of 14 Aug it has. `Form.setBackground(GameBackground)` is public and defaults to
+`GameBackground.form`, so the terminal can carry its own panel without touching anything global.
+
+**This is not one PNG.** It is a nine-slice pair, and the slice geometry is not a convention to be
+guessed — it is read out of `HUD.addOutlines`, `HUD.addCenter` and `GameBackgroundTextures`, and
+**verified against the real `ui/primal/formbackground.png`** by checking which two sides of each corner
+tile carry the dark outline. All four corners, all four edges and the centre matched the decode exactly.
+
+Two files:
+
+| File | Size | Contains |
+|---|---|---|
+| `resources/ui/arcanestoragepanel.png` | **64×112** | the frame *and* the centre fill |
+| `resources/ui/arcanestoragepaneledge.png` | **48×48** | the frame only, no centre |
+
+Both use `edgeResolution E = 12`, matching vanilla's `form` style. The layout, with `E = 12`:
+
+```
+        x: 0-11        12-23       24-47                 48-63
+     +-------------+-----------+--------------------+-----------+
+y  0 | corner BR   | corner BL | bottom edge strip  |           |   <- y 0-11
+  -11|             |           | (repeats across)   |  unused   |
+     +-------------+-----------+--------------------+           |
+y 12 | corner TR   | corner TL | top edge strip     |           |   <- y 12-23
+  -23|             |           | (repeats across)   |           |
+     +-------------+-----------+--------------------+           |
+y 24 | right edge  | left edge |       unused       |           |   <- y 24-47
+  -47| (repeats    | (repeats  |                    |           |
+     |  downward)  | downward) |                    |           |
+     +-------------+-----------+--------------------+-----------+
+y 48 | centre fill, tiled in both directions, using the FULL texture     |
+  .. | width and all remaining height. Here 64 wide x 64 tall.           |
+     +------------------------------------------------------------------+
+```
+
+Only `x 0..4E-1` (0–47) is read above `y = 4E`. **Width beyond 48 exists purely to make the centre
+tile bigger**, which is why vanilla's primal is 64 wide: a 64×64 centre tile repeats less often than a
+48×48 one. Height above 48 is entirely centre. So the minimum legal size is 48×49, and 64×112 is the
+recommendation because it matches vanilla and gives a comfortable centre tile.
+
+**Three things about that layout will catch you out, so they are worth stating plainly:**
+
+- **The corner 2×2 block is point-mirrored.** The top-left corner of the panel lives at the *bottom
+  right* of the corner block, at (12–23, 12–23). This is not a mistake in the diagram — it is what
+  `addOutlines` does, and it is confirmed against vanilla art: the tile at (12–23, 12–23) is the one
+  whose dark outline runs along its own top and left. Getting this wrong produces a panel with its
+  corners rotated 180°, which looks like a rounding artefact rather than an obvious error.
+- **The centre tile is the full texture width**, not the 24 px column left over on the right. At 64×112
+  the centre tile is 64×64. Make it tile seamlessly against itself in both directions, since a tall
+  panel repeats it several times. Vanilla's primal centre is 64×64 and uses only two colours — a flat
+  fill is entirely acceptable and probably correct.
+- **The edge texture is drawn *over* the components, not under them.** `Form.drawEdge` runs after
+  `drawComponents`, and `drawEdge` defaults to **true**, so this file is not optional. It is the rim
+  redrawn on top so content cannot bleed over the frame — which is why vanilla's is exactly 4E×4E with
+  no centre region at all. Draw it as the frame with a transparent middle.
+
+**The single most important number, and it decides how thick to draw the frame.** The form's
+`edgeMargin` is **8**: the background is drawn inflated by 8 px on every side of the form's own
+rectangle (`x - 8, y - 8, width + 16, height + 16`). Vanilla compensates by leaving the **outer 8 px of
+each 12 px slice fully transparent**, so the visible frame is only the inner 4 px. Measured on
+`ui/primal/formbackground.png`: the left edge slice is opaque at columns 8, 9, 10, 11 only, and the top
+edge slice at rows 8, 9, 10, 11 only.
+
+The two facts cancel exactly — `8 px transparent margin` minus `8 px of inflation` — so **vanilla's
+visible frame begins precisely at the form's own edge and is 4 px thick, growing inward.**
+
+So: draw a **4 px frame occupying the inner third of each 12 px slice, and leave the outer 8 px
+transparent.** A frame drawn 12 px thick across the whole slice would instead bleed 8 px outside the
+panel on every side. This is the mistake the geometry invites, and nothing warns about it.
+
+The rounded corners follow from the same thing — vanilla's corner tiles are fully transparent along
+their two outward sides, which is what makes the panel read as rounded rather than as a hard box.
+
+`contentPadding` is ours to choose — vanilla's form uses 0, its tooltip and text box use 2.
+
+**The layout above is verified, not inferred.** It was decoded from `HUD.addOutlines` / `addCenter`, then
+checked against the real vanilla texture two ways: every corner tile's transparent sides match the
+position the code assigns it, and reconstructing a 200×120 panel from these slices alone produces a
+closed frame with a uniform interior fill and no gaps.
+
+**What it has to communicate.** This is the piece that makes the mod feel like its own thing, so the
+arcane purple anchor `#604a8c` belongs here. But it frames a dense interface — four tabs, an item grid, a
+category dropdown, a capacity bar, a filter tree — so it has to stay quiet: a frame with presence and a
+centre that does not compete with item icons sitting on it.
+
+**The trade-off to decide before this ships, not while drawing it.** `GameBackground.form` delegates to
+`Settings.UI.form`, which is the player's chosen interface style, and Necesse ships several. A custom
+panel therefore *ignores that choice* for our form. That is the point when it makes the mod feel
+distinct and the cost when a player has deliberately themed their game. Registering a whole
+`GameInterfaceStyle` is the other option and is the wrong one — it re-skins the entire game rather than
+one interface. A reasonable middle path is a setting, defaulting to the custom panel.
+
+Implementation is about 40 lines and needs no research: instantiate `GameBackgroundTextures(12, 8, N,
+loader, edgeLoader)` against our own textures and wrap it in a thin `GameBackground` subclass that
+delegates its ten methods. Nothing global changes.
+
+---
+
+### E. Tier variants — delivered, no drawing needed
+
+15 files in `art-submissions/2026-08-09-tiers-and-ui/`, matching the settled four-tier naming
+(`arcanestorage{demonic,tungsten,fallen}{unit,terminal}` plus `terminal_open`). Silhouettes are verified
+pixel-identical to the base sprites, and they use the **frame-only** recolour so the housing takes the
+tier material while the glowing core stays arcane purple — a Fallen unit is unmistakably a higher tier
+and still unmistakably Arcane Storage.
+
+Held on Phase 6 building the ladder, not on art. When it lands they get copied in and the recolour script
+rerun if the base sprites have changed. The five-versus-four tier mismatch that blocked this is settled:
+four tiers, vanilla's ladder.
+
+### F. Remote access items — delivered, no drawing needed
+
+`items/arcanestorage{shard,charm,sigil}.png`, 32×32, in `art-submissions/2026-08-09-priority2-3/`.
+Item-only, no object sprites. Escalation is carried by size, brightness and enclosure, with opaque area
+rising 18% → 29% → 46% so the ordering is readable without a tooltip.
+
+Held on remote access, which is in ROADMAP's Deferred list. The submission's own noted weakness stands:
+the middle tier reads as "a slightly bigger shard", which is fine if the three ever appear side by side
+and worth a stronger silhouette if they only ever appear alone.
+
+### G. Category shortcut icons — blocked on a decision, not on art
+
+Six white-mask icons were delivered and **none are used.** Not wasted effort exactly, but a design change
+outran them: the category filter shipped as a **dropdown over the game's own category tree**, which is
+better than a fixed icon row because mod-added categories appear in it for free. Two further facts settle
+why the icons cannot simply be wired up:
+
+- `ItemCategory` has **no icon or texture field at all** — vanilla categories are text-only, so there is
+  no slot to put an icon in.
+- The six buckets do not match Necesse's real top-level categories. Most visibly `consumable` — all food,
+  59 items — has no icon, while `ammo`, a subcategory, has one.
+
+So: **draw nothing here until Elias picks.** Either drop the six, or keep the dropdown and add a short row
+of one-click shortcuts drawn against the real category names — which needs `consumable` and `wiring`
+added, `placeable` renamed to `objects`, and about eight icons total to be worth having.
+
+If it goes ahead, the technical spec is settled and unusual enough to restate: **category icons must be
+flat pure-white masks with detail carried by transparent gaps.** `ButtonIcon` takes a `colorGetter` from
+the button state, so the game **tints them at draw time** — vanilla's own are 100% `#ffffff`. Drawing them
+in arcane purple with top-lit shading would be wrong. 32×32 on a `FormInputSize.SIZE_32` row; icons are
+centred at native size and never scaled, so ≤ 24×24 would be needed for a `SIZE_24` row instead.
+
+---
+
+### Deliberately not requested
+
+So nothing is drawn that will not be used:
+
+- **A capacity gauge.** Listed as an open candidate in the UI section below; that is now stale. Capacity
+  feedback shipped as `FormProgressBarText` using vanilla's `progressBarOutline` plus a four-step fill
+  colour, and it works. **No art needed** — this is the derive-from-vanilla policy landing correctly.
+- **Tab icons.** Necesse ships `FormTabTextComponent`, so tabs are text and the labels are in the locale.
+- **Logistics tab error boxes.** They use vanilla `FormTextButton` chrome in `ButtonColor.RED` with the
+  reason as a tooltip. Confirmed working in game 14 Aug; nothing to draw.
+- **Crafting station slots.** Each shows that station's own vanilla item texture, faded.
+- **Silo connectors for wirelessly linked silos.** In ROADMAP's Deferred list, none started. Drawing a
+  paired connector against an undesigned feature is exactly the waste the tier variants avoided by
+  waiting.
+- **A fullness state for the Storage Unit.** There is no fullness hook — `InventoryObject` supports
+  exactly one alternate state, `_open`. Do not design a sprite whose readability depends on showing how
+  full it is.
+- **`preview.png`.** Installed at **1024×512**, which is a clean 8× downscale to the 128 px height the
+  mod-info panel forces. It may want revisiting for the Workshop listing in Phase 7, but not as pixel art.
+
+### Corrections to this document, 14 Aug 2026
+
+Recorded because a stale spec is worse than none:
+
+- `preview.png` is **1024×512**, not the 512×512 stated further down. Both scale cleanly; the claim was
+  simply out of date.
+- The **capacity gauge is solved without art** (see above), so it is no longer an open UI candidate.
+- The **category icons are unused**, and the reason is a design change rather than an oversight.
+- **Conduit connection shapes are delivered and installed** — 512×32, sixteen frames, measured correct.
+  Still awaiting in-game QA of a real network.
+
+## Already delivered and installed
+
+### Conduit connection shapes — DELIVERED, August 2026
 
 Installed as `objects/arcanestorageconduit.png`, 512×32, sixteen frames. The object switches to
 bitmask rendering on its own: `frameCount()` reads the sheet width and uses the neighbour mask as
@@ -59,31 +358,6 @@ four-frame sheet and no longer resembled the object it places.
 
 **Awaiting in-game QA:** everything above is measured on the files, and the shapes have only been
 checked in a rendered preview of a 15×8 network. Nothing has been seen in the game.
-
-### 2. Storage Unit lighting — one 32×32 revision `[not blocking]` — still outstanding
-
-`objects/arcanestorageunit.png` is currently lit flat rather than from above, so a wall of units
-reads as bevelled metal next to vanilla's top-lit furniture. The submission flagged this itself.
-
-The constraint that makes it hard, and it is a hard requirement rather than a preference: **a
-unit must never look openable.** The player cannot open one — that is the whole point of the
-object — so any top highlight that reads as a *lid seam* is worse than the current flat
-lighting. Light it from above without implying a hinge.
-
-### Deliberately not requested
-
-So nothing is generated that will not be used:
-
-- **Tier variants** — delivered, and the filenames already match the settled naming
-  (`arcanestoragedemonicunit`, `tungsten`, `fallen`). Nothing to redo.
-- **Category icons** — delivered at 32×32. The size question is resolved: they will be used on a
-  `FormInputSize.SIZE_32` row, so they do not need redrawing at 24×24.
-- **Tab icons** — not needed. Necesse ships `FormTabTextComponent`, so tabs are text, and the
-  labels already exist in the locale.
-- **Crafting station slots** — not needed. Each station's slot will show that station's own
-  vanilla item texture, faded, which is the derive-from-the-game's-art policy working as
-  intended and stays correct if the game changes a station sprite.
-- **Buses, shard, sigil, charm** — delivered, held until the features exist.
 
 ## The file contract
 
@@ -233,12 +507,15 @@ files need renaming.
 Necesse's stations upgrade through exactly four steps, so ours do too: **base → Demonic →
 Tungsten → Fallen**. A fifth tier would have to invent a material step the game does not have.
 
-| Tier | Unit string ID | Terminal string ID |
-|---|---|---|
-| 1 | `arcanestorageunit` | `arcanestorageterminal` |
-| 2 | `arcanestoragedemonicunit` | `arcanestoragedemonicterminal` |
-| 3 | `arcanestoragetungstenunit` | `arcanestoragetungstenterminal` |
-| 4 | `arcanestoragefallenunit` | `arcanestoragefallenterminal` |
+| Tier | Unit string ID | Terminal string ID | Station Unit string ID |
+|---|---|---|---|
+| 1 | `arcanestorageunit` | `arcanestorageterminal` | `arcanestoragestationunit` |
+| 2 | `arcanestoragedemonicunit` | `arcanestoragedemonicterminal` | `arcanestoragedemonicstationunit` |
+| 3 | `arcanestoragetungstenunit` | `arcanestoragetungstenterminal` | `arcanestoragetungstenstationunit` |
+| 4 | `arcanestoragefallenunit` | `arcanestoragefallenterminal` | `arcanestoragefallenstationunit` |
+
+The Station Unit column is **provisional** — that object is unbuilt (request C above), and its ladder is
+1 → 2 → 4 → 8 slots. The art does not depend on the names.
 
 Base tier carries no prefix, so the string IDs already shipped stay valid and the existing
 world data keeps working.
@@ -393,12 +670,14 @@ From `GameInterfaceStyle`:
 | Trash | `button_trash_24` |
 | Favourite / lock | `star_icon`, `hotbar_locked`, `hotbar_unlocked` |
 
-That leaves only two candidates for original UI art, and both are better deferred until the
-interface exists and its shapes are known:
+That left two candidates for original UI art, and **both are now settled — see the
+consolidated request at the top of this file.** Neither needs drawing today:
 
-- **Category filter icons**, one per category shown over the pooled list.
-- **A capacity gauge** showing how full the network is. `processing_arrow_empty` and
-  `processing_arrow_full` exist as progress art and may be adaptable.
+- **Category filter icons** — six were delivered and none are used, because the filter shipped
+  as a dropdown over the game's own category tree. `ItemCategory` has no icon field at all.
+  Blocked on a decision, not on art.
+- **A capacity gauge** — solved without art. It ships as `FormProgressBarText` with vanilla's
+  `progressBarOutline` and a four-step fill colour.
 
 **Icon content is drawn at its native size and never scaled** (verified Aug 2026). The loader
 constrains nothing; `FormContentIconButton.getIconDrawX/Y` centres the texture and calls
@@ -412,14 +691,14 @@ sizes, so the category row can be `SIZE_32` while the toolbar stays `SIZE_24`.
 
 ## Non-sprite asset
 
-`src/main/resources/preview.png` — required for Workshop upload. **Installed: 512×512.**
+`src/main/resources/preview.png` — required for Workshop upload. **Installed: 1024×512.**
 
 There is no required size and no validation (verified Aug 2026): `LoadedMod` reads it straight
 into a texture. But `ModProvider.provideModInfoContent` calls `shrinkHeight(128, false)`, and
 that method *sets* height to 128 and scales width to match, with no minimum — so a smaller
-image is upscaled rather than left alone. 512×512 is an exact 4x downscale to 128 in-game,
-which keeps pixel art crisp, and is also a reasonable Workshop thumbnail. Avoid heights that
-are not integer multiples of 128.
+image is upscaled rather than left alone. The installed 1024×512 is an exact 8x downscale to
+the forced 128 px height, which keeps pixel art crisp, and is a reasonable Workshop thumbnail.
+Avoid heights that are not integer multiples of 128.
 
 ## Summary of what to draw first
 
@@ -430,7 +709,12 @@ are not integer multiples of 128.
 | 3 | conduit object + item | 32×32, or 128×32 for four facings |
 
 
-## Requested: the two buses (Phase 5, Aug 2026)
+## Requested: the two buses (Phase 5, Aug 2026) — DELIVERED, then superseded
+
+**Delivered and installed. Superseded by request B at the top of this file**, which corrects one
+thing this brief got wrong: it asked for "an arrow, or an asymmetric silhouette", and what was
+delivered has the arrow but an identical silhouette. That is fine until a stopped bus is drawn
+grey, which is now a shipped feature. Kept below for the intent notes.
 
 `objects/arcanestorageimportbus.png` and `objects/arcanestorageexportbus.png`, plus matching
 `items/` icons. Currently **placeholders**: the Storage Unit's sprite recoloured green and amber by

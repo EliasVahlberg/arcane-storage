@@ -697,23 +697,19 @@ is a balancing question rather than a technical one and is written up in the bac
 
 ### Needs a person
 
-**The ten-step resolver script is confirmed, 14 Aug 2026** — the resolver, the Apply transaction, the refusal,
-the two-sided stop, the banner, the recovery and the broken-container heartbeat all behave as specified. What
-came out of that pass was UI feedback rather than defects, and it is implemented: the panel now reads
-name-status-amount-filter with a status line that takes no space until there is something wrong and grows the
-window when there is, stopped devices appear as flow-wrapped name boxes with their reason on hover and a Copy
-button for the set, and the terminal's rules pane scrolls as a whole instead of only its category tree.
+**Confirmed in game 14 Aug 2026 — Phase 5c's visual half is done.** The ten-step resolver script passes, and
+so does the reworked interface: the grey stopped sprite reads as stopped, the chat line's wording works, the
+terminal's red banner is right, and the whole thing feels prompt now that work follows changes rather than a
+timer. The panel now reads name-status-amount-filter with a status line that takes no space until there is
+something wrong and grows the window when there is; stopped devices appear as flow-wrapped name boxes with
+their reason on hover and a Copy button for the set; and the terminal's rules pane scrolls as a whole.
 
-Still unverified, all of it visual:
+**One art problem came out of it.** A stopped import bus and a stopped export bus are nearly the same
+picture: their outlines are pixel-identical and desaturation removes the green/amber split that was carrying
+direction. Requested as a silhouette change in `docs/SPRITES.md`; the sprites are otherwise fine.
 
-1. The grey sprite — that it reads as "stopped" and not as a different object.
-2. The chat line's wording when a device stops.
-3. The reworked panel and tab layouts, listed step by step in `docs/QA_BACKLOG.md`.
-4. The terminal's red "N stopped at x,y" banner.
-5. How prompt the whole thing feels now that work follows changes rather than a timer.
-
-Sprites are luminance-weighted desaturations generated from the current placeholder art and will need
-regenerating when real art lands.
+Sprites are luminance desaturations of the delivered bus art, so they no longer need regenerating for that
+reason — but they will if the silhouette request above is drawn.
 
 This lands before Phase 6, because every later device inherits the model — and D25's wireless silos and the
 crafting queue both sit on top of it.

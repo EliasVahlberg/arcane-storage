@@ -10,16 +10,29 @@ reference now points at the pytest file that owns the assertion. See `docs/TESTI
 
 ## Confirmed in game
 
+**The reworked rule panel and logistics tab, 14 Aug 2026.** *"UI looks good, works as specified earlier."*
+All four changes verified: the name-first panel with a status line that costs nothing until there is
+something to say and grows the window when it wraps; stopped devices as flow-wrapped name boxes with the
+reason on hover and a click that selects the device; the Copy button; and the terminal's rules pane
+scrolling as a whole. The layout reservations are gone for good and the two arithmetic faults found before
+this pass -- growth measured from the wrong origin, and a double-counted offset in the host-scrolled reflow
+-- were fixed before it, so neither was ever seen.
+
+Also confirmed in the same pass: the grey stopped sprite, the chat line's wording, the terminal's red
+banner, and that the whole thing feels prompt now that work follows changes rather than a timer.
+
+**One thing the pass surfaced that is an art problem rather than a UI one.** The grey stopped sprite works,
+but a stopped import bus and a stopped export bus are then nearly the same picture -- measured, their
+outlines are pixel-identical and desaturation removes the green/amber split that was carrying direction. A
+silhouette fix is requested in `SPRITES.md`.
+
 **The transfer resolver, 14 Aug 2026.** All ten steps of the script below were run and behave as written --
 the resolver, the Apply transaction, the refusal, the two-sided stop, the terminal's banner, the recovery, and
 the broken-container heartbeat. Phase 5b is confirmed end to end.
 
-The UI feedback from that pass is implemented and is what needs eyes next, under "Still needs eyes".
-
 **Phase 5b, 13 Aug 2026.** The Apply button works once it is outside the filter list's rectangle. A rule set that
 contradicts a bus sharing the same container is refused when applied, and the soft-fail path -- the device
-stopping rather than churning -- was seen to detect the feedback-loop case correctly. Not yet looked at: the grey
-sprite, the chat line, the terminal's banner.
+stopping rather than churning -- was seen to detect the feedback-loop case correctly.
 
 Two faults found in the same pass and fixed: the stopped-reason line reserved no vertical space and was not
 wrapping, so it drew over the amount row; and the amount was labelled "Amount of each", which does not say that
@@ -38,30 +51,11 @@ Stated by Elias, in order of confirmation:
 
 ## Still needs eyes
 
-### The reworked rule panel and logistics tab — 14 Aug 2026, none of it seen
+### The reworked rule panel and logistics tab — CONFIRMED 14 Aug 2026
 
-From the UI notes taken during the ten-step pass. Three changes, and the layout arithmetic behind all of them
-is invisible to the harness, so this is the class of thing that has been wrong twice before.
-
-1. **The bus panel reads name, status, amount, filter.** The name is the top row. The status line sits directly
-   under it and takes no space at all when nothing is wrong -- the large empty block above the name is gone,
-   because it was a fixed reservation sized against the longest message any device could produce. When a status
-   does appear and wraps, **the whole window grows by exactly that much** rather than squeezing the controls.
-   Check that it grows upward and stays anchored above the hotbar: the window is re-anchored on each height
-   change, and if that is wrong it will grow down through the inventory instead.
-2. **The logistics tab shows one box per stopped device**, red, carrying only the device's name, wrapped across
-   as many rows as they need. **The full reason is a hover tooltip** on the box, and **clicking a box selects
-   that device**, so the fix is one click from the diagnosis. Above them is a one-line count. With nothing
-   wrong, the area collapses to that single line and the lists below gain the space back.
-   Previously this was four lines of prose that two stopped buses already overflowed.
-3. **A Copy button appears beside the count** when at least one device has stopped, and puts every reason on
-   the clipboard, one per line. It is removed entirely when nothing is wrong rather than greyed out. Worth
-   pasting somewhere to check the text is legible out of context.
-4. **The terminal's rules pane scrolls as a whole.** Previously only the category tree had a bar, so the name,
-   amount, search and Apply rows were squeezed into a pane shorter than the bus panel those proportions were
-   chosen for. Now one bar covers everything and the editor gets its natural height. Check there is exactly one
-   scrollbar, that Apply is reachable by scrolling to the bottom, and that the tree's own rows still respond --
-   nested scroll regions are what made Apply inert once already.
+Moved to "Confirmed in game" above. The four-point script is kept there in summary; the one thing it
+surfaced that is still open is the stopped buses being hard to tell apart, which is an art request rather
+than a QA item.
 
 ### The transfer resolver — Phase 5b, built while Elias was away, none of it seen in game
 
