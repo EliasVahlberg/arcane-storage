@@ -30,11 +30,18 @@ import arcanestorage.network.NetworkConductor;
 
 public class StorageUnitObject extends StorageBoxInventoryObject implements NetworkConductor {
 
-   /** Capacity per unit. Tiered capacity is Phase 6. */
+   /**
+    * Base capacity, kept as a named constant because it is vanilla's container ceiling and the number the
+    * whole ladder is measured against, not merely the first entry in it.
+    */
    public static final int SLOTS = 40;
 
-   public StorageUnitObject() {
-      super("arcanestorageunit", SLOTS, new Color(96, 74, 140), "objects", "furniture");
+   /** Which rung this one is. Held so the object can describe itself without consulting a table. */
+   public final UnitTier tier;
+
+   public StorageUnitObject(UnitTier tier) {
+      super(tier.storageId(), tier.storageSlots, new Color(96, 74, 140), "objects", "furniture");
+      this.tier = tier;
    }
 
    @Override

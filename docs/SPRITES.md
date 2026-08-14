@@ -824,3 +824,33 @@ What they need to communicate, in order of importance:
 32x32, one frame, bottom-anchored like the other objects. Facing frames would be welcome later — a bus
 knows which neighbour is its container, so it could draw itself pointing at it — but nothing depends on
 that yet, and one frame is what the code expects.
+
+
+## Request H — the six tiered units *(pending)*
+
+The tier ladders are implemented and registered, so six objects currently render as the pink
+missing-texture placeholder. Behaviour is unaffected; this is purely cosmetic.
+
+| String ID | What it is | Capacity |
+|---|---|---|
+| `arcanestorageunitdemonic` | Demonic Storage Unit | 80 stacks |
+| `arcanestorageunittungsten` | Tungsten Storage Unit | 160 stacks |
+| `arcanestorageunitfallen` | Fallen Storage Unit | 320 stacks |
+| `arcanestoragestationunitdemonic` | Demonic Station Unit | 2 sockets |
+| `arcanestoragestationunittungsten` | Tungsten Station Unit | 4 sockets |
+| `arcanestoragestationunitfallen` | Fallen Station Unit | 8 sockets |
+
+Each needs `objects/<id>.png` **and** `items/<id>.png` — shipping only the object texture places
+correctly while the inventory and crafting preview show `[ER]`.
+
+**These should be recolours, and the precedent is already in this document.** The Station Unit was
+made from the Storage Unit as a pixel-for-pixel recolour on the same nine-index structure map, and
+that is what request A was really about. Doing the same again per era is both cheaper and more
+correct than new silhouettes: a player should read tier from hue at a glance and read *kind* from
+the shape, which only works if the shape does not also change. Suggested anchors, taken from the
+eras the recipes already use: demonic bar red-violet, tungsten pale steel, Fallen shard
+gold/white. The existing `#604a8c` anchor stays on the base tier.
+
+Same constraints as every other request here: hard alpha, at most nine colours, width exactly 32,
+height free and bottom-anchored. The `_inactive` greyscale variants are **generated**, never hand
+drawn — only the buses need them, so these six do not.

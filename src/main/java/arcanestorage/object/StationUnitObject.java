@@ -41,13 +41,17 @@ public class StationUnitObject extends StorageBoxInventoryObject implements Netw
     *
     * <p>One, and the whole ladder is 1 → 2 → 4 → 8 across vanilla's four station tiers (base → Demonic
     * → Tungsten → Fallen). Starting at one is the point rather than a placeholder: it makes the first
-    * bench a decision, and doubling reads as a real upgrade. The upper rungs arrive with tiering in
-    * Phase 6; only this one is registered today.
+    * bench a decision, and doubling reads as a real upgrade. All four rungs are registered; the numbers
+    * live in {@link UnitTier}.
     */
    public static final int SLOTS = 1;
 
-   public StationUnitObject() {
-      super("arcanestoragestationunit", SLOTS, new Color(96, 74, 140), "objects", "furniture");
+   /** Which rung this one is. */
+   public final UnitTier tier;
+
+   public StationUnitObject(UnitTier tier) {
+      super(tier.stationId(), tier.stationSockets, new Color(96, 74, 140), "objects", "furniture");
+      this.tier = tier;
    }
 
    @Override

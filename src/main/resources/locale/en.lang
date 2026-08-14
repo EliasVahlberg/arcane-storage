@@ -1,7 +1,13 @@
 [object]
 arcanestorageterminal=Storage Terminal
 arcanestorageunit=Storage Unit
+arcanestorageunitdemonic=Demonic Storage Unit
+arcanestorageunittungsten=Tungsten Storage Unit
+arcanestorageunitfallen=Fallen Storage Unit
 arcanestoragestationunit=Station Unit
+arcanestoragestationunitdemonic=Demonic Station Unit
+arcanestoragestationunittungsten=Tungsten Station Unit
+arcanestoragestationunitfallen=Fallen Station Unit
 arcanestorageconduit=Storage Conduit
 arcanestorageimportbus=Arcane Import Bus
 arcanestorageexportbus=Arcane Export Bus

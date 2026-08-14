@@ -616,3 +616,24 @@ Worth a decision rather than silent abandonment:
 
 Nothing here blocks Phase 3. The dropdown is complete and needs no art.
 
+
+
+## The tier ladders — needs eyes
+
+Implemented and covered by 17 headless tests, but nothing below can be seen headlessly.
+
+1. **Six objects render as the pink `[ER]` placeholder** until request H in `SPRITES.md` is drawn. Expected,
+   not a bug, and worth confirming it is only the placeholder and not a genuine load failure — the two look
+   identical, which is a trap this project has hit before.
+2. **The recipes appear at the right stations and are actually reachable.** Headless tests place objects
+   directly and so never exercise a recipe at all. Check each rung shows at its era's Workstation, that the
+   ingredients are the intended ones, and specifically that **the rung below is consumed** — that is the
+   design's whole claim and a wrong ingredient list would still compile and still register.
+3. **A 320-stack unit in the terminal view.** Capacity numbers were only ever asserted as integers. Sixty-four
+   Fallen units is 20,480 slots against 2,560 at base, which is eight times the aggregation the interface has
+   ever been asked to draw. Performance targets are deliberately deferred, but this is the first change that
+   makes the deferred number eight times larger, so it is worth one look at whether the view stays usable.
+4. **Mixed-tier networks read correctly in the interface.** Tested numerically; unverified that the tab shows
+   sensible names and totals when tiers are mixed, which is the normal state during an upgrade.
+5. **Eight sockets of installed benches**, laid out. `buildStationsTab` wraps sockets onto rows computed from
+   the form width; one socket has been seen working and eight has not.

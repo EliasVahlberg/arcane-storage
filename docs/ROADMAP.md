@@ -168,11 +168,37 @@ paused-spoiling state vanilla already has.
       `GameInterfaceStyle` is the other option and is the wrong one: it re-skins the entire
       game rather than one interface.
 
-- [ ] Recipes for the mod's own objects, tiered to Necesse's progression
-- [ ] Capacity growth per tier, plus one real mechanic per tier
-- [ ] A non-spoilage perk on every unit tier that offers one
-- [ ] Localization complete
-- [ ] Textures for all objects and UI elements
+- [ ] Recipes for the mod's own objects, tiered to Necesse's progression — *implemented,
+      unverified in game, deliberately unticked.* Every object now costs real materials at a
+      real station: the terminal at a Workstation for what a storagebox costs, and both unit
+      ladders rung by rung at Workstation → Demonic → Tungsten → Fallen, priced against
+      vanilla's own stations at each era (demonicbar x5; tungstenbar x8 + quartz x4;
+      upgradeshard x10 + alchemyshard x10). **Each rung consumes the rung below it**, which is
+      what makes this an upgrade path rather than four unrelated objects — nothing is stranded
+      and no one accumulates obsolete units. A consequence worth stating: the lower tiers' string
+      IDs can now never be retired, because a recipe names them.
+- [ ] Capacity growth per tier, plus one real mechanic per tier — *implemented for both unit
+      ladders, unverified in game, deliberately unticked.* Storage Units 40 → 80 → 160 → 320
+      stacks; Station Units 1 → 2 → 4 → 8 sockets. Four rungs because Necesse has exactly four
+      station tiers, so every upgrade lands where the player is already upgrading. Doubling
+      because it is the only curve a player can predict without a table. The base 40 is vanilla's
+      container ceiling, so a first unit is worth exactly one chest and the ladder starts from
+      parity rather than an advantage. Sockets are the Station Unit's real mechanic; **the
+      terminal's mechanic gating (Ladder A) is not done and is not mine to decide** — see below.
+- [ ] A non-spoilage perk on every unit tier that offers one — *not started, and blocked on the
+      open question below rather than on effort.*
+- [ ] Localization complete — six new object names added for the tiers; the rest still outstanding.
+- [ ] Textures for all objects and UI elements — **six new sprites now pending**, two per upper
+      tier (`objects/` and `items/` for each of the three tiered Storage and Station Units). Until
+      they exist those six objects render as the pink missing-texture placeholder, which is
+      cosmetic and does not affect behaviour. Recorded as a request in `SPRITES.md`.
+
+**Deliberately not done in the tiering pass, and needing a decision rather than work:**
+Ladder A gates already-built features behind tiers — craft-from-network at Demonic, the export
+bus at Tungsten, remote access at Fallen. Implementing that would take capabilities the player
+has today and lock them behind progression, which is a player-visible regression for anyone
+mid-world and not a call to make unilaterally. The unit ladders were safe to build because they
+only add new objects alongside the existing ones.
 
 **Open, and worth resolving before building the ladder:** food only spoils in
 survival mode. If unit tiers reward spoilage resistance and nothing else, three of

@@ -11,6 +11,7 @@ import arcanestorage.object.ImportBusObject;
 import arcanestorage.object.StorageConduitObject;
 import arcanestorage.object.StationUnitObject;
 import arcanestorage.object.StorageUnitObject;
+import arcanestorage.object.UnitTier;
 import arcanestorage.objectentity.BusObjectEntity;
 import arcanestorage.objectentity.ImportBusObjectEntity;
 import arcanestorage.objectentity.StorageTerminalObjectEntity;
@@ -87,8 +88,12 @@ public class ArcaneStorage {
 
    public void init() {
       ObjectRegistry.registerObject(TERMINAL_STRING_ID, new StorageTerminalObject(), 10.0F, true);
-      ObjectRegistry.registerObject(UNIT_STRING_ID, new StorageUnitObject(), 10.0F, true);
-      ObjectRegistry.registerObject(STATION_UNIT_STRING_ID, new StationUnitObject(), 10.0F, true);
+      // Every rung of both ladders. The base tier keeps the original string IDs, which must never change,
+      // and the upper three append their era. Registered in tier order so the crafting list reads as a ladder.
+      for (UnitTier tier : UnitTier.values()) {
+         ObjectRegistry.registerObject(tier.storageId(), new StorageUnitObject(tier), 10.0F, true);
+         ObjectRegistry.registerObject(tier.stationId(), new StationUnitObject(tier), 10.0F, true);
+      }
       CONDUIT = new StorageConduitObject();
       ObjectRegistry.registerObject(CONDUIT_STRING_ID, CONDUIT, 4.0F, true);
       ObjectRegistry.registerObject(IMPORT_BUS_STRING_ID, new ImportBusObject(), 8.0F, true);
@@ -136,18 +141,27 @@ public class ArcaneStorage {
       // inventory. When it fails the index falls back to recounting on a timer, which is slower but correct.
       IndexedInventories.recordVerification(IndexedInventories.verifyHook());
 
-      // Placeholder costs so both objects can be obtained in a fresh world for testing.
-      // Progression and balance are Phase 6.
+      // The terminal is the way in, so it is deliberately the cheapest thing here and sits at a Workstation
+      // beside the storagebox it costs the same as. Gating the entry point harder would only delay the
+      // player discovering whether they want the mod at all.
       Recipes.registerModRecipe(
-         new Recipe(TERMINAL_STRING_ID, 1, RecipeTechRegistry.NONE, new Ingredient[]{new Ingredient("anylog", 8)})
-      );
-      Recipes.registerModRecipe(
-         new Recipe(UNIT_STRING_ID, 1, RecipeTechRegistry.NONE, new Ingredient[]{new Ingredient("anylog", 8)})
-      );
-      Recipes.registerModRecipe(
-         new Recipe(STATION_UNIT_STRING_ID, 1, RecipeTechRegistry.NONE,
+         new Recipe(TERMINAL_STRING_ID, 1, RecipeTechRegistry.WORKSTATION,
             new Ingredient[]{new Ingredient("anylog", 8), new Ingredient("ironbar", 2)})
       );
+
+      // Both ladders, each rung consuming the one below it. Registered from a table rather than written out
+      // eight times, so a change to the curve is a change in one place and the two ladders cannot drift apart.
+      for (UnitTier tier : UnitTier.values()) {
+         UnitTier below = tier.below();
+         Recipes.registerModRecipe(new Recipe(
+            tier.storageId(), 1, tier.tech(),
+            tier.ingredients(below == null ? null : below.storageId())
+         ));
+         Recipes.registerModRecipe(new Recipe(
+            tier.stationId(), 1, tier.tech(),
+            tier.ingredients(below == null ? null : below.stationId())
+         ));
+      }
       Recipes.registerModRecipe(
          new Recipe(CONDUIT_STRING_ID, 4, RecipeTechRegistry.NONE, new Ingredient[]{new Ingredient("anylog", 2)})
       );

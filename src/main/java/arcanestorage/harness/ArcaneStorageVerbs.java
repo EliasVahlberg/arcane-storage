@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Locale;
 
 import arcanestorage.ArcaneStorage;
+import arcanestorage.object.UnitTier;
 import arcanestorage.container.StorageTerminalContainer;
 import arcanestorage.network.NetworkContents;
 import arcanestorage.object.StorageConduitObject;
@@ -74,6 +75,15 @@ public final class ArcaneStorageVerbs {
       Harness.registerObjectAlias("terminal", ArcaneStorage.TERMINAL_STRING_ID);
       Harness.registerObjectAlias("unit", ArcaneStorage.UNIT_STRING_ID);
       Harness.registerObjectAlias("stationunit", ArcaneStorage.STATION_UNIT_STRING_ID);
+
+      // One alias per rung, so a tier test names the tier rather than reciting a string ID. The base tier
+      // keeps its short aliases above, since the great majority of tests do not care about tiering.
+      for (UnitTier tier : UnitTier.values()) {
+         if (tier.below() != null) {
+            Harness.registerObjectAlias(tier.suffix + "unit", tier.storageId());
+            Harness.registerObjectAlias(tier.suffix + "stationunit", tier.stationId());
+         }
+      }
       Harness.registerObjectAlias("conduit", ArcaneStorage.CONDUIT_STRING_ID);
       Harness.registerObjectAlias("importbus", ArcaneStorage.IMPORT_BUS_STRING_ID);
       Harness.registerObjectAlias("exportbus", ArcaneStorage.EXPORT_BUS_STRING_ID);
