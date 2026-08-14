@@ -169,14 +169,30 @@ paused-spoiling state vanilla already has.
       game rather than one interface.
 
 - [ ] Recipes for the mod's own objects, tiered to Necesse's progression — *implemented,
-      unverified in game, deliberately unticked.* Every object now costs real materials at a
-      real station: the terminal at a Workstation for what a storagebox costs, and both unit
-      ladders rung by rung at Workstation → Demonic → Tungsten → Fallen, priced against
-      vanilla's own stations at each era (demonicbar x5; tungstenbar x8 + quartz x4;
-      upgradeshard x10 + alchemyshard x10). **Each rung consumes the rung below it**, which is
-      what makes this an upgrade path rather than four unrelated objects — nothing is stranded
-      and no one accumulates obsolete units. A consequence worth stating: the lower tiers' string
-      IDs can now never be retired, because a recipe names them.
+      unverified in game, deliberately unticked.* **Each rung consumes the rung below it**, which is
+      what makes this an upgrade path rather than four unrelated objects — nothing is stranded and no one
+      accumulates obsolete units. A consequence worth stating: the lower tiers' string IDs can now never
+      be retired, because a recipe names them. Costs set by the owner Aug 2026:
+
+      | Object | Station | Cost |
+      |---|---|---|
+      | Storage Terminal | Workstation | anylog 80, ironbar 20 |
+      | Storage / Station Unit, base | Workstation | anylog 40, ironbar 10 |
+      | …Demonic | Demonic Workstation | base unit ×1, demonicbar 25 |
+      | …Tungsten | Tungsten Workstation | Demonic unit ×1, tungstenbar 40, quartz 20 |
+      | …Fallen | Fallen Workstation | Tungsten unit ×1, upgradeshard 50, alchemyshard 50 |
+      | Conduit ×4 | hand | ironbar 1 |
+      | Import / Export Bus | hand | anylog 20, ironbar 10 |
+
+      Unit materials are **5× the equivalent vanilla station** at each era, and the terminal is 10× a
+      storagebox — it is built once and the whole network hangs off it, so a trivial price would make it
+      read as trivial. **The tier below is consumed at one and deliberately not scaled**: scaling it would
+      compound to 125 base units for one Fallen, which is an accident rather than a curve.
+
+      Two things here are still open rather than decided. The conduit and both buses remain **hand-crafted**
+      — their costs are set but no station gates them, so a bus is still reachable in the first minutes of a
+      world. And an earlier note in this file claimed this item was implemented while three of the eight
+      objects were still on placeholder costs; that was an overstatement and the costs above replace them.
 - [ ] Capacity growth per tier, plus one real mechanic per tier — *implemented for both unit
       ladders, unverified in game, deliberately unticked.* Storage Units 40 → 80 → 160 → 320
       stacks; Station Units 1 → 2 → 4 → 8 sockets. Four rungs because Necesse has exactly four

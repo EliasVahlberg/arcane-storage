@@ -19,6 +19,17 @@ import necesse.inventory.recipe.Tech;
  * container ceiling, so a first unit is worth precisely one chest and the ladder starts from parity rather
  * than from an advantage.
  *
+ * <p><b>The material costs are five times what the equivalent vanilla station charges at the same era</b> --
+ * a unit is a serious investment rather than a bit of furniture, and forty stacks of storage should not be
+ * cheaper than the bench that fills it. Vanilla charges demonicbar x5 for a Demonic Workstation Duo,
+ * tungstenbar x8 with quartz x4 for a Tungsten Workstation, and upgradeshard x15 with alchemyshard x15 for a
+ * Fallen Workstation.
+ *
+ * <p><b>The tier below is consumed at one, and is deliberately not scaled with the materials.</b> Scaling it
+ * would compound down the ladder -- five Tungsten units means twenty-five Demonic and one hundred and
+ * twenty-five base units -- which is not a cost curve but an accident. One keeps the upgrade readable: exactly
+ * one unit goes in and one comes out, and only the materials grow.
+ *
  * <p><b>Each tier's recipe consumes the tier below it.</b> That is the difference between an upgrade path and
  * four unrelated objects: nothing is stranded, a player's investment carries forward, and no one ends up with
  * a chest of obsolete units. It also means the string IDs of the lower tiers can never be retired, since a
