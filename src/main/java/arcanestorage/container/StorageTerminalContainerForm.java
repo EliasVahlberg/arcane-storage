@@ -447,6 +447,10 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
    public StorageTerminalContainerForm(Client client, T container) {
       super(client, container);
 
+      // Before the tab preset is added, because inheritStyle copies the parent's style at add time and does not
+      // cascade to a component's existing children.
+      ArcaneStyles.apply(this);
+
       // One terminal with two tabs rather than Magic Storage's two blocks. The tab strip is
       // vanilla's own -- the creative menu is built from this preset -- so the tabs draw above the
       // panel, in the game's shape, and the earlier plan of reserving a strip inside the form for
@@ -454,6 +458,13 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
       // form.getY() - offset, outside the panel entirely.
       this.tabs = this.addComponent(
             new TabbedFormPreset(0, TabbedFormPreset.TabStyle.Fill, FORM_WIDTH, FORM_HEIGHT));
+      // TabbedFormPreset builds a Form of its own in its constructor (its public final `form`), and that is the
+      // panel the window actually shows -- the per-tab forms sit inside it. It cannot be reached by overriding the
+      // preset afterwards, because inheritStyle does not cascade: the inner form was created and added while the
+      // preset's own style was still null. So it is styled directly, which is also what fixes the tab strip's
+      // edge -- the one place the first version of this left in the vanilla palette.
+      styled(this.tabs.form);
+
       this.mainForm = styled(this.tabs.addLocalizedTab(new LocalMessage("ui", "arcanestorage_tab_storage"), null));
 
       FormFlow flow = new FormFlow(PADDING);
@@ -849,6 +860,7 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
       for (int i = 0; i < sources.size(); i++) {
          Tech source = sources.get(i);
          Form panel = box.addComponent(new Form(BENCH_PANEL_WIDTH - 2, BENCH_PANEL_HEIGHT - 2));
+      panel.setBackground(ArcanePanel.of());
          panel.setPosition(i % columns * BENCH_PANEL_WIDTH, i / columns * BENCH_PANEL_HEIGHT);
 
          FormCheckBox tick = panel.addComponent(new FormCheckBox(sourceLabel(source), 4, 4,
@@ -1420,6 +1432,7 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
       // somebody asking for help wants to paste all of it at once. Added and removed rather than hidden --
       // FormComponent has no hidden flag, only Form does, and a button left in place would still take clicks.
       this.issueBoxGroup = form.addComponent(new Form(FORM_WIDTH - PADDING * 2, ISSUE_ROW));
+      this.issueBoxGroup.setBackground(ArcanePanel.of());
       this.issueBoxGroup.drawBase = false;
       this.issueBoxGroup.setPosition(PADDING * 2, this.issuesY + ISSUE_ROW);
 
@@ -1615,6 +1628,7 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
       int paneHeight = this.contentHeight;
 
       Form pane = this.logisticsForm.addComponent(new Form(paneWidth, paneHeight));
+      pane.setBackground(ArcanePanel.of());
       pane.setPosition(paneX, paneY);
       this.devicePane = pane;
 

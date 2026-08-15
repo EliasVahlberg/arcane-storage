@@ -4,6 +4,7 @@ import java.awt.Rectangle;
 import java.util.function.Consumer;
 
 import arcanestorage.objectentity.BusObjectEntity;
+import arcanestorage.ui.ArcanePanel;
 import necesse.engine.GameLog;
 import necesse.engine.ItemCategoryExpandedSetting;
 import necesse.engine.Settings;
@@ -191,6 +192,7 @@ public final class BusRulesEditor {
 
       int bodyBaseY = statusY + STATUS_GAP;
       final Form body = host.addComponent(new Form(region.width, Math.max(1, region.height - (bodyBaseY - region.y))));
+      body.setBackground(ArcanePanel.of());
       body.drawBase = false;
       body.setPosition(region.x, bodyBaseY);
 

@@ -110,6 +110,7 @@ public class BaseStationContainerForm<T extends BaseStationContainer> extends Co
 
       int contentHeight = LIST_HEIGHT + PADDING + FormInputSize.SIZE_24.height;
       this.detail = this.addComponent(new Form(DETAIL_WIDTH, contentHeight));
+      this.detail.setBackground(ArcanePanel.of());
       this.detail.setPosition(PADDING * 2 + LIST_WIDTH, contentTop);
 
       this.setHeight(contentTop + contentHeight + PADDING);
