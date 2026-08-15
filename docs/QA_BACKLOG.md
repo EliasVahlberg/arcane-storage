@@ -10,7 +10,8 @@ reference now points at the pytest file that owns the assertion. See `docs/TESTI
 
 ## Needs eyes — the wireless terminal (Aug 2026)
 
-**0a. The click path, which no test touches.** `tests/python/test_wireless_terminal.py` binds the item directly,
+**0a. The click path, which no test touches.** *(Pairing itself is confirmed working in game -- the message
+printed. Opening crashed on the first right-click and is fixed but not re-tested.)* `tests/python/test_wireless_terminal.py` binds the item directly,
 because what a click adds is `ItemInteractAction` plumbing rather than anything the feature is about. So this is
 unproven: holding the item and clicking a placed Storage Terminal should pair it and say so, and clicking anywhere
 else should open the network. `overridesObjectInteract` returns true, which is what stops the click opening the

@@ -74,6 +74,16 @@ public class WirelessTerminalItem extends Item implements ItemInteractAction {
       return true;
    }
 
+   /**
+    * One click does both jobs: on a placed terminal it pairs, anywhere else it opens what it is paired to.
+    *
+    * <p><b>The engine runs this on both sides</b> -- {@code PlayerMob.runClientItemLevelInteract} calls it on the
+    * clicking client so the swing and any change to the item are immediate, and the server then runs it for real.
+    * The side is therefore decided once, here, and the client returns before any server-only API exists to be
+    * misused. An earlier version instead carried a possibly-null {@code ServerClient} into its helpers, which
+    * null-checked it in two places and dereferenced it in a third, and threw on the first right-click in game.
+    * Deciding once is worth more than checking three times.
+    */
    @Override
    public InventoryItem onLevelInteract(Level level, int x, int y, ItemAttackerMob attackerMob, int attackHeight,
          InventoryItem item, ItemAttackSlot slot, int seed, GNDItemMap mapContent) {
@@ -81,16 +91,27 @@ public class WirelessTerminalItem extends Item implements ItemInteractAction {
          return item;
       }
 
-      PlayerMob player = (PlayerMob)attackerMob;
-      ServerClient client = level.isServer() ? player.getServerClient() : null;
-      if (level.isServer() && client == null) {
+      int tileX = GameMath.getTileCoordinate(x);
+      int tileY = GameMath.getTileCoordinate(y);
+      boolean onTerminal = level.getObject(tileX, tileY) instanceof StorageTerminalObject;
+
+      if (!level.isServer()) {
+         // The client predicts the pairing only, so the tooltip is right before the server's reply arrives.
+         // It says nothing and opens nothing; both of those are the server's to decide, and a container in
+         // particular arrives as PacketOpenContainer rather than being opened locally.
+         if (onTerminal) {
+            new RemoteBinding(level, tileX, tileY).write(item);
+         }
+
          return item;
       }
 
-      int tileX = GameMath.getTileCoordinate(x);
-      int tileY = GameMath.getTileCoordinate(y);
+      ServerClient client = ((PlayerMob)attackerMob).getServerClient();
+      if (client == null) {
+         return item;
+      }
 
-      if (level.getObject(tileX, tileY) instanceof StorageTerminalObject) {
+      if (onTerminal) {
          return this.pair(level, tileX, tileY, client, item);
       }
 
@@ -98,18 +119,10 @@ public class WirelessTerminalItem extends Item implements ItemInteractAction {
       return item;
    }
 
-
-
    /** Binds the item to the terminal that was clicked, replacing any previous pairing. */
    private InventoryItem pair(Level level, int tileX, int tileY, ServerClient client, InventoryItem item) {
       RemoteBinding binding = new RemoteBinding(level, tileX, tileY);
       RemoteBinding existing = RemoteBinding.read(item);
-      if (client == null) {
-         // The client half predicts the pairing so the tooltip is right immediately. It says nothing and
-         // opens nothing; both of those are the server's to decide.
-         binding.write(item);
-         return item;
-      }
 
       if (binding.equals(existing)) {
          // Re-pairing to the same terminal is not an error, and saying nothing would read as the click
