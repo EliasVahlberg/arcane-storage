@@ -780,6 +780,7 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
       this.craftingForm = this.buildCraftingTab(client, container);
       this.stationsForm = this.buildStationsTab(client, container);
       this.logisticsForm = this.buildLogisticsTab(client, container);
+      this.buildSettingsTab();
       this.makeCurrent(this.tabs);
 
       // Primed here because refreshList() reads it, and the first draw has not happened yet.
@@ -1681,6 +1682,22 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
                         new Rectangle(contentWidth, this.deviceRules.getNaturalHeight() + PADDING));
                }
             });
+   }
+
+   /**
+    * The settings tab, whose contents live in {@link arcanestorage.ui.ArcaneSettingsPanel}.
+    *
+    * <p>A tab here because the engine gives a mod nowhere else. {@code ModSettings} is save and load only,
+    * {@code ModsForm}'s per-mod row offers enable and reorder, and {@code SettingsForm} keeps its pages in fixed
+    * private fields with no registry -- so the game's own settings menu cannot be extended, and until now the only way
+    * to change the theme was to edit the config file by hand.
+    *
+    * <p>Added last, so it sits to the right of the tabs a player opens the terminal to use. No index is kept, unlike
+    * the logistics tab, because nothing needs to switch to it programmatically.
+    */
+   private void buildSettingsTab() {
+      Form form = styled(this.tabs.addLocalizedTab(new LocalMessage("ui", "arcanestorage_tab_settings"), null));
+      arcanestorage.ui.ArcaneSettingsPanel.build(form, FORM_WIDTH);
    }
 
    /**
