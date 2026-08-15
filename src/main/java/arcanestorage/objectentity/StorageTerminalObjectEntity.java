@@ -70,6 +70,16 @@ public class StorageTerminalObjectEntity extends InventoryObjectEntity {
    public static final int MAX_CONDUITS = 256;
 
    /**
+    * Ceiling on band links one walk may follow.
+    *
+    * <p>Sixty-four is well above what the ladder can produce -- a Fallen band offers sixteen channels and each link
+    * is counted once in each direction -- so this is a bound against a corrupted or hand-edited band table rather
+    * than a design limit. It exists for the same reason {@link #MAX_CONDUITS} does: no walk should be able to become
+    * arbitrarily expensive because of what is written in a save.
+    */
+   public static final int MAX_LINKS = 64;
+
+   /**
     * How many crafting stations one terminal may hold.
     *
     * <p>Ten because that is one row at vanilla's slot pitch, and because the game has eight
@@ -266,7 +276,8 @@ public class StorageTerminalObjectEntity extends InventoryObjectEntity {
          }
 
          return null;
-      }, (x, y) -> level.getObject(x, y) instanceof NetworkConductor, MAX_UNITS, MAX_CONDUITS);
+      }, (x, y) -> level.getObject(x, y) instanceof NetworkConductor,
+            arcanestorage.band.BandIndex.linksOn(level), MAX_UNITS, MAX_CONDUITS, MAX_LINKS);
 
       units.sort(Comparator.comparingLong(NetworkStations::tileOrder));
       return units;
@@ -328,7 +339,8 @@ public class StorageTerminalObjectEntity extends InventoryObjectEntity {
          }
 
          return null;
-      }, (x, y) -> level.getObject(x, y) instanceof NetworkConductor, MAX_UNITS, MAX_CONDUITS);
+      }, (x, y) -> level.getObject(x, y) instanceof NetworkConductor,
+            arcanestorage.band.BandIndex.linksOn(level), MAX_UNITS, MAX_CONDUITS, MAX_LINKS);
    }
 
    /**
@@ -509,7 +521,7 @@ public class StorageTerminalObjectEntity extends InventoryObjectEntity {
          }
 
          return true;
-      }, MAX_UNITS, MAX_CONDUITS);
+      }, arcanestorage.band.BandIndex.linksOn(level), MAX_UNITS, MAX_CONDUITS, MAX_LINKS);
 
       // Sorted so the tab's rows keep their places between surveys. A list in discovery order would
       // reshuffle whenever the walk started somewhere else, and a player would lose the row they were reading.

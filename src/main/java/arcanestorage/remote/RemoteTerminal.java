@@ -177,7 +177,20 @@ public final class RemoteTerminal {
       }
 
       level.unloadLevelBuffer = 0;
-      if (tiles == null) {
+      pinRegions(level, tiles);
+   }
+
+   /**
+    * Keeps tiles' regions in memory without keeping the level itself loaded.
+    *
+    * <p>The distinction matters for the frequency band, which is the other caller. A wireless terminal is a player
+    * looking at a level they are not on, so that level must not be saved and dropped underneath them. A band is
+    * entirely within one level, and every device on it only ticks while its own region is loaded -- so holding the
+    * level open as well would mean one Base Station kept a whole level ticking for as long as the process ran, and
+    * a base nobody has visited for an hour would still be paying for its silos.
+    */
+   public static void pinRegions(Level level, Iterable<long[]> tiles) {
+      if (level == null || tiles == null) {
          return;
       }
 

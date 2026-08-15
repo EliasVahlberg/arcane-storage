@@ -70,14 +70,15 @@ public class CostTableTest {
          assertTrue(key + " yields a non-positive count", CostTable.count(key) > 0);
       }
 
-      // Both wireless ladders, asked for by the same accessors the registration uses, so a rung whose key was never
-      // written fails here rather than at load.
+      // All three wireless-family ladders, asked for by the same accessors the registration uses, so a rung whose key
+      // was never written fails here rather than at load.
       for (UnitTier tier : UnitTier.values()) {
          if (!tier.hasWireless()) {
             continue;
          }
 
-         for (String key : Arrays.asList(tier.wirelessTerminalCostKey(), tier.transceiverCostKey())) {
+         for (String key : Arrays.asList(tier.wirelessTerminalCostKey(), tier.transceiverCostKey(),
+               tier.baseStationCostKey())) {
             assertTrue(key + " is missing from recipes.properties", CostTable.materials(key).length > 0);
             assertTrue(key + " yields a non-positive count", CostTable.count(key) > 0);
          }
@@ -93,7 +94,8 @@ public class CostTableTest {
    @Test
    public void theFileContainsNothingUnused() {
       Set<String> expected = new HashSet<>(
-         Arrays.asList("recipe.terminal", "recipe.conduit", "recipe.importbus", "recipe.exportbus")
+         Arrays.asList("recipe.terminal", "recipe.conduit", "recipe.importbus", "recipe.exportbus",
+               "recipe.accesspoint")
       );
 
       for (UnitTier tier : UnitTier.values()) {
@@ -102,6 +104,7 @@ public class CostTableTest {
          if (tier.hasWireless()) {
             expected.add(tier.wirelessTerminalCostKey());
             expected.add(tier.transceiverCostKey());
+            expected.add(tier.baseStationCostKey());
          }
       }
 

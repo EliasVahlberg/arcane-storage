@@ -13,6 +13,8 @@ import arcanestorage.network.NetworkContents;
 import arcanestorage.object.StorageConduitObject;
 import arcanestorage.container.BusContainer;
 import arcanestorage.objectentity.BusSummary;
+import arcanestorage.objectentity.ArcaneAccessPointObjectEntity;
+import arcanestorage.objectentity.ArcaneBaseStationObjectEntity;
 import arcanestorage.objectentity.BusObjectEntity;
 import necesse.inventory.item.ItemCategory;
 import necesse.inventory.itemFilter.ItemCategoriesFilter;
@@ -95,12 +97,22 @@ public final class ArcaneStorageVerbs {
          Harness.registerObjectAlias(
                tier == UnitTier.WIRELESS_BOTTOM ? "transceiver" : tier.suffix + "transceiver",
                tier.transceiverId());
+         Harness.registerObjectAlias(
+               tier == UnitTier.WIRELESS_BOTTOM ? "basestation" : tier.suffix + "basestation",
+               tier.baseStationId());
       }
+
+      Harness.registerObjectAlias("accesspoint", arcanestorage.object.ArcaneAccessPointObject.STRING_ID);
 
       Harness.registerObjectAlias("conduit", ArcaneStorage.CONDUIT_STRING_ID);
       Harness.registerObjectAlias("importbus", ArcaneStorage.IMPORT_BUS_STRING_ID);
       Harness.registerObjectAlias("exportbus", ArcaneStorage.EXPORT_BUS_STRING_ID);
 
+      Harness.registerVerb(new TuneVerb());
+      // Both of these are queries as well as verbs, and a query has to go in as an expectation -- the two registries
+      // are separate, and registerVerb alone leaves 'query band' unknown while the verb itself works.
+      Harness.registerExpectation(new BandSettingsQuery());
+      Harness.registerExpectation(new BandQuery());
       Harness.registerVerb(new ReportVerb());
       Harness.registerVerb(new ResetVerb());
       Harness.registerVerb(new IndexPoisonVerb());
@@ -2467,6 +2479,132 @@ public final class ArcaneStorageVerbs {
 
          return context.check(actual == wanted, "total " + itemID + " = " + wanted,
                "expected " + wanted + ", found " + actual);
+      }
+   }
+
+   /**
+    * {@code tune <dx> <dy> <bandId> <channel>} -- what the Access Point's panel does, through the same method.
+    *
+    * <p>Deliberately the same entry point rather than writing the fields directly: every refusal a player can meet --
+    * a taken channel, a band that is out of range, a band that does not exist -- is decided in {@code tune}, and a
+    * verb that bypassed it could only test a version of the feature nobody plays.
+    */
+   private static final class TuneVerb implements TestVerb {
+      public String name() {
+         return "tune";
+      }
+
+      public String usage() {
+         return "tune <dx> <dy> <bandId> <channel>";
+      }
+
+      public int coordinateArgIndex() {
+         return 1;
+      }
+
+      public boolean run(TestContext context) {
+         ObjectEntity entity = context.level.entityManager.getObjectEntity(
+               context.tileX(context.intArg(1)), context.tileY(context.intArg(2)));
+         if (!(entity instanceof ArcaneAccessPointObjectEntity)) {
+            context.fail("tune: no access point there");
+            return false;
+         }
+
+         String refusal = ((ArcaneAccessPointObjectEntity)entity).tune(context.intArg(3), context.intArg(4));
+         if (refusal != null) {
+            context.fail("refused: " + refusal);
+            return false;
+         }
+
+         context.info("tuned to band " + context.intArg(3) + " channel " + context.intArg(4));
+         return true;
+      }
+   }
+
+   /**
+    * {@code query bandsettings} -- the band's configured numbers, so no test has to restate them.
+    *
+    * <p>Exists because these live in the config file, which a player edits. A test that hardcoded 200 tiles and four
+    * channels would be testing the file rather than the feature, and would fail on Elias's machine the first time he
+    * tuned the range in play -- which is exactly what the setting is for.
+    */
+   private static final class BandSettingsQuery implements TestVerb, TestQuery {
+      public String name() {
+         return "bandsettings";
+      }
+
+      public String usage() {
+         return "query bandsettings";
+      }
+
+      public boolean run(TestContext context) {
+         return true;
+      }
+
+      public void query(TestContext context, Json.Writer out) {
+         out.num("range", ArcaneStorage.SETTINGS.bandRange);
+         for (UnitTier tier : UnitTier.values()) {
+            if (tier.hasWireless()) {
+               out.num(tier.name().toLowerCase(java.util.Locale.ROOT), ArcaneStorage.SETTINGS.bandChannels(tier));
+            }
+         }
+      }
+   }
+
+   /**
+    * {@code query band <dx> <dy>} -- whichever band device is at the tile, as it sees itself.
+    *
+    * <p>One query for both ends, because a band test is almost always checking that the two agree: the station says
+    * it is transmitting on two of four channels, and the Access Point says it is connected on channel 2. Two separate
+    * queries would let a test assert half of that and pass.
+    */
+   private static final class BandQuery implements TestVerb, TestQuery {
+      public String name() {
+         return "band";
+      }
+
+      public String usage() {
+         return "query band <dx> <dy>";
+      }
+
+      public int coordinateArgIndex() {
+         return 2;
+      }
+
+      public boolean run(TestContext context) {
+         return true;
+      }
+
+      public void query(TestContext context, Json.Writer out) {
+         int x = context.tileX(context.intArg(2));
+         int y = context.tileY(context.intArg(3));
+         ObjectEntity entity = context.level.entityManager.getObjectEntity(x, y);
+
+         if (entity instanceof ArcaneBaseStationObjectEntity) {
+            ArcaneBaseStationObjectEntity station = (ArcaneBaseStationObjectEntity)entity;
+            arcanestorage.band.Band band = station.band();
+            out.str("device", "station")
+               .str("state", station.getState().name().toLowerCase(java.util.Locale.ROOT))
+               .bool("live", band != null && band.live)
+               .num("band", band == null ? 0 : band.id)
+               .num("channels", band == null ? 0 : band.channelCount())
+               .num("used", band == null ? 0 : band.channelCount() - band.freeChannels())
+               .str("tier", station.tier().name().toLowerCase(java.util.Locale.ROOT));
+            return;
+         }
+
+         if (entity instanceof ArcaneAccessPointObjectEntity) {
+            ArcaneAccessPointObjectEntity point = (ArcaneAccessPointObjectEntity)entity;
+            out.str("device", "accesspoint")
+               .str("state", point.getState().name().toLowerCase(java.util.Locale.ROOT))
+               .bool("live", point.getState().isActive())
+               .num("band", point.getBandId())
+               .num("channel", point.getChannel())
+               .str("name", point.name());
+            return;
+         }
+
+         out.str("device", "none").str("state", "none").bool("live", false).num("band", 0);
       }
    }
 

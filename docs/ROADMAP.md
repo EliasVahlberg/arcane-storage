@@ -297,10 +297,42 @@ worse than choosing them.
 
 Worth doing, not worth blocking on, and none started.
 
-- **Wirelessly linked silos** — separate clusters joining one logical network
-  through paired connectors instead of one contiguous mass. Addresses the
-  relocation complaint that dogs Magic Storage, and is probably the clearest way
-  not to read as a port.
+- ~~**Wirelessly linked silos**~~ — **built as a frequency band** (Aug 2026), which is a
+  cell network rather than the entangled pair the deferral imagined. An **Arcane Base
+  Station** (Demonic → Tungsten → Fallen) generates a numbered band whose channel count is
+  its tier's; an **Arcane Access Point** beside a distant cluster tunes to a band and a
+  channel, one device per channel, refused on collision the way a bus rule conflict is.
+  Reach is 200 tiles, in the config, and untiered — a band has to span the base it was built
+  in from the first rung, so what the tier buys is how many silos it carries.
+
+  **A bridged cluster is not a distinguishable kind of member**, which was the requirement.
+  One hook on the network walk joins the two, symmetric in both directions, and every
+  consumer — capacity, contents, crafting, the buses, the logistics tab, the wireless
+  terminal — works on the union without knowing a band exists.
+
+  Four things about it are decisions rather than details:
+
+  1. **The band lives in the level's own persisted data, not on the devices.** Both ends are
+     routinely in unloaded regions, and an object entity does not exist while its region is
+     out of memory — so a channel table on the station's entity would have made "is this
+     channel free" answerable only when somebody was standing there.
+  2. **The link is symmetric because a network is named by its lowest member tile.** A
+     one-way link would have a bus in a silo computing a smaller network than the terminal
+     does, and two shared indexes over overlapping units count items twice.
+  3. **The station transmits only with a Wireless Transceiver on its own cluster**, which
+     makes the band and the wireless terminal one investment rather than two.
+  4. **Two stations on one network both go dark**, as two conflicting buses do.
+
+  Three bugs were found building it, each worth remembering. The transceiver was a network
+  *node* rather than a conductor, so it silently severed any run it was placed in — the same
+  mistake the buses made, found again because a station could not see past one. Validating
+  once per layout change was not enough, because `topologyChanged` fires from inside
+  `onDestroyed` and the engine clears the tile *afterwards*: a station that validated on the
+  bump kept transmitting through a transceiver that had just been mined, so validation now
+  waits two ticks. And claims outlived their devices, since only the destroy path released
+  them, so both devices now prune the index against the world — for loaded tiles only, since
+  an unloaded tile reads as empty and pruning on that would free every silo nobody was
+  standing in.
 - ~~**Remote and wireless access**~~ — **built and now tiered** (Aug 2026). A Wireless Terminal item pairs
   to a placed **Wireless Transceiver** by being used on it, and opens that network's full interface,
   including on a level the server has unloaded.

@@ -1072,7 +1072,9 @@ public abstract class BusObjectEntity extends ObjectEntity implements DeviceOnNe
          }
 
          return true;
-      }, StorageTerminalObjectEntity.MAX_UNITS, StorageTerminalObjectEntity.MAX_CONDUITS);
+      }, arcanestorage.band.BandIndex.linksOn(level),
+            StorageTerminalObjectEntity.MAX_UNITS, StorageTerminalObjectEntity.MAX_CONDUITS,
+            StorageTerminalObjectEntity.MAX_LINKS);
    }
 
    /**

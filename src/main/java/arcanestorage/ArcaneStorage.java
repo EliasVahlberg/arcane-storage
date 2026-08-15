@@ -81,6 +81,12 @@ public class ArcaneStorage {
    /** The wireless terminal's container. Registered plain, not as an OE container -- see RemoteTerminalContainer. */
    public static int REMOTE_TERMINAL_CONTAINER = -1;
 
+   /** The Base Station's channel list. A view with no actions at all. */
+   public static int BASE_STATION_CONTAINER = -1;
+
+   /** The Access Point's band and channel panel. */
+   public static int ACCESS_POINT_CONTAINER = -1;
+
    public static final String WIRELESS_TERMINAL_STRING_ID = "arcanestoragewirelessterminal";
 
    /**
@@ -133,7 +139,19 @@ public class ArcaneStorage {
                new arcanestorage.remote.WirelessTerminalItem(tier), 200.0F, true);
          ObjectRegistry.registerObject(tier.transceiverId(),
                new arcanestorage.object.WirelessTransceiverObject(tier), 12.0F, true);
+         ObjectRegistry.registerObject(tier.baseStationId(),
+               new arcanestorage.object.ArcaneBaseStationObject(tier), 12.0F, true);
       }
+
+      // One rung: an Access Point has nothing a tier could buy. See the class comment.
+      ObjectRegistry.registerObject(arcanestorage.object.ArcaneAccessPointObject.STRING_ID,
+            new arcanestorage.object.ArcaneAccessPointObject(), 10.0F, true);
+
+      // The band's own state, which is per level rather than per device -- see BandIndex. Registered here because
+      // LevelDataRegistry closes with the others; the data itself is attached to a level on demand, the first time a
+      // Base Station asks, so a world that predates this mod acquires one without migration.
+      necesse.engine.registries.LevelDataRegistry.registerLevelData(
+            arcanestorage.band.BandIndex.KEY, arcanestorage.band.BandIndex.class);
 
       // Registered with the plain variant on purpose. Every typed variant resolves the level as the player's own
       // (registerLevelContainer: client.getLevel() / world.getLevel(client)), which is the one assumption a
@@ -189,6 +207,28 @@ public class ArcaneStorage {
          },
          (client, uniqueSeed, objectEntity, content, serverObject) ->
             new arcanestorage.upgrade.UnitUpgradeContainer(client, uniqueSeed, objectEntity, content)
+      );
+
+      // The band's two panels. Both are OE containers: each is opened by right-clicking a tile, and the entity at
+      // that tile is what the panel is about.
+      BASE_STATION_CONTAINER = ContainerRegistry.registerOEContainer(
+         (client, uniqueSeed, objectEntity, content) -> new arcanestorage.container.BaseStationContainerForm<>(
+            client, new arcanestorage.container.BaseStationContainer(client.getClient(), uniqueSeed,
+                  (arcanestorage.objectentity.ArcaneBaseStationObjectEntity)objectEntity)
+         ),
+         (client, uniqueSeed, objectEntity, content, serverObject) -> new arcanestorage.container.BaseStationContainer(
+            client, uniqueSeed, (arcanestorage.objectentity.ArcaneBaseStationObjectEntity)objectEntity
+         )
+      );
+
+      ACCESS_POINT_CONTAINER = ContainerRegistry.registerOEContainer(
+         (client, uniqueSeed, objectEntity, content) -> new arcanestorage.container.AccessPointContainerForm<>(
+            client, new arcanestorage.container.AccessPointContainer(client.getClient(), uniqueSeed,
+                  (arcanestorage.objectentity.ArcaneAccessPointObjectEntity)objectEntity, content)
+         ),
+         (client, uniqueSeed, objectEntity, content, serverObject) -> new arcanestorage.container.AccessPointContainer(
+            client, uniqueSeed, (arcanestorage.objectentity.ArcaneAccessPointObjectEntity)objectEntity, content
+         )
       );
 
       // Registered so the panel's numbers can be pushed rather than polled. The event carries derived totals,
@@ -249,7 +289,19 @@ public class ArcaneStorage {
             UnitTier.withPrevious(CostTable.materials(tier.transceiverCostKey()),
                   hasRungBelow ? below.transceiverId() : null)
          ));
+         Recipes.registerModRecipe(new Recipe(
+            tier.baseStationId(), 1, tier.tech(),
+            UnitTier.withPrevious(CostTable.materials(tier.baseStationCostKey()),
+                  hasRungBelow ? below.baseStationId() : null)
+         ));
       }
+
+      // Hand-craftable, unlike the station it tunes to. It is the part a player places once per outbuilding, and
+      // walking back to a Fallen workstation to make one more would be a tax on building out rather than a cost.
+      Recipes.registerModRecipe(new Recipe(
+         arcanestorage.object.ArcaneAccessPointObject.STRING_ID, CostTable.count("recipe.accesspoint"),
+         RecipeTechRegistry.WORKSTATION, CostTable.materials("recipe.accesspoint")
+      ));
 
       // Both ladders, each rung consuming the one below it. Registered from a table rather than written out
       // eight times, so a change to the curve is a change in one place and the two ladders cannot drift apart.

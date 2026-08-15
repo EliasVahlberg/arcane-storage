@@ -166,12 +166,27 @@ public final class UnitUpgrade {
          return ((arcanestorage.object.WirelessTransceiverObject)object).tier;
       }
 
+      if (object instanceof arcanestorage.object.ArcaneBaseStationObject) {
+         return ((arcanestorage.object.ArcaneBaseStationObject)object).tier;
+      }
+
       return object instanceof StationUnitObject ? ((StationUnitObject)object).tier : null;
    }
 
    /** True when the tile holds a Wireless Transceiver, whose ladder is priced separately from the units'. */
    public static boolean isTransceiver(Level level, int x, int y) {
       return level != null && level.getObject(x, y) instanceof arcanestorage.object.WirelessTransceiverObject;
+   }
+
+   /**
+    * True when the tile holds an Arcane Base Station, whose ladder is priced with the transceiver's.
+    *
+    * <p>Upgrading one in place matters more than it does for the other ladders: a station's band, and every channel
+    * claimed on it, is keyed to the tile. Breaking and replacing would take the band with it and leave every silo on
+    * that band asking to be retuned, so the in-place path is the only one that preserves what the player built.
+    */
+   public static boolean isBaseStation(Level level, int x, int y) {
+      return level != null && level.getObject(x, y) instanceof arcanestorage.object.ArcaneBaseStationObject;
    }
 
    /** True when the tile holds a Station Unit rather than a Storage Unit, which decides the target's string ID. */
@@ -193,6 +208,10 @@ public final class UnitUpgrade {
 
       if (isTransceiver(level, x, y)) {
          return next.hasWireless() ? next.transceiverId() : null;
+      }
+
+      if (isBaseStation(level, x, y)) {
+         return next.hasWireless() ? next.baseStationId() : null;
       }
 
       return isStation(level, x, y) ? next.stationId() : next.storageId();
@@ -219,6 +238,10 @@ public final class UnitUpgrade {
       // standing on the tile IS that rung, which is the same reasoning the unit ladder uses.
       if (isTransceiver(level, x, y)) {
          return next.hasWireless() ? arcanestorage.recipe.CostTable.materials(next.transceiverCostKey()) : null;
+      }
+
+      if (isBaseStation(level, x, y)) {
+         return next.hasWireless() ? arcanestorage.recipe.CostTable.materials(next.baseStationCostKey()) : null;
       }
 
       return next.upgradeCost();
@@ -253,7 +276,9 @@ public final class UnitUpgrade {
 
             return null;
          }, (tx, ty) -> level.getObject(tx, ty) instanceof NetworkConductor,
-            StorageTerminalObjectEntity.MAX_UNITS, StorageTerminalObjectEntity.MAX_CONDUITS)
+            arcanestorage.band.BandIndex.linksOn(level),
+            StorageTerminalObjectEntity.MAX_UNITS, StorageTerminalObjectEntity.MAX_CONDUITS,
+            StorageTerminalObjectEntity.MAX_LINKS)
       );
 
       return pool;

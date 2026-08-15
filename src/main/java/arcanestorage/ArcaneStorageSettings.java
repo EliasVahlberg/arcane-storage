@@ -85,6 +85,48 @@ public class ArcaneStorageSettings extends ModSettings {
    public int wirelessRangeFallen = -1;
 
    /**
+    * Tiles an Access Point may stand from its Base Station.
+    *
+    * <p>200 rather than the transceiver's 120, and the difference is the point: a band is meant to reach across a
+    * base and its outbuildings -- the farm, the mine head, the smelter row -- while a wireless pairing is meant to
+    * reach the base from wherever the player has wandered. One is architecture and the other is a commute.
+    *
+    * <p>Not tiered, unlike wireless reach. The Base Station's tier buys channels, which is how many silos a band
+    * carries; making it buy distance as well would mean the first rung could not span the base it was built in.
+    */
+   public int bandRange = 200;
+
+   /**
+    * Channels a Demonic, Tungsten and Fallen Base Station's band offers -- one silo each.
+    *
+    * <p>Four at the first rung because four is enough to be worth building: grain by the farm, ore by the mine,
+    * timber by the trees, and one spare. Doubling from there matches every other ladder in the mod, and the top rung
+    * is deliberately more than anyone needs, since the interesting limit at that point is how many silos a player
+    * wants to walk between rather than how many the band can carry.
+    *
+    * <p>Lowering these in the config does not move an Access Point that is already on a channel above the new count.
+    * The claim survives in the save and the station reports it as an overflow, because dropping a player's silo to
+    * enforce a number they just edited would be the wrong way round.
+    */
+   public int bandChannelsDemonic = 4;
+
+   public int bandChannelsTungsten = 8;
+
+   public int bandChannelsFallen = 16;
+
+   /** How many channels a Base Station of this tier offers. Never fewer than one, whatever the file says. */
+   public int bandChannels(arcanestorage.object.UnitTier tier) {
+      switch (tier) {
+         case FALLEN:
+            return this.bandChannelsFallen;
+         case TUNGSTEN:
+            return this.bandChannelsTungsten;
+         default:
+            return this.bandChannelsDemonic;
+      }
+   }
+
+   /**
     * Recipe and upgrade costs, keyed as in {@code recipes.properties}, defaulting to what ships in the jar.
     *
     * <p>Populated from {@link CostTable} rather than written out here, so the config file cannot list a key the mod
@@ -121,6 +163,15 @@ public class ArcaneStorageSettings extends ModSettings {
                + "levels, which is not configurable");
       save.addSaveData(reach);
 
+      SaveData band = new SaveData("BAND");
+      band.addInt("range", this.bandRange,
+            "Tiles an Arcane Access Point may stand from its Base Station");
+      band.addInt("channelsDemonic", this.bandChannelsDemonic,
+            "Channels a Demonic Base Station's band offers -- one Access Point each");
+      band.addInt("channelsTungsten", this.bandChannelsTungsten, "Channels a Tungsten Base Station offers");
+      band.addInt("channelsFallen", this.bandChannelsFallen, "Channels a Fallen Base Station offers");
+      save.addSaveData(band);
+
       // One section per cost, holding one line per ingredient, rather than a single comma-separated string. The
       // file's own format separates entries with commas and would need the value escaped -- and an escaped
       // ingredient list in a file meant to be edited by hand defeats the point of putting it there.
@@ -153,6 +204,17 @@ public class ArcaneStorageSettings extends ModSettings {
          this.wirelessRangeDemonic = reach.getInt("demonic", this.wirelessRangeDemonic, -1, Integer.MAX_VALUE);
          this.wirelessRangeTungsten = reach.getInt("tungsten", this.wirelessRangeTungsten, -1, Integer.MAX_VALUE);
          this.wirelessRangeFallen = reach.getInt("fallen", this.wirelessRangeFallen, -1, Integer.MAX_VALUE);
+      }
+
+      LoadData band = save.getFirstLoadDataByName("BAND");
+      if (band != null) {
+         // A floor of 1 on both: a range of zero is an Access Point that must occupy the same tile as its station,
+         // and a band with no channels is a Base Station that cannot do the one thing it is for. Neither is a
+         // configuration anyone meant to write, and both would be silent.
+         this.bandRange = band.getInt("range", this.bandRange, 1, Integer.MAX_VALUE);
+         this.bandChannelsDemonic = band.getInt("channelsDemonic", this.bandChannelsDemonic, 1, 999);
+         this.bandChannelsTungsten = band.getInt("channelsTungsten", this.bandChannelsTungsten, 1, 999);
+         this.bandChannelsFallen = band.getInt("channelsFallen", this.bandChannelsFallen, 1, 999);
       }
 
       LoadData costs = save.getFirstLoadDataByName("COSTS");

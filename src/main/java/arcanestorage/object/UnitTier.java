@@ -122,6 +122,22 @@ public enum UnitTier {
       return "arcanestoragewirelesstransceiver" + this.wirelessSuffix();
    }
 
+   /**
+    * The Arcane Base Station object's string ID at this tier.
+    *
+    * <p>Shares {@link #wirelessSuffix()} with the two wireless devices, so the Demonic rung of every wireless-family
+    * ladder is the unsuffixed one. Consistency is the whole reason: the transceiver's unsuffixed ID is a scar from
+    * having been built untiered, and a second convention beside it would make the scar into a rule nobody can
+    * remember the shape of.
+    */
+   public String baseStationId() {
+      return "arcanestoragebasestation" + this.wirelessSuffix();
+   }
+
+   public String baseStationCostKey() {
+      return "recipe.basestation." + this.name().toLowerCase(java.util.Locale.ROOT);
+   }
+
    /** This tier's wireless cost keys in {@code recipes.properties}. */
    public String wirelessTerminalCostKey() {
       return "recipe.wirelessterminal." + this.name().toLowerCase(java.util.Locale.ROOT);

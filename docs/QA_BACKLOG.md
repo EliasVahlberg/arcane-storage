@@ -47,6 +47,24 @@ while the base is on the surface; and the upgrade hint naming the right end when
 number itself, 120 tiles, is a guess to tune: it should cover a base and its surroundings and fall short of the
 next biome.
 
+**0g. The frequency band, in play.** Nothing about the two panels is covered by tests -- the harness drives a server,
+so what it proves is that tuning is refused for the right reason, not that the dropdown said so. Worth walking
+through once, in this order: place a Base Station beside a network with a transceiver and confirm it lights up and
+reports its band number; place an Access Point twenty tiles off beside a few units, tune it, and confirm the units
+appear in the terminal's capacity and contents; check the station's list shows the silo on its channel and *Available*
+on the rest; try a second Access Point on the same channel and read the refusal; break the transceiver and confirm
+both devices go dark with the reason at each end; and upgrade the station through the button on its panel, confirming
+the silo stays connected and the channel count grows.
+
+**Two numbers to tune while doing it:** 200 tiles of reach, and 4/8/16 channels per rung. Both are guesses in the
+config. The reach should span a base and its outbuildings without reaching the next biome; the channel count should
+run out later than a player's patience for walking between silos.
+
+**Worth watching for specifically:** whether the on/off sprites read as on and off at a glance, whether a silo whose
+region has not been visited for a while still shows its contents (the station and the Access Point pin regions to
+prevent exactly that, and it is the part least likely to be right first time), and whether the band survives a save
+and reload with its channels intact.
+
 **0f. The config file.** It is written on first launch and now carries every cost as well as the three ranges.
 Worth confirming once that editing a range takes effect on the next open without a relaunch, that a malformed
 cost line is refused with a log line rather than stopping the mod, and that the file it writes reads well enough

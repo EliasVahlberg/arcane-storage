@@ -52,6 +52,25 @@ public final class UnitNetwork {
       boolean conductsAt(int x, int y);
    }
 
+   /**
+    * Tiles the network continues from that are not neighbours of this one.
+    *
+    * <p>How a frequency band joins two clusters: an Arcane Base Station links to its Access Points and each of them
+    * links back. Everything downstream -- capacity, buses, crafting, the terminal's view -- then works on a bridged
+    * network without knowing one exists, which is the requirement this hook was added for.
+    *
+    * <p><b>Both directions have to be reported, or the mod contradicts itself.</b> A network is named by its lowest
+    * member tile and every member is expected to discover the same set, so that all of them share one index. If a
+    * link were one-way, a bus in a silo would compute a smaller network than the terminal does, the two would build
+    * separate indexes over overlapping units, and the same items would be counted twice.
+    *
+    * @return packed {@code x << 32 | y} tiles, or null when this tile links nowhere. Null rather than an empty array
+    *     because this is asked about every conducting tile of every walk.
+    */
+   public interface LinkLookup {
+      long[] linksFrom(int x, int y);
+   }
+
    private UnitNetwork() {
    }
 
@@ -81,6 +100,19 @@ public final class UnitNetwork {
    public static <T> List<T> discover(
       int startX, int startY, UnitLookup<T> lookup, ConductorTest conducts, int maxUnits, int maxConductors
    ) {
+      return discover(startX, startY, lookup, conducts, null, maxUnits, maxConductors, 0);
+   }
+
+   /**
+    * Every unit reachable through connected units, conductors, and any links the conductors carry.
+    *
+    * @param links       consulted only at conducting tiles, or null for a walk that does not cross bands
+    * @param maxLinks    hard ceiling on links followed, bounding a walk over a pathological band table
+    */
+   public static <T> List<T> discover(
+      int startX, int startY, UnitLookup<T> lookup, ConductorTest conducts, LinkLookup links,
+      int maxUnits, int maxConductors, int maxLinks
+   ) {
       List<T> found = new ArrayList<>();
       if (maxUnits <= 0) {
          return found;
@@ -89,6 +121,7 @@ public final class UnitNetwork {
       Set<Long> seen = new HashSet<>();
       Deque<int[]> frontier = new ArrayDeque<>();
       int conductors = 0;
+      int linksFollowed = 0;
 
       // Marking the start as seen is what stops the walk stepping back onto the terminal.
       seen.add(key(startX, startY));
@@ -109,6 +142,28 @@ public final class UnitNetwork {
          if (conductors < maxConductors && conducts.conductsAt(tile[0], tile[1])) {
             conductors++;
             expand(tile[0], tile[1], seen, frontier);
+
+            // Links are asked for at conducting tiles only, which costs nothing to enforce -- everything this mod
+            // places conducts except the terminal -- and keeps the lookup off the hot path of ordinary tiles. The
+            // linked tile is enqueued rather than expanded: it is a device in its own right, and it is reached
+            // exactly as though it had been a neighbour.
+            if (links != null && linksFollowed < maxLinks) {
+               long[] linked = links.linksFrom(tile[0], tile[1]);
+               if (linked != null) {
+                  for (long target : linked) {
+                     if (linksFollowed >= maxLinks) {
+                        break;
+                     }
+
+                     int lx = (int)(target >> 32);
+                     int ly = (int)target;
+                     if (seen.add(key(lx, ly))) {
+                        frontier.add(new int[]{lx, ly});
+                        linksFollowed++;
+                     }
+                  }
+               }
+            }
          }
       }
 
@@ -124,6 +179,17 @@ public final class UnitNetwork {
             frontier.add(new int[]{nx, ny});
          }
       }
+   }
+
+   /**
+    * A tile as one comparable number, row-major, matching {@code DeviceOnNetwork.tileOrder}.
+    *
+    * <p>Deliberately a different packing from {@link #key}: this one sorts into reading order, which is what makes a
+    * network's member list stable and its leader election agree between devices. The visited set does not care about
+    * order, so it uses the cheaper column-major packing.
+    */
+   public static long order(int x, int y) {
+      return (long)y << 32 | (long)x & 0xFFFFFFFFL;
    }
 
    /** Packs a tile into one long so the visited set needs no allocation per lookup. */

@@ -5,7 +5,7 @@ import java.util.ArrayList;
 
 import arcanestorage.ArcaneStorage;
 import arcanestorage.network.NetworkIndexes;
-import arcanestorage.network.NetworkNode;
+import arcanestorage.network.NetworkConductor;
 import arcanestorage.objectentity.WirelessTransceiverObjectEntity;
 import arcanestorage.upgrade.UnitUpgradeContainer;
 import necesse.engine.localization.Localization;
@@ -36,11 +36,17 @@ import necesse.level.maps.Level;
  *
  * <h2>Extending the chest base class</h2>
  *
+ * <p><b>It conducts</b>, unlike the terminal and like everything else this mod places. That was wrong at first, for
+ * the same reason it was wrong on the buses: a device that does not conduct <i>severs</i> a run, so a transceiver
+ * placed between two units silently split the network and the units beyond it vanished from the terminal. A terminal
+ * is a window and may sever nothing because nothing is expected to route through a window; a transceiver is
+ * infrastructure and is routed through on purpose -- an Arcane Base Station has to be able to see it.
+ *
  * <p>Same reason the Storage Terminal does: sprite handling, collision, damage, and dropping itself when broken all
  * come free. Its inventory is empty by construction ({@link WirelessTransceiverObjectEntity#SLOTS}), so the
  * drop-contents behaviour has nothing to drop.
  */
-public class WirelessTransceiverObject extends StorageBoxInventoryObject implements NetworkNode {
+public class WirelessTransceiverObject extends StorageBoxInventoryObject implements NetworkConductor {
 
    public final UnitTier tier;
 

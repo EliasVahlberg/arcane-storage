@@ -14,6 +14,10 @@ arcanestorageexportbus=Arcane Export Bus
 arcanestoragewirelesstransceiver=Demonic Wireless Transceiver
 arcanestoragewirelesstransceivertungsten=Tungsten Wireless Transceiver
 arcanestoragewirelesstransceiverfallen=Fallen Wireless Transceiver
+arcanestoragebasestation=Demonic Arcane Base Station
+arcanestoragebasestationtungsten=Tungsten Arcane Base Station
+arcanestoragebasestationfallen=Fallen Arcane Base Station
+arcanestorageaccesspoint=Arcane Access Point
 
 [item]
 arcanestoragewirelessterminal=Demonic Wireless Terminal
@@ -98,3 +102,41 @@ arcanestorage_transceivertip=Pair a Wireless Terminal to it
 arcanestorage_transceiver_range=Reaches <range> tiles, this level only
 arcanestorage_transceiver_samelevel=Reaches anywhere on this level
 arcanestorage_transceiver_anylevel=Reaches any level
+
+# The frequency band. A band is named by a number the player reads off the station and types into an access point,
+# so every message that mentions one shows that number rather than describing the station's position.
+arcanestorage_basestationtip=Carries distant storage onto this network
+arcanestorage_accesspointtip=Joins nearby storage to a band
+arcanestorage_band_notransceiver=Needs a Wireless Transceiver on this network
+arcanestorage_band_conflict=Another Base Station on this network
+arcanestorage_band_notuned=No band selected
+arcanestorage_band_gone=Band <band> is gone
+arcanestorage_band_down=Band not transmitting
+arcanestorage_band_lostchannel=Channel lost
+arcanestorage_band_outofrange=Out of band range
+arcanestorage_band_outofrangeshort=(out of range)
+arcanestorage_band_noband=No such band
+arcanestorage_band_nochannel=No such channel
+arcanestorage_band_taken=Channel taken
+arcanestorage_band_toofar=Too far from the Base Station
+arcanestorage_band_apname=Band <band> ch <channel>
+arcanestorage_band_channels=<n> channels
+arcanestorage_band_channelsused=<used>/<total> channels used
+arcanestorage_band_rangetip=Reaches <range> tiles
+arcanestorage_band_title=Band <band>
+arcanestorage_band_short=Band <band>
+arcanestorage_band_stationhint=Tune an Access Point to a channel to join its storage
+arcanestorage_band_transmitting=Transmitting
+arcanestorage_band_channel=Channel <n>
+arcanestorage_band_channelrow=Channel
+arcanestorage_band_band=Band
+arcanestorage_band_available=Available
+arcanestorage_band_at=<name> at <x>,<y> -- <distance> tiles
+arcanestorage_band_option=Band <band> at <x>,<y> -- <distance> tiles
+arcanestorage_band_none=None
+arcanestorage_band_inuse=(in use)
+arcanestorage_band_tune=Tune
+arcanestorage_band_disconnect=Disconnect
+arcanestorage_band_connected=On band <band>, channel <channel>
+arcanestorage_devicename=Name
+arcanestorage_band_upgrade=Upgrade the Base Station
