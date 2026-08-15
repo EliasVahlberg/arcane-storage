@@ -108,10 +108,13 @@ public class BusContainerForm<T extends BusContainer> extends ContainerForm<T> {
       // A refusal outranks the device's state, because it answers what the player just did. The state is a
       // standing fact about the bus and will still be there once they have read the refusal.
       String message = "";
+      boolean problem = false;
       if (this.container.refusal != null) {
-         message = GameColor.RED.getColorCode() + this.container.refusal;
+         message = this.container.refusal;
+         problem = true;
       } else if (bus != null && bus.isInactive()) {
-         message = GameColor.RED.getColorCode() + bus.stateMessage();
+         message = bus.stateMessage();
+         problem = true;
       } else if (this.rules.hasUnappliedEdits()) {
          message = Localization.translate("ui", "arcanestorage_unapplied");
       }
@@ -132,7 +135,7 @@ public class BusContainerForm<T extends BusContainer> extends ContainerForm<T> {
       // Measured from the top of the editor rather than from the top of the window: the editor's natural height
       // does not include the explanation line above it, and leaving that out made the window grow by less than
       // the status line pushed the controls down, which put the Apply button below the panel's own bottom edge.
-      this.rules.setStatus(message);
+      this.rules.setStatus(message, problem);
       if (this.rules.consumeHeightChanged()) {
          int wanted = Math.max(BASE_HEIGHT, this.rulesTop + this.rules.getNaturalHeight());
          if (wanted != this.shownHeight) {

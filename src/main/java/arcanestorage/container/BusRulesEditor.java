@@ -95,6 +95,9 @@ public final class BusRulesEditor {
     */
    private final FormLabel statusLabel;
 
+   /** The status label's own options, recoloured in place. See where it is built for why. */
+   private final FontOptions statusFont;
+
    /**
     * Everything below the status line, as one invisible form.
     *
@@ -129,12 +132,14 @@ public final class BusRulesEditor {
    private boolean unapplied;
 
    private BusRulesEditor(ItemCategoriesFilterForm filterForm, ItemCategoriesFilter filter,
-         FormTextInput nameInput, FormLabel statusLabel, Form body, int bodyBaseY, int statusWrapWidth,
+         FormTextInput nameInput, FormLabel statusLabel, FontOptions statusFont, Form body, int bodyBaseY,
+         int statusWrapWidth,
          String name) {
       this.filterForm = filterForm;
       this.filter = filter;
       this.nameInput = nameInput;
       this.statusLabel = statusLabel;
+      this.statusFont = statusFont;
       this.body = body;
       this.bodyBaseY = bodyBaseY;
       this.statusWrapWidth = statusWrapWidth;
@@ -177,8 +182,12 @@ public final class BusRulesEditor {
       // when it is empty it occupies nothing and the amount row sits right below the name.
       int statusY = region.y + NAME_ROW_HEIGHT;
       int statusWrapWidth = region.width - 12;
+      // The instance is kept rather than the label's own copy, because a status line's colour changes with what it
+      // says and FormLabel has no setter for it. Prefixing a colour code instead does not work: a label renders one
+      // literally, paragraph mark and all -- codes are chat and tooltip syntax.
+      FontOptions statusFont = new FontOptions(STATUS_FONT);
       FormLabel statusLabel = host.addComponent(new FormLabel(
-            "", new FontOptions(STATUS_FONT), -1, region.x + 6, statusY, statusWrapWidth));
+            "", statusFont, -1, region.x + 6, statusY, statusWrapWidth));
 
       int bodyBaseY = statusY + STATUS_GAP;
       final Form body = host.addComponent(new Form(region.width, Math.max(1, region.height - (bodyBaseY - region.y))));
@@ -257,7 +266,8 @@ public final class BusRulesEditor {
                }
             });
 
-      BusRulesEditor editor = new BusRulesEditor(filterForm, filter, nameInput, statusLabel, body, bodyBaseY,
+      BusRulesEditor editor = new BusRulesEditor(filterForm, filter, nameInput, statusLabel, statusFont, body,
+            bodyBaseY,
             statusWrapWidth, name);
       self[0] = editor;
       editor.onLayoutChanged = onLayoutChanged;
@@ -324,6 +334,14 @@ public final class BusRulesEditor {
     * resize on every frame would fight the scrollbar and re-anchor a window continuously.
     */
    public void setStatus(String message) {
+      this.setStatus(message, false);
+   }
+
+   /** {@code problem} decides the colour: a refusal and a stopped device are red, an unapplied edit is not. */
+   public void setStatus(String message, boolean problem) {
+      this.statusFont.color(problem
+            ? arcanestorage.ui.ArcaneText.errorColor(this.statusLabel)
+            : arcanestorage.ui.ArcaneText.body(this.statusLabel));
       this.statusLabel.setText(message == null ? "" : message, this.statusWrapWidth);
       int height = message == null || message.isEmpty() ? 0 : this.statusLabel.getHeight() + STATUS_GAP;
       if (height == this.shownStatusHeight) {

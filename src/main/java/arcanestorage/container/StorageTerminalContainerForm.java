@@ -6,6 +6,7 @@ import java.util.Comparator;
 import java.util.List;
 
 import arcanestorage.ui.ArcanePanel;
+import arcanestorage.ui.ArcaneText;
 import necesse.engine.gameLoop.tickManager.TickManager;
 import necesse.engine.input.Control;
 import necesse.engine.input.InputEvent;
@@ -455,7 +456,7 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
          .addComponent(
             new FormLocalLabel(
                container.getTerminalName(),
-               new FontOptions(20),
+               ArcaneText.body(this, 20),
                -1,
                PADDING,
                headerY + (headerHeight - 20) / 2,
@@ -501,7 +502,7 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
       // "the filter removed them all". Set from inside addAllItems, so it counts the list that was
       // actually built rather than re-deriving the filter and risking the two disagreeing.
       this.summaryLabel = this.mainForm
-         .addComponent(new FormLabel("", new FontOptions(12), 1,
+         .addComponent(new FormLabel("", ArcaneText.body(this, 12), 1,
                this.mainForm.getWidth() - PADDING, categoryY + 4));
 
       // Centred on the category row, which is empty between the dropdown and the item count. Short by
@@ -509,7 +510,7 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
       // gray sprite on a bus behind a wall is not something they can find. Placed as an overlay on an
       // existing row rather than as a new one, so the tab's fixed height still adds up.
       this.problemsLabel = this.mainForm
-         .addComponent(new FormLabel("", new FontOptions(12), 0,
+         .addComponent(new FormLabel("", ArcaneText.error(this, 12), 0,
                this.mainForm.getWidth() / 2, categoryY + 4, this.mainForm.getWidth() / 2));
 
       this.itemList = this.mainForm
@@ -873,7 +874,7 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
 
       FormFlow flow = new FormFlow(PADDING);
       int headerY = flow.next(FormInputSize.SIZE_24.height + PADDING);
-      form.addComponent(new FormLocalLabel("ui", "arcanestorage_tab_stations", new FontOptions(20), -1,
+      form.addComponent(new FormLocalLabel("ui", "arcanestorage_tab_stations", ArcaneText.body(this, 20), -1,
             PADDING, headerY + 4, FORM_WIDTH - PADDING * 2));
 
       // Sockets come from Station Units now, so the count is whatever the network offers rather than a
@@ -886,7 +887,8 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
       if (sockets == 0) {
          // Deliberately says what to do, not what went wrong. An empty tab with no explanation reads as
          // a broken feature, and this is the one state every new network starts in.
-         form.addComponent(flow.nextY(new FormLocalLabel("ui", "arcanestorage_stations_none", new FontOptions(16),
+         form.addComponent(flow.nextY(new FormLocalLabel("ui", "arcanestorage_stations_none",
+               ArcaneText.dim(this, 16),
                -1, PADDING, 0, FORM_WIDTH - PADDING * 2), PADDING));
       } else {
          // FormFlow.next(add) returns the position *before* advancing, so a row's Y is captured when the
@@ -948,7 +950,8 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
       FormFlow flow = new FormFlow(PADDING);
       int headerY = flow.next(FormInputSize.SIZE_24.height + PADDING);
       form.addComponent(
-            new FormLocalLabel("ui", "arcanestorage_tab_crafting", new FontOptions(20), -1, PADDING, headerY + 4,
+            new FormLocalLabel("ui", "arcanestorage_tab_crafting", ArcaneText.body(this, 20), -1, PADDING,
+                  headerY + 4,
                   FORM_WIDTH - PADDING * 3 - SEARCH_WIDTH));
 
       FormTextInput search = form.addComponent(
@@ -984,7 +987,8 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
       // Sits over the top of the list area rather than in the flow, because it is only ever visible
       // when the list is empty -- and an empty list leaves that space blank anyway.
       FormLabel emptyHint = form.addComponent(
-            new FormLabel("", new FontOptions(16), 0, FORM_WIDTH / 2, flow.next(0) + 24, FORM_WIDTH - PADDING * 4));
+            new FormLabel("", ArcaneText.dim(this, 16), 0, FORM_WIDTH / 2, flow.next(0) + 24,
+                  FORM_WIDTH - PADDING * 4));
 
       int controlHeight = 16 + PADDING;
       int listY = flow.next(0);
@@ -1389,7 +1393,7 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
 
       FormFlow flow = new FormFlow(PADDING);
       int headerY = flow.next(FormInputSize.SIZE_24.height + PADDING);
-      form.addComponent(new FormLocalLabel("ui", "arcanestorage_tab_logistics", new FontOptions(20), -1,
+      form.addComponent(new FormLocalLabel("ui", "arcanestorage_tab_logistics", ArcaneText.body(this, 20), -1,
             PADDING, headerY + 4, FORM_WIDTH - PADDING * 2));
 
       // The issues area takes the height it needs and no more. It was a fixed four-line block of prose naming
@@ -1400,7 +1404,7 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
       this.issuesY = flow.next(0);
       this.issueBacking = form.addComponent(new FormColorFill(PADDING, this.issuesY,
             FORM_WIDTH - PADDING * 2, ISSUE_ROW, ISSUE_BACKING));
-      this.issueLabel = form.addComponent(new FormLabel("", new FontOptions(ISSUE_FONT), -1,
+      this.issueLabel = form.addComponent(new FormLabel("", ArcaneText.onFill(ISSUE_FONT), -1,
             PADDING * 2, this.issuesY + PADDING, FORM_WIDTH - PADDING * 4 - COPY_BUTTON_WIDTH - PADDING));
 
       // Only worth offering when there is something to copy, and it is the whole set rather than one device:
@@ -1815,17 +1819,20 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
          // Same precedence as the bus's own panel: a refusal answers what the player just did, a stopped state
          // is a standing fact that will still be there afterwards.
          String message = "";
+         boolean problem = false;
          if (this.getContainer().refusal != null) {
-            message = GameColor.RED.getColorCode() + this.getContainer().refusal;
+            message = this.getContainer().refusal;
+            problem = true;
          } else if (selected != null && !selected.state.isActive()) {
-            message = GameColor.RED.getColorCode() + selected.message();
+            message = selected.message();
+            problem = true;
          } else if (this.deviceRules.hasUnappliedEdits()) {
             message = Localization.translate("ui", "arcanestorage_unapplied");
          }
 
          // The editor owns its status line and reflows around it, in both surfaces, so the pane only has to
          // keep its scroll extent in step with the result.
-         this.deviceRules.setStatus(message);
+         this.deviceRules.setStatus(message, problem);
          if (this.deviceRules.consumeHeightChanged() && this.devicePaneBox != null) {
             this.devicePaneBox.setContentBox(new Rectangle(
                   this.devicePane.getWidth() - this.devicePaneBox.getScrollBarWidth(),
@@ -1853,8 +1860,8 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
          }
       }
 
-      this.problemsLabel.setText(stopped == 0 ? "" : GameColor.RED.getColorCode()
-            + Localization.translate("ui", "arcanestorage_problems", "count", String.valueOf(stopped)));
+      this.problemsLabel.setText(stopped == 0 ? ""
+            : Localization.translate("ui", "arcanestorage_problems", "count", String.valueOf(stopped)));
    }
 
    /** Order-sensitive hash of item identity and amount, used only to detect changes. */

@@ -7,6 +7,7 @@ import arcanestorage.band.BandOption;
 import arcanestorage.band.BandState;
 import arcanestorage.objectentity.ArcaneAccessPointObjectEntity;
 import arcanestorage.ui.ArcanePanel;
+import arcanestorage.ui.ArcaneText;
 import necesse.engine.gameLoop.tickManager.TickManager;
 import necesse.engine.localization.Localization;
 import necesse.engine.localization.message.GameMessage;
@@ -14,7 +15,6 @@ import necesse.engine.localization.message.LocalMessage;
 import necesse.engine.localization.message.StaticMessage;
 import necesse.engine.network.client.Client;
 import necesse.entity.mobs.PlayerMob;
-import necesse.gfx.GameColor;
 import necesse.gfx.forms.components.FormDropdownSelectionButton;
 import necesse.gfx.forms.components.FormFlow;
 import necesse.gfx.forms.components.FormInputSize;
@@ -52,6 +52,9 @@ public class AccessPointContainerForm<T extends AccessPointContainer> extends Co
 
    private final FormLabel status;
 
+   /** Held so its colour can change with what the line says; a label keeps the instance it is given. */
+   private final FontOptions statusFont;
+
    /** The selection being assembled, which is not what the device has until the button is pressed. */
    private int chosenBand;
 
@@ -67,14 +70,14 @@ public class AccessPointContainerForm<T extends AccessPointContainer> extends Co
 
       FormFlow flow = new FormFlow(PADDING);
       this.addComponent(flow.nextY(new FormLocalLabel("object", "arcanestorageaccesspoint",
-            new FontOptions(16), -1, PADDING, 0), 4));
+            ArcaneText.body(this, 16), -1, PADDING, 0), 4));
       this.addComponent(flow.nextY(new FormLocalLabel("ui", "arcanestorage_accesspointtip",
-            new FontOptions(12), -1, PADDING, 0, WIDTH - PADDING * 2), 6));
+            ArcaneText.dim(this, 12), -1, PADDING, 0, WIDTH - PADDING * 2), 6));
 
       // The name row first, as on a bus, because it is the label a player reads in the station's list and the only
       // handle they have on which silo this is.
       this.addComponent(new FormLocalLabel("ui", "arcanestorage_devicename",
-            new FontOptions(12), -1, PADDING, flow.next(0) + 4));
+            ArcaneText.body(this, 12), -1, PADDING, flow.next(0) + 4));
       this.nameInput = this.addComponent(new FormTextInput(PADDING + 70, flow.next(28),
             FormInputSize.SIZE_24, WIDTH - PADDING * 2 - 70, -1, ArcaneAccessPointObjectEntity.MAX_NAME_LENGTH));
       this.nameInput.setText(point == null ? "" : point.getCustomName());
@@ -84,7 +87,7 @@ public class AccessPointContainerForm<T extends AccessPointContainer> extends Co
 
       int bandY = flow.next(30);
       this.addComponent(new FormLocalLabel("ui", "arcanestorage_band_band",
-            new FontOptions(12), -1, PADDING, bandY + 6));
+            ArcaneText.body(this, 12), -1, PADDING, bandY + 6));
       this.bandButton = this.addComponent(new FormDropdownSelectionButton<>(
             PADDING + 70, bandY, FormInputSize.SIZE_24, ButtonColor.BASE, WIDTH - PADDING * 2 - 70));
       this.bandButton.onSelected(event -> {
@@ -95,7 +98,7 @@ public class AccessPointContainerForm<T extends AccessPointContainer> extends Co
 
       int channelY = flow.next(30);
       this.addComponent(new FormLocalLabel("ui", "arcanestorage_band_channelrow",
-            new FontOptions(12), -1, PADDING, channelY + 6));
+            ArcaneText.body(this, 12), -1, PADDING, channelY + 6));
       this.channelButton = this.addComponent(new FormDropdownSelectionButton<>(
             PADDING + 70, channelY, FormInputSize.SIZE_24, ButtonColor.BASE, WIDTH - PADDING * 2 - 70));
       this.channelButton.onSelected(event -> {
@@ -121,7 +124,8 @@ public class AccessPointContainerForm<T extends AccessPointContainer> extends Co
                this.refreshButtons();
             });
 
-      this.status = this.addComponent(new FormLabel("", new FontOptions(12), -1,
+      this.statusFont = ArcaneText.body(this, 12);
+      this.status = this.addComponent(new FormLabel("", this.statusFont, -1,
             PADDING, flow.next(20), WIDTH - PADDING * 2));
 
       this.setHeight(flow.next(PADDING));
@@ -182,18 +186,23 @@ public class AccessPointContainerForm<T extends AccessPointContainer> extends Co
       // A refusal outranks the state, because it answers what the player just did. The state is a standing fact and
       // will still be true once they have read the refusal.
       String message;
+      boolean good = false;
       if (this.container.refusal != null) {
-         message = GameColor.RED.getColorCode() + this.container.refusal;
+         message = this.container.refusal;
       } else if (point == null) {
          message = "";
       } else {
          BandState state = point.getState();
-         message = state.isActive()
-            ? GameColor.GREEN.getColorCode() + Localization.translate("ui", "arcanestorage_band_connected",
+         good = state.isActive();
+         message = good
+            ? Localization.translate("ui", "arcanestorage_band_connected",
                   "band", String.valueOf(point.getBandId()), "channel", String.valueOf(point.getChannel()))
-            : GameColor.RED.getColorCode() + Localization.translate("ui", state.localeKey);
+            : Localization.translate("ui", state.localeKey);
       }
 
+      // Recoloured in place rather than prefixed with a colour code. A code is chat and tooltip syntax -- the text
+      // renderer behind a form label does not parse it, so the panels showed the paragraph marks themselves.
+      this.statusFont.color(good ? ArcaneText.successColor(this) : ArcaneText.errorColor(this));
       this.status.setText(message, WIDTH - PADDING * 2);
 
       // A rename by anything else lands in the box; typing does not, since the name is not applied until submitted.
