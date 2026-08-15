@@ -31,6 +31,23 @@ build: ## Compile the mod and produce build/jar/<name>.jar
 	@mkdir -p $(LOGDIR)
 	@time $(GRADLE) buildModJar < /dev/null 2>&1 | tee $(LOGDIR)/build.log
 	@ls -la build/jar/
+	@$(MAKE) --no-print-directory releasecheck
+
+releasecheck: ## Assert the release jar carries no trace of the harness (runs as part of 'make build')
+	@# Both properties below were broken at some point and neither announced itself: a jar containing
+	@# the bridge classes refuses to load for anyone without the harness, and a mod.info naming an
+	@# absent optional dependency draws the mod's name in warning colour on every player's mod list.
+	@# Neither is visible from this machine, where the harness is always installed -- hence a check
+	@# rather than a habit.
+	@jar=$$(ls build/jar/*.jar); \
+	fail=0; \
+	n=$$(unzip -l "$$jar" | grep -c "arcanestorage/harness/" || true); \
+	if [ "$$n" != "0" ]; then echo "  FAIL: $$n harness class(es) in $$jar"; fail=1; \
+	else echo "  ok: no harness classes"; fi; \
+	if unzip -p "$$jar" mod.info | grep -q "necesseheadlessharness"; then \
+	  echo "  FAIL: mod.info names the harness"; fail=1; \
+	else echo "  ok: mod.info does not name the harness"; fi; \
+	if [ "$$fail" != "0" ]; then echo "  release jar is not shippable"; exit 1; fi
 
 testjar: ## Produce build/testjar/<name>.jar: the same mod plus the harness verbs, for scenarios only
 	@mkdir -p $(LOGDIR)

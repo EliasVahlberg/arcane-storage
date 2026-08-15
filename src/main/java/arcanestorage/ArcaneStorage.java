@@ -17,6 +17,8 @@ import arcanestorage.objectentity.BusObjectEntity;
 import arcanestorage.objectentity.ImportBusObjectEntity;
 import arcanestorage.objectentity.StorageTerminalObjectEntity;
 import arcanestorage.ui.ArcanePanel;
+import necesse.engine.modLoader.LoadedMod;
+import necesse.engine.modLoader.ModLoader;
 import necesse.engine.modLoader.annotations.ModEntry;
 import necesse.engine.registries.ContainerRegistry;
 import necesse.engine.registries.ItemRegistry;
@@ -39,6 +41,15 @@ public class ArcaneStorage {
    public static final String MOD_ID = "elias.arcanestorage";
 
    /** Registry string ID of the terminal object; also its texture and locale key. */
+   /**
+    * The harness mod's id, used only to decide whether to look for the harness bridge.
+    *
+    * <p>Duplicated in {@code build.gradle} as {@code project.ext.harnessModID}, where it goes into the test jar's
+    * mod.info to put the harness ahead of this mod in load order. The two must agree, and neither can read the other:
+    * a wrong value here loses the test verbs, which the scenario suite fails loudly on.
+    */
+   private static final String HARNESS_MOD_ID = "elias.necesseheadlessharness";
+
    public static final String TERMINAL_STRING_ID = "arcanestorageterminal";
 
    /** Registry string ID of the storage unit object; also its texture and locale key. */
@@ -329,30 +340,52 @@ public class ArcaneStorage {
             CostTable.materials("recipe.exportbus"))
       );
 
-      // Drives the scenario harness. Registered unconditionally: it needs owner permission,
-      // and being present in a normal game is harmless.
       // Adds this mod's verbs and assertions to the harness's command, when the harness is
       // installed. There is no command of our own any more: every verb was either generic enough to
       // belong to the harness or specific enough to register into it.
       //
-      // THE GUARD MUST BE HERE, at the call site, and not inside ArcaneStorageVerbs. The harness is
-      // an optional dependency, and when it is absent the JVM throws NoClassDefFoundError while
-      // *resolving* ArcaneStorageVerbs -- before a single line of its code runs, so a try/catch
-      // written inside it never executes. Verified by booting a server with the harness removed: the
-      // error escaped, and the mod loader then died with an unrelated-looking NullPointerException
-      // about a null dispose method, which is what this failure looks like from the outside.
-      //
-      // Throwable rather than Exception, because NoClassDefFoundError is an Error.
-      try {
-         arcanestorage.harness.ArcaneStorageVerbs.register();
-      } catch (Throwable harnessAbsent) {
-         // Expected for the release jar, which excludes arcanestorage/harness/** -- so this says which
-         // build is running rather than implying the harness is missing from the game. It logged
-         // "harness not present" in a session where the harness plainly had loaded, which is
-         // confusing at exactly the wrong moment.
-         System.out.println("Arcane Storage: built without the harness bridge (use 'make testjar' for the"
-               + " test build); test verbs not registered ("
-            + harnessAbsent.getClass().getSimpleName() + ")");
+      // Asking the loader first, rather than attempting the call and catching the failure, is what
+      // keeps a released build silent. A player has the harness in neither form -- not the mod and
+      // not the bridge classes, which buildModJar excludes -- so for them this is one list scan and
+      // nothing else. It used to reach the catch below on every boot and print advice about
+      // 'make testjar' into their log, which is this project's business and not theirs.
+      if (harnessInstalled()) {
+         // THE GUARD MUST BE HERE, at the call site, and not inside ArcaneStorageVerbs. When the
+         // bridge classes are absent the JVM throws NoClassDefFoundError while *resolving*
+         // ArcaneStorageVerbs -- before a single line of its code runs, so a try/catch written inside
+         // it never executes. Verified by booting a server with the harness removed: the error
+         // escaped, and the mod loader then died with an unrelated-looking NullPointerException about
+         // a null dispose method, which is what this failure looks like from the outside.
+         //
+         // Still needed despite the check above, because the two conditions are independent: the
+         // harness mod being loaded says nothing about whether this jar carries the bridge. That
+         // combination is a real one -- the released jar running in a development install -- and it
+         // is the only case that now reaches this catch, which is why the message names it.
+         //
+         // Throwable rather than Exception, because NoClassDefFoundError is an Error.
+         try {
+            arcanestorage.harness.ArcaneStorageVerbs.register();
+         } catch (Throwable bridgeAbsent) {
+            System.out.println("Arcane Storage: the harness is installed but this is the release jar,"
+                  + " which excludes the harness bridge; test verbs not registered ("
+               + bridgeAbsent.getClass().getSimpleName() + ")");
+         }
       }
+   }
+
+   /**
+    * Whether the harness mod itself is loaded, which is a different question from whether this jar can talk to it.
+    *
+    * <p>Read from the loader rather than inferred, because the answer decides whether anything is printed at all and a
+    * released mod should be quiet. {@code getEnabledMods} is a short list and this runs once, at postInit.
+    */
+   private static boolean harnessInstalled() {
+      for (LoadedMod mod : ModLoader.getEnabledMods()) {
+         if (HARNESS_MOD_ID.equals(mod.id)) {
+            return true;
+         }
+      }
+
+      return false;
    }
 }

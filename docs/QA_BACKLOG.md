@@ -807,3 +807,41 @@ larger signal than the single intermittent xfail already known from object-entit
 is many scenarios failing at once rather than one flaking. Mob spawning now runs during scenarios, which
 `docs/WORKFLOW.md` names as the first place to look. If it recurs, capture the failing test names before re-running:
 that was missed here, and a re-run destroys the evidence.
+
+### It recurred, and this time the names were captured
+
+`[Aug 2026]` The same **7 failed, 243 passed** appeared twice in a row, and the seven are always these:
+
+```
+test_bus_names.py::test_breaking_one_does_not_renumber_the_others
+test_bus_names.py::test_a_new_bus_takes_a_number_nobody_is_using
+test_frequency_band.py::test_breaking_the_station_disconnects_every_silo
+test_frequency_band.py::test_losing_the_transceiver_takes_the_silo_off_the_network
+test_logistics_tab.py::test_the_survey_follows_the_network_as_it_changes
+test_station_units.py::test_breaking_the_station_unit_takes_its_socket_and_its_bench
+test_unit_tiers.py::test_breaking_a_tiered_unit_takes_its_whole_capacity_with_it
+```
+
+**Every one of them removes an object.** That is the same deferred-removal shape the `storage` fixture in
+`tests/python/conftest.py` already documents and settles around: entity removal happens on a tick rather than in the
+call, so a test that breaks something and immediately asks about the network is racing the engine. Seven of them
+failing together and the other 243 passing fits that far better than anything about mob spawning, which was the
+previous suspicion and is now the weaker one.
+
+Two things it is **not**, both checked rather than assumed:
+
+- **Not accumulated world state.** The harness deletes the world at the start of every run -- it refuses any world
+  name not containing `harness` for exactly that reason -- so no run inherits the previous run's objects.
+- **Not a deadlock.** `latest-crash.log` was six days old during the failing runs.
+
+Attribution was attempted and came out negative. The burst appeared while the harness-disconnection change was in the
+tree; the suite was then run at the previous commit and passed 250, which looked like an indictment, but the same
+working tree then passed 250 as well. One green run cannot convict an intermittent fault. The honest tally for that
+day, all against the same scenarios, is **two green and two red with the change, one green without it** -- so the
+change is not implicated, and neither is anything else yet.
+
+The remaining lead is the fixture's settle counts. `harness.settle(2)` either side of `reset` was tuned when it was
+written; if the fault is a race with deferred removal, the number that matters is whatever the slowest of these seven
+needs, and it may simply be larger than 2 on a loaded machine. Worth trying before anything more elaborate, and worth
+measuring rather than guessing: a failing run captured with the removal counts before and after each settle would say
+directly whether the removals had completed.
