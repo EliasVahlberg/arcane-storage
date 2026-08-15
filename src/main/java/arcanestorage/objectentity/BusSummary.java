@@ -145,4 +145,41 @@ public final class BusSummary {
          "x", String.valueOf(this.conflictX),
          "y", String.valueOf(this.conflictY));
    }
+
+   /**
+    * Value equality, so a mirror can tell a changed list from an identical one.
+    *
+    * <p>Every field counts, including the conflict partner's name: a conflict whose other side was renamed reads
+    * differently to a player, so it is a different summary.
+    */
+   @Override
+   public boolean equals(Object other) {
+      if (this == other) {
+         return true;
+      }
+
+      if (!(other instanceof BusSummary)) {
+         return false;
+      }
+
+      BusSummary that = (BusSummary)other;
+      return this.tileX == that.tileX
+         && this.tileY == that.tileY
+         && this.importing == that.importing
+         && this.state == that.state
+         && this.conflictX == that.conflictX
+         && this.conflictY == that.conflictY
+         && this.ordinal == that.ordinal
+         && this.conflictOrdinal == that.conflictOrdinal
+         && java.util.Objects.equals(this.conflictItemID, that.conflictItemID)
+         && this.customName.equals(that.customName)
+         && this.conflictCustomName.equals(that.conflictCustomName);
+   }
+
+   @Override
+   public int hashCode() {
+      return java.util.Objects.hash(this.tileX, this.tileY, this.importing, this.state, this.conflictItemID,
+            this.conflictX, this.conflictY, this.ordinal, this.customName, this.conflictOrdinal,
+            this.conflictCustomName);
+   }
 }

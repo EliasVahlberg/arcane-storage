@@ -10,8 +10,15 @@ reference now points at the pytest file that owns the assertion. See `docs/TESTI
 
 ## Needs eyes — the wireless terminal (Aug 2026)
 
-**0a. The click path, which no test touches.** *(Pairing itself is confirmed working in game -- the message
-printed. Opening crashed on the first right-click and is fixed but not re-tested.)* `tests/python/test_wireless_terminal.py` binds the item directly,
+**0a. The click path, which no test touches.** *(Pairing, opening, depositing items and installing benches are
+all confirmed working in game. Withdrawing crashed the client and is fixed but not re-tested; so is the Logistics
+tab, which was blank and now mirrors the bus list. Both want a look.)*
+
+Worth knowing what these two had in common, since it is a trap rather than a mistake: **a container action's body
+runs on the clicking client as well as the server**, and on a remote client there is no terminal object entity to
+reach through. Three bugs have come from that now. `TerminalNullGuardTest` catches the shape from here on --
+verified by reintroducing the crash and watching it fail -- but nothing headless can catch the behaviour, because
+the Python suite has no client at all. `tests/python/test_wireless_terminal.py` binds the item directly,
 because what a click adds is `ItemInteractAction` plumbing rather than anything the feature is about. So this is
 unproven: holding the item and clicking a placed Storage Terminal should pair it and say so, and clicking anywhere
 else should open the network. `overridesObjectInteract` returns true, which is what stops the click opening the

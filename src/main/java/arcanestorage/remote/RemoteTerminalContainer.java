@@ -8,6 +8,7 @@ import arcanestorage.ArcaneStorage;
 import arcanestorage.container.StorageTerminalContainer;
 import arcanestorage.network.NetworkStations;
 import arcanestorage.network.NetworkStorage;
+import arcanestorage.objectentity.BusSummary;
 import arcanestorage.objectentity.StorageTerminalObjectEntity;
 import necesse.engine.localization.message.GameMessage;
 import necesse.engine.network.NetworkClient;
@@ -75,6 +76,14 @@ public class RemoteTerminalContainer extends StorageTerminalContainer {
     * alternative of tracking every {@code addSlot} the parent makes, and it cannot fall out of step with it.
     */
    private final int slotCount;
+
+   /**
+    * The Logistics tab's contents on a remote client, and on the server the copy the client was last sent.
+    *
+    * <p>Held rather than read through because the terminal entity's own bus list only reaches clients through
+    * its content packet, which travels by proximity.
+    */
+   private List<BusSummary> buses = new ArrayList<>();
 
    /** Parsed open-content, so both halves can be built from one read of the packet. */
    private static final class Parsed {
@@ -157,6 +166,8 @@ public class RemoteTerminalContainer extends StorageTerminalContainer {
          this.applyShape(parsed.shape);
          this.subscribeEvent(SlotMirrorEvent.class, event -> true, () -> true);
          this.onEvent(SlotMirrorEvent.class, this::applyMirror);
+         this.subscribeEvent(BusMirrorEvent.class, event -> true, () -> true);
+         this.onEvent(BusMirrorEvent.class, event -> this.buses = event.buses);
       }
    }
 
@@ -165,6 +176,8 @@ public class RemoteTerminalContainer extends StorageTerminalContainer {
       if (shape == null) {
          return;
       }
+
+      this.buses = new ArrayList<>(shape.buses);
 
       for (RemoteNetworkShape.SlotItem entry : shape.contents) {
          this.writeSlot(entry.index, entry.item);
@@ -212,6 +225,35 @@ public class RemoteTerminalContainer extends StorageTerminalContainer {
 
       RemoteTerminal.pin(this.remoteLevel);
       this.sendPending();
+      this.sendBuses();
+   }
+
+   /**
+    * Pushes the bus list when it differs from the copy the client holds.
+    *
+    * <p>Compared every tick, which is affordable because the terminal's {@code getBuses()} is a field read and a
+    * network has a handful of buses. Comparison is on value -- {@code BusSummary} gained an {@code equals} for
+    * this -- so a bus merely being re-derived does not cost a packet, while a warning appearing does.
+    */
+   private void sendBuses() {
+      List<BusSummary> current = super.getBuses();
+      if (this.buses.equals(current)) {
+         return;
+      }
+
+      this.buses = new ArrayList<>(current);
+      new BusMirrorEvent(this.buses).applyAndSendToClient(this.client.getServerClient());
+   }
+
+   /**
+    * The buses to show. The real list server-side, the mirrored one on a remote client.
+    *
+    * <p>Overridden rather than left to the parent's null check, which returned an empty list and made the
+    * Logistics tab read as a network with no buses at all.
+    */
+   @Override
+   public List<BusSummary> getBuses() {
+      return this.client.isServer() ? super.getBuses() : this.buses;
    }
 
    private void sendPending() {
@@ -342,6 +384,6 @@ public class RemoteTerminalContainer extends StorageTerminalContainer {
       }
 
       return new RemoteNetworkShape(binding, resolved.terminal.getInventoryName(), socketCounts, unitSizes,
-            new ArrayList<>());
+            new ArrayList<>(), new ArrayList<>(resolved.terminal.getBuses()));
    }
 }

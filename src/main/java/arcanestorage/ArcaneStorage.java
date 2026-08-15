@@ -183,6 +183,8 @@ public class ArcaneStorage {
       // sendToClientsWithEntity, which is proximity-based.
       necesse.inventory.container.events.ContainerEventRegistry.registerUpdate(
          arcanestorage.remote.SlotMirrorEvent.class);
+      necesse.inventory.container.events.ContainerEventRegistry.registerUpdate(
+         arcanestorage.remote.BusMirrorEvent.class);
    }
 
    public void initResources() {

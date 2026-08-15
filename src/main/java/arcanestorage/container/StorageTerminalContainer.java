@@ -133,7 +133,8 @@ public class StorageTerminalContainer extends Container {
    private final LinkedHashSet<Inventory> craftPool;
 
    public StorageTerminalContainer(NetworkClient client, int uniqueSeed, StorageTerminalObjectEntity terminal) {
-      this(client, uniqueSeed, terminal, terminal.getLinkedStationUnits(), terminal.getLinkedUnits(), null);
+      this(client, uniqueSeed, java.util.Objects.requireNonNull(terminal, "the local path always has a terminal"),
+            terminal.getLinkedStationUnits(), terminal.getLinkedUnits(), null);
    }
 
    /**
@@ -576,7 +577,7 @@ public class StorageTerminalContainer extends Container {
     * the click. Anything that will not fit stays with the player rather than being destroyed.
     */
    public int depositAll() {
-      Level level = this.terminal.getLevel();
+      Level level = this.level();
       PlayerMob player = this.client.playerMob;
       Inventory inventory = player.getInv().main;
       ArrayList<InventoryRange> targets = this.networkTargets();
@@ -613,6 +614,12 @@ public class StorageTerminalContainer extends Container {
 
    /**
     * The level whose items these are, or the viewer's own level when this is a remote client.
+    *
+    * <p>Reached from the both-sides bodies of {@code depositAll}, {@code WithdrawAction} and
+    * {@code DepositCursorAction} as well, which is why it is not merely a getter. Those three run on the clicking
+    * client too, by design, so the player sees the result before the server's reply -- and on a remote client
+    * {@code terminal} is null, so {@code terminal.getLevel()} threw the moment an item was withdrawn through a
+    * wireless terminal. That was the third time a body running on both sides was written as though it ran on one.
     *
     * <p>Used only where a level is a parameter to an item comparison. {@code InventoryItem.equals} takes one to
     * let items answer questions about the world they are in, and no item in the game answers differently on one
@@ -844,7 +851,7 @@ public class StorageTerminalContainer extends Container {
             return;
          }
 
-         Level level = StorageTerminalContainer.this.terminal.getLevel();
+         Level level = StorageTerminalContainer.this.level();
          PlayerMob player = StorageTerminalContainer.this.client.playerMob;
          InventoryItem moving = held.copy(requested);
 
@@ -901,7 +908,7 @@ public class StorageTerminalContainer extends Container {
 
          // Never trust the requested amount: one click yields at most one stack.
          int remaining = Math.min(Math.max(requested, 0), wanted.item.getStackSize());
-         Level level = StorageTerminalContainer.this.terminal.getLevel();
+         Level level = StorageTerminalContainer.this.level();
          ContainerSlot cursor = StorageTerminalContainer.this.getClientDraggingSlot();
 
          for (int index = StorageTerminalContainer.this.NETWORK_START;

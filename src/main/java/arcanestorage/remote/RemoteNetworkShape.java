@@ -11,6 +11,7 @@ import necesse.entity.objectEntity.ObjectEntity;
 import necesse.inventory.Inventory;
 import necesse.inventory.InventoryItem;
 import arcanestorage.network.NetworkStations;
+import arcanestorage.objectentity.BusSummary;
 import arcanestorage.network.NetworkStorage;
 
 /**
@@ -67,6 +68,15 @@ public final class RemoteNetworkShape {
    /** Non-empty slots at the moment of opening, as {@code (container slot index, item)}. */
    public final List<SlotItem> contents;
 
+   /**
+    * The buses on the network at the moment it was opened.
+    *
+    * <p>Carried here as well as in {@link BusMirrorEvent} so the Logistics tab is right on the first frame
+    * rather than one tick later, which is the same reason the upgrade panel's first state travels in its open
+    * packet.
+    */
+   public final List<BusSummary> buses;
+
    /** One mirrored slot. */
    public static final class SlotItem {
 
@@ -81,12 +91,13 @@ public final class RemoteNetworkShape {
    }
 
    public RemoteNetworkShape(RemoteBinding binding, GameMessage name, int[] socketCounts, int[] unitSizes,
-         List<SlotItem> contents) {
+         List<SlotItem> contents, List<BusSummary> buses) {
       this.binding = binding;
       this.name = name;
       this.socketCounts = socketCounts;
       this.unitSizes = unitSizes;
       this.contents = contents;
+      this.buses = buses;
    }
 
    public void writePacket(PacketWriter writer) {
@@ -112,6 +123,11 @@ public final class RemoteNetworkShape {
          writer.putNextShortUnsigned(entry.index);
          writer.putNextContentPacket(InventoryItem.getContentPacket(entry.item));
       }
+
+      writer.putNextShortUnsigned(this.buses.size());
+      for (BusSummary summary : this.buses) {
+         summary.writePacket(writer);
+      }
    }
 
    public static RemoteNetworkShape fromPacket(PacketReader reader) {
@@ -135,7 +151,13 @@ public final class RemoteNetworkShape {
          contents.add(new SlotItem(index, InventoryItem.fromContentPacket(reader.getNextContentPacket())));
       }
 
-      return new RemoteNetworkShape(binding, new StaticMessage(name), socketCounts, unitSizes, contents);
+      int busCount = reader.getNextShortUnsigned();
+      List<BusSummary> buses = new ArrayList<>(busCount);
+      for (int i = 0; i < busCount; i++) {
+         buses.add(BusSummary.readPacket(reader));
+      }
+
+      return new RemoteNetworkShape(binding, new StaticMessage(name), socketCounts, unitSizes, contents, buses);
    }
 
    public Packet toPacket() {
