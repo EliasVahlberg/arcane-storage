@@ -102,6 +102,14 @@ public class ArcaneStorage {
       // player first opens an upgrade panel.
       CostTable.load();
 
+      // Then anything the config file overrides, applied here rather than where the file is read: the settings load
+      // before preInit, when the item registry does not exist yet, so a bad ingredient ID has to fail at
+      // registration where it can be named. An unusable override is refused and logged, not fatal -- a typo in a
+      // file the player edits should cost them that line and not the mod.
+      for (java.util.Map.Entry<String, String> override : SETTINGS.costs.entrySet()) {
+         CostTable.override(override.getKey(), override.getValue());
+      }
+
       ObjectRegistry.registerObject(TERMINAL_STRING_ID, new StorageTerminalObject(), 10.0F, true);
       // Every rung of both ladders. The base tier keeps the original string IDs, which must never change,
       // and the upper three append their era. Registered in tier order so the crafting list reads as a ladder.
@@ -114,7 +122,18 @@ public class ArcaneStorage {
       ObjectRegistry.registerObject(IMPORT_BUS_STRING_ID, new ImportBusObject(), 8.0F, true);
       ObjectRegistry.registerObject(EXPORT_BUS_STRING_ID, new ExportBusObject(), 8.0F, true);
 
-      ItemRegistry.registerItem(WIRELESS_TERMINAL_STRING_ID, new arcanestorage.remote.WirelessTerminalItem(), 200.0F, true);
+      // The wireless ladder: three rungs of each, from the Demonic era up. The bottom rung keeps the unsuffixed
+      // string IDs it was first registered under -- see UnitTier.wirelessSuffix -- and BASE has no rung at all.
+      for (UnitTier tier : UnitTier.values()) {
+         if (!tier.hasWireless()) {
+            continue;
+         }
+
+         ItemRegistry.registerItem(tier.wirelessTerminalId(),
+               new arcanestorage.remote.WirelessTerminalItem(tier), 200.0F, true);
+         ObjectRegistry.registerObject(tier.transceiverId(),
+               new arcanestorage.object.WirelessTransceiverObject(tier), 12.0F, true);
+      }
 
       // Registered with the plain variant on purpose. Every typed variant resolves the level as the player's own
       // (registerLevelContainer: client.getLevel() / world.getLevel(client)), which is the one assumption a
@@ -208,12 +227,29 @@ public class ArcaneStorage {
             CostTable.materials("recipe.terminal"))
       );
 
-      // Fallen-era, and hand-craftable on purpose: by the time these shards exist the player has a network, and
-      // needing a workstation would only mean walking to one to make the thing that saves the walking.
-      Recipes.registerModRecipe(
-         new Recipe(WIRELESS_TERMINAL_STRING_ID, CostTable.count("recipe.wirelessterminal"),
-            RecipeTechRegistry.NONE, CostTable.materials("recipe.wirelessterminal"))
-      );
+      // The wireless ladder. Made at the era's workstation rather than by hand, unlike the earlier single-tier
+      // version: a tiered recipe belongs where the other recipes of its tier are, and the station is where a player
+      // goes when they have just mined the gemstone these ask for. Each upper rung consumes the one below, so a
+      // player upgrades their terminal rather than accumulating three.
+      for (UnitTier tier : UnitTier.values()) {
+         if (!tier.hasWireless()) {
+            continue;
+         }
+
+         UnitTier below = tier.below();
+         boolean hasRungBelow = below != null && below.hasWireless();
+
+         Recipes.registerModRecipe(new Recipe(
+            tier.wirelessTerminalId(), 1, tier.tech(),
+            UnitTier.withPrevious(CostTable.materials(tier.wirelessTerminalCostKey()),
+                  hasRungBelow ? below.wirelessTerminalId() : null)
+         ));
+         Recipes.registerModRecipe(new Recipe(
+            tier.transceiverId(), 1, tier.tech(),
+            UnitTier.withPrevious(CostTable.materials(tier.transceiverCostKey()),
+                  hasRungBelow ? below.transceiverId() : null)
+         ));
+      }
 
       // Both ladders, each rung consuming the one below it. Registered from a table rather than written out
       // eight times, so a change to the curve is a change in one place and the two ladders cannot drift apart.

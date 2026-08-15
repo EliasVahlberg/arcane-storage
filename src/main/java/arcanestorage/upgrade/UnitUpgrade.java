@@ -144,7 +144,14 @@ public final class UnitUpgrade {
       }
    }
 
-   /** The tier of the unit on this tile, or null if it is not a tiered unit. */
+   /**
+    * The tier of the tiered device on this tile, or null if there is not one.
+    *
+    * <p>Three ladders share this panel now: Storage Units, Station Units and Wireless Transceivers. The transceiver
+    * belongs here rather than in its own upgrade path because everything the panel does -- read the tier, price the
+    * next rung, spend from the player and the network, swap the object, tell the clients -- is identical. What
+    * differs is one lookup, {@link #costKeyFor}, and the fact that a transceiver has nothing stored to carry over.
+    */
    public static UnitTier tierAt(Level level, int x, int y) {
       if (level == null) {
          return null;
@@ -155,7 +162,16 @@ public final class UnitUpgrade {
          return ((StorageUnitObject)object).tier;
       }
 
+      if (object instanceof arcanestorage.object.WirelessTransceiverObject) {
+         return ((arcanestorage.object.WirelessTransceiverObject)object).tier;
+      }
+
       return object instanceof StationUnitObject ? ((StationUnitObject)object).tier : null;
+   }
+
+   /** True when the tile holds a Wireless Transceiver, whose ladder is priced separately from the units'. */
+   public static boolean isTransceiver(Level level, int x, int y) {
+      return level != null && level.getObject(x, y) instanceof arcanestorage.object.WirelessTransceiverObject;
    }
 
    /** True when the tile holds a Station Unit rather than a Storage Unit, which decides the target's string ID. */
@@ -175,6 +191,10 @@ public final class UnitUpgrade {
          return null;
       }
 
+      if (isTransceiver(level, x, y)) {
+         return next.hasWireless() ? next.transceiverId() : null;
+      }
+
       return isStation(level, x, y) ? next.stationId() : next.storageId();
    }
 
@@ -191,7 +211,17 @@ public final class UnitUpgrade {
       }
 
       UnitTier next = tier.next();
-      return next == null ? null : next.upgradeCost();
+      if (next == null) {
+         return null;
+      }
+
+      // The transceiver's own ladder, not the units'. Its materials only, without the rung below: the transceiver
+      // standing on the tile IS that rung, which is the same reasoning the unit ladder uses.
+      if (isTransceiver(level, x, y)) {
+         return next.hasWireless() ? arcanestorage.recipe.CostTable.materials(next.transceiverCostKey()) : null;
+      }
+
+      return next.upgradeCost();
    }
 
    /**

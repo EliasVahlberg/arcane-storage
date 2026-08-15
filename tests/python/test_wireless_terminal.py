@@ -25,10 +25,12 @@ from __future__ import annotations
 
 import pytest
 
+import costs
+
 
 def test_pairing_is_remembered_by_the_item(storage):
     """The binding lives on the item, so it survives everything that does not destroy the item."""
-    storage.place("terminal", 0, 0)
+    storage.place("transceiver", 0, 0)
     storage.place("unit", 1, 0)
     storage.settle(5)
 
@@ -43,7 +45,7 @@ def test_pairing_is_remembered_by_the_item(storage):
     # Absolute tiles, so the test cannot name them -- what it can prove is that they point somewhere and that
     # pairing again elsewhere moves them, which is the property that would break if the tile were dropped.
     first = (state["x"], state["y"])
-    storage.place("terminal", 5, 5)
+    storage.place("transceiver", 5, 5)
     storage.settle(2)
     storage.do("pair", 5, 5)
     moved = storage.query("binding")
@@ -52,8 +54,11 @@ def test_pairing_is_remembered_by_the_item(storage):
 
 def test_a_remote_open_reaches_the_same_network(storage):
     """The point of the feature: the network's contents, from somewhere else."""
+    # A terminal to fill the network through, a unit to hold it, and a transceiver to pair to. All three touch, so
+    # one network walk finds them all -- the transceiver is a second door into the same storage, not its own network.
     storage.place("terminal", 0, 0)
     storage.place("unit", 1, 0)
+    storage.place("transceiver", 2, 0)
     storage.settle(5)
 
     storage.give("ironbar", 40)
@@ -62,7 +67,7 @@ def test_a_remote_open_reaches_the_same_network(storage):
     storage.do("close")
     storage.settle(5)
 
-    storage.do("pair", 0, 0)
+    storage.do("pair", 2, 0)
     storage.do("openremote")
     storage.settle(5)
 
@@ -72,7 +77,7 @@ def test_a_remote_open_reaches_the_same_network(storage):
 
 def test_distance_does_not_close_a_remote_container(storage):
     """isValid runs every tick, so surviving several ticks at range is the whole assertion."""
-    storage.place("terminal", 30, 30)
+    storage.place("transceiver", 30, 30)
     storage.place("unit", 31, 30)
     storage.settle(5)
 
@@ -85,7 +90,7 @@ def test_distance_does_not_close_a_remote_container(storage):
 
 def test_the_same_distance_still_closes_a_local_container(storage):
     """The control. Without this, the test above proves only that something opened."""
-    storage.place("terminal", 30, 30)
+    storage.place("transceiver", 30, 30)
     storage.place("unit", 31, 30)
     storage.settle(5)
 
@@ -104,7 +109,7 @@ def test_the_same_distance_still_closes_a_local_container(storage):
 
 def test_items_move_through_a_remote_container_for_real(storage):
     """Deposits must land in the unit, not in a mirror of it."""
-    storage.place("terminal", 20, 0)
+    storage.place("transceiver", 20, 0)
     storage.place("unit", 21, 0)
     storage.settle(5)
 
@@ -115,6 +120,8 @@ def test_items_move_through_a_remote_container_for_real(storage):
     storage.do("depositall")
     storage.settle(5)
 
+    # Asked at the transceiver, which answers as a network head: 'query item' reports what a network sees from the
+    # named tile rather than what that tile holds, and a transceiver sees the same network a terminal would.
     assert storage.query("playerinv", "ironbar")["count"] == 0, "the bag kept the bars"
     assert storage.query("item", 20, 0, "ironbar")["count"] == 25, (
         "the bars went into the client-side mirror rather than the real unit"
@@ -126,9 +133,9 @@ def test_items_move_through_a_remote_container_for_real(storage):
     assert storage.query("item", 20, 0, "ironbar")["count"] == 15
 
 
-def test_breaking_the_terminal_closes_a_remote_container(storage):
+def test_breaking_the_transceiver_closes_a_remote_container(storage):
     """The check that must survive dropping the range check: nothing may write into a detached inventory."""
-    storage.place("terminal", 20, 0)
+    storage.place("transceiver", 20, 0)
     storage.place("unit", 21, 0)
     storage.settle(5)
 
@@ -146,7 +153,7 @@ def test_breaking_the_terminal_closes_a_remote_container(storage):
 
 def test_breaking_a_unit_closes_a_remote_container(storage):
     """Same reason, one step further out: a unit leaving the network detaches its inventory."""
-    storage.place("terminal", 20, 0)
+    storage.place("transceiver", 20, 0)
     storage.place("unit", 21, 0)
     storage.settle(5)
 
@@ -162,7 +169,7 @@ def test_breaking_a_unit_closes_a_remote_container(storage):
 
 def test_an_unpaired_item_opens_nothing(storage):
     """A refusal, not a crash or an empty terminal."""
-    storage.place("terminal", 0, 0)
+    storage.place("transceiver", 0, 0)
     storage.settle(5)
 
     assert storage.query("binding")["paired"] is False
@@ -192,13 +199,14 @@ def test_a_remote_open_loads_a_region_that_has_gone(storage):
     dx, dy = storage.distant_offset()
     storage.place("terminal", dx, dy)
     storage.place("unit", dx + 1, dy)
+    storage.place("fallentransceiver", dx + 2, dy)
     storage.settle(5)
 
     storage.give("ironbar", 40)
     storage.do("open", dx, dy)
     storage.do("depositall")
     storage.do("close")
-    storage.do("pair", dx, dy)
+    storage.do("pair", dx + 2, dy, "fallen")
     storage.settle(5)
 
     # One unload covers both: a region is 16 tiles, so a terminal and the unit beside it share one. A network
@@ -226,13 +234,14 @@ def test_items_withdrawn_from_a_reloaded_region_are_really_there(storage):
     dx, dy = storage.distant_offset()
     storage.place("terminal", dx, dy)
     storage.place("unit", dx + 1, dy)
+    storage.place("fallentransceiver", dx + 2, dy)
     storage.settle(5)
 
     storage.give("ironbar", 40)
     storage.do("open", dx, dy)
     storage.do("depositall")
     storage.do("close")
-    storage.do("pair", dx, dy)
+    storage.do("pair", dx + 2, dy, "fallen")
     storage.settle(5)
 
     storage.unload_region(dx, dy)
@@ -255,10 +264,10 @@ def test_an_open_remote_container_keeps_its_regions_loaded(storage):
     bite by removing the region half of the pin and watching both assertions fail.
     """
     dx, dy = storage.distant_offset()
-    storage.place("terminal", dx, dy)
+    storage.place("fallentransceiver", dx, dy)
     storage.place("unit", dx + 1, dy)
     storage.settle(5)
-    storage.do("pair", dx, dy)
+    storage.do("pair", dx, dy, "fallen")
 
     storage.do("openremote")
     storage.settle(5)
@@ -275,10 +284,10 @@ def test_a_closed_remote_container_stops_pinning(storage):
     """The other half of the pin: it must not leak. A terminal opened once should not keep a region alive
     for the rest of the session, which is the failure mode a reference count would have introduced."""
     dx, dy = storage.distant_offset()
-    storage.place("terminal", dx, dy)
+    storage.place("fallentransceiver", dx, dy)
     storage.place("unit", dx + 1, dy)
     storage.settle(5)
-    storage.do("pair", dx, dy)
+    storage.do("pair", dx, dy, "fallen")
 
     storage.do("openremote")
     storage.settle(5)
@@ -286,3 +295,173 @@ def test_a_closed_remote_container_stops_pinning(storage):
 
     storage.step(700)
     assert not storage.region_loaded(dx, dy), "the region is still pinned after the container closed"
+
+
+# -- the tier ladder ------------------------------------------------------------------------------
+#
+# Three rungs at each end, and the lower of the two decides. What the ladder gates is where the player
+# may stand, never what the window shows -- a terminal that displayed less at a lower tier would be a
+# worse interface rather than a shorter reach.
+#
+# The cross-level rung cannot be tested here: the harness runs one level. What is testable, and is what
+# actually broke in play, is the distance gate and the rule about which end governs.
+
+NEAR = (40, 0)
+"""Comfortably inside the bottom rung's default 120 tiles."""
+
+FAR = (200, 0)
+"""Comfortably outside it, and inside the two rungs above."""
+
+
+def _network(storage, dx, dy, transceiver="transceiver"):
+    """A terminal, a unit and a transceiver in a row, so one network walk finds all three."""
+    storage.place("terminal", dx, dy)
+    storage.place("unit", dx + 1, dy)
+    storage.place(transceiver, dx + 2, dy)
+    storage.settle(5)
+    return dx + 2, dy
+
+
+def test_the_bottom_rung_reaches_its_own_neighbourhood(storage):
+    tx, ty = _network(storage, *NEAR)
+    storage.do("pair", tx, ty, "demonic")
+    storage.do("openremote")
+    storage.settle(5)
+
+    assert storage.query("binding")["remoteopen"] is True
+
+
+def test_the_bottom_rung_is_refused_further_off(storage):
+    """The gate itself. Refused at the open rather than opened and closed a tick later, so a player gets a
+    reason instead of a window that flickers."""
+    tx, ty = _network(storage, *FAR)
+    storage.do("pair", tx, ty, "demonic")
+
+    reply = storage.call("openremote")
+    assert not reply.ok, "a Demonic pairing reached 200 tiles"
+    assert "TOO_FAR" in reply.describe()
+
+
+def test_the_top_rung_reaches_the_same_distance(storage):
+    """Same tiles, both ends upgraded. This is the test that says the refusal above is about the tier and not
+    about the distance being unreachable for some other reason."""
+    tx, ty = _network(storage, *FAR, transceiver="fallentransceiver")
+    storage.do("pair", tx, ty, "fallen")
+    storage.do("openremote")
+    storage.settle(5)
+
+    assert storage.query("binding")["remoteopen"] is True
+
+
+def test_the_lower_end_decides(storage):
+    """A Fallen terminal on a Demonic transceiver reaches as far as the transceiver does, which is the rule that
+    makes both halves of an upgrade worth paying for."""
+    tx, ty = _network(storage, *FAR)
+    storage.do("pair", tx, ty, "fallen")
+
+    reply = storage.call("openremote")
+    assert not reply.ok, "the better end was allowed to decide"
+    assert "TOO_FAR" in reply.describe()
+
+
+def test_pairing_a_lower_terminal_is_allowed(storage):
+    """Refusing the pairing would be a worse experience for no gain: the reach is already limited by the rule
+    above, so the mismatch costs the player nothing except the tier they did not buy."""
+    tx, ty = _network(storage, *NEAR, transceiver="fallentransceiver")
+    storage.do("pair", tx, ty, "demonic")
+
+    assert storage.query("binding")["paired"] is True
+    storage.do("openremote")
+    storage.settle(5)
+    assert storage.query("binding")["remoteopen"] is True
+
+
+# -- the terminal is the link ---------------------------------------------------------------------
+
+
+def test_deposit_all_keeps_the_terminal_that_opened_it(storage):
+    """One click used to store the only way back to the network, in the network, on a level the player was not
+    on. The container closes when the terminal stops being carried, so this was not a cosmetic loss."""
+    tx, ty = _network(storage, *NEAR)
+    storage.do("pair", tx, ty, "demonic")
+
+    storage.give("ironbar", 20)
+    storage.do("openremote")
+    storage.settle(2)
+    storage.do("depositall")
+    storage.settle(5)
+
+    assert storage.query("item", tx, ty, "ironbar")["count"] == 20, "the bars did not deposit"
+    assert storage.query("binding")["paired"] is True, "the terminal was deposited into the network it opened"
+    assert storage.query("binding")["remoteopen"] is True, "the container closed, which means the item went"
+
+
+def test_banking_the_terminal_closes_the_container(storage):
+    """The other side of that rule, and why it is enforced every tick rather than at the open: deliberately
+    filing the terminal away ends the session it entitled. Deposited by name, which is the deliberate path --
+    deposit-all refuses, a drag does not."""
+    tx, ty = _network(storage, *NEAR)
+    storage.do("pair", tx, ty, "demonic")
+    storage.do("openremote")
+    storage.settle(2)
+    assert storage.query("binding")["remoteopen"] is True
+
+    storage.do("deposit", "arcanestoragewirelessterminal", "1")
+    storage.settle(5)
+    assert storage.query("binding")["remoteopen"] is False
+
+
+# -- upgrading in place ---------------------------------------------------------------------------
+
+
+def test_a_transceiver_upgrades_in_place(storage):
+    """Same panel as a Storage Unit, priced from its own ladder, and without the rung below in the cost -- the
+    transceiver standing on the tile is that rung. The cost is read from recipes.properties rather than written
+    here, for the reason costs.py exists."""
+    tx, ty = _network(storage, *NEAR)
+
+    before = storage.query("upgrade", tx, ty)
+    assert before["tier"] == "demonic"
+    assert before["target"] == "arcanestoragewirelesstransceivertungsten"
+    assert before["affordable"] is False, "affordable with an empty bag"
+
+    cost = costs.materials("recipe.wirelesstransceiver.tungsten")
+    for item, amount in cost.items():
+        storage.give(item, amount)
+
+    storage.do("upgrade", tx, ty)
+    storage.settle(5)
+
+    after = storage.query("upgrade", tx, ty)
+    assert after["outcome"] == "upgraded"
+    assert after["tier"] == "tungsten"
+
+    for item in cost:
+        assert storage.query("playerinv", item)["count"] == 0, f"{item} was not spent"
+
+
+def test_a_transceiver_upgrade_does_not_charge_for_the_rung_below(storage):
+    """Crafting one takes the previous transceiver; upgrading one does not, because the previous transceiver is
+    what is standing on the tile. Asserted against the recipe data so the two cannot drift."""
+    tx, ty = _network(storage, *NEAR)
+
+    cost = storage.query("upgrade", tx, ty)["cost"].split(",")
+    assert "arcanestoragewirelesstransceiver" not in cost
+    assert sorted(cost) == sorted(costs.materials("recipe.wirelesstransceiver.tungsten"))
+
+
+def test_an_unaffordable_transceiver_upgrade_changes_nothing(storage):
+    """The verb reports the attempt, not the outcome, so the outcome is what gets asserted."""
+    tx, ty = _network(storage, *NEAR)
+
+    cost = costs.materials("recipe.wirelesstransceiver.tungsten")
+    metal = "tungstenbar"
+    storage.give(metal, cost[metal])
+
+    storage.do("upgrade", tx, ty)
+    storage.settle(5)
+
+    state = storage.query("upgrade", tx, ty)
+    assert state["outcome"] == "missing_materials"
+    assert state["tier"] == "demonic", "upgraded without the gemstone"
+    assert storage.query("playerinv", metal)["count"] == cost[metal], "materials were consumed by a refusal"

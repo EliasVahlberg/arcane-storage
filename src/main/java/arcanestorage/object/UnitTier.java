@@ -82,6 +82,55 @@ public enum UnitTier {
       return "arcanestoragestationunit" + this.suffix;
    }
 
+   /**
+    * The bottom of the wireless ladder, which starts an era above the units.
+    *
+    * <p>Wireless access is not an early-game convenience: it removes the walk back to the base, which is most of
+    * what a storage network is for before then. {@link #BASE} therefore has no wireless rung at all, and
+    * {@link #wirelessTerminalId()} refuses rather than inventing one.
+    */
+   public static final UnitTier WIRELESS_BOTTOM = DEMONIC;
+
+   /** Whether this tier has a wireless rung. False only for {@link #BASE}. */
+   public boolean hasWireless() {
+      return this != BASE;
+   }
+
+   /**
+    * Appended to the wireless string IDs.
+    *
+    * <p>Empty for the ladder's own bottom rung rather than for {@link #BASE}, so the Demonic terminal keeps the
+    * unsuffixed {@code arcanestoragewirelessterminal} it was first registered under. A registered string ID may
+    * never change -- items already carry it in saves -- and the alternative was orphaning every wireless terminal
+    * that exists. The wart is the naming, and the naming is the cheaper of the two.
+    */
+   private String wirelessSuffix() {
+      if (!this.hasWireless()) {
+         throw new IllegalStateException("UnitTier.BASE has no wireless rung; guard with hasWireless()");
+      }
+
+      return this == WIRELESS_BOTTOM ? "" : this.suffix;
+   }
+
+   /** The Wireless Terminal item's string ID at this tier. */
+   public String wirelessTerminalId() {
+      return "arcanestoragewirelessterminal" + this.wirelessSuffix();
+   }
+
+   /** The Wireless Transceiver object's string ID at this tier. */
+   public String transceiverId() {
+      return "arcanestoragewirelesstransceiver" + this.wirelessSuffix();
+   }
+
+   /** This tier's wireless cost keys in {@code recipes.properties}. */
+   public String wirelessTerminalCostKey() {
+      return "recipe.wirelessterminal." + this.name().toLowerCase(java.util.Locale.ROOT);
+   }
+
+   public String transceiverCostKey() {
+      return "recipe.wirelesstransceiver." + this.name().toLowerCase(java.util.Locale.ROOT);
+   }
+
    /** The tier below, or null at the bottom. */
    public UnitTier below() {
       return this.ordinal() == 0 ? null : values()[this.ordinal() - 1];
@@ -141,8 +190,17 @@ public enum UnitTier {
     * @param previousId the lower tier's string ID for this ladder, or null at the bottom
     */
    public Ingredient[] ingredients(String previousId) {
-      Ingredient[] materials = this.upgradeCost();
+      return withPrevious(this.upgradeCost(), previousId);
+   }
 
+   /**
+    * Materials with the rung below prepended, or unchanged when there is no rung below.
+    *
+    * <p>Shared by both ladders rather than written twice: the rule that a rung consumes exactly one of the rung
+    * below is the same rule for units and for wireless devices, and it is the rule that keeps the curve additive
+    * instead of multiplicative -- see the note on scaling in {@code recipes.properties}.
+    */
+   public static Ingredient[] withPrevious(Ingredient[] materials, String previousId) {
       if (previousId == null) {
          return materials;
       }

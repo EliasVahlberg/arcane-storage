@@ -65,10 +65,22 @@ public class CostTableTest {
    /** The keys {@code ArcaneStorage.postInit} asks for by name, which throw rather than defaulting if absent. */
    @Test
    public void everyRecipeTheModRegistersHasCosts() {
-      for (String key : Arrays.asList("recipe.terminal", "recipe.conduit", "recipe.importbus", "recipe.exportbus",
-            "recipe.wirelessterminal")) {
+      for (String key : Arrays.asList("recipe.terminal", "recipe.conduit", "recipe.importbus", "recipe.exportbus")) {
          assertTrue(key + " is missing from recipes.properties", CostTable.materials(key).length > 0);
          assertTrue(key + " yields a non-positive count", CostTable.count(key) > 0);
+      }
+
+      // Both wireless ladders, asked for by the same accessors the registration uses, so a rung whose key was never
+      // written fails here rather than at load.
+      for (UnitTier tier : UnitTier.values()) {
+         if (!tier.hasWireless()) {
+            continue;
+         }
+
+         for (String key : Arrays.asList(tier.wirelessTerminalCostKey(), tier.transceiverCostKey())) {
+            assertTrue(key + " is missing from recipes.properties", CostTable.materials(key).length > 0);
+            assertTrue(key + " yields a non-positive count", CostTable.count(key) > 0);
+         }
       }
    }
 
@@ -81,12 +93,16 @@ public class CostTableTest {
    @Test
    public void theFileContainsNothingUnused() {
       Set<String> expected = new HashSet<>(
-         Arrays.asList("recipe.terminal", "recipe.conduit", "recipe.importbus", "recipe.exportbus",
-            "recipe.wirelessterminal")
+         Arrays.asList("recipe.terminal", "recipe.conduit", "recipe.importbus", "recipe.exportbus")
       );
 
       for (UnitTier tier : UnitTier.values()) {
          expected.add(tier.costKey());
+
+         if (tier.hasWireless()) {
+            expected.add(tier.wirelessTerminalCostKey());
+            expected.add(tier.transceiverCostKey());
+         }
       }
 
       assertEquals("recipes.properties and the code disagree about which costs exist", expected, CostTable.keys());

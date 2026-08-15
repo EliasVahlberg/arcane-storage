@@ -301,9 +301,36 @@ Worth doing, not worth blocking on, and none started.
   through paired connectors instead of one contiguous mass. Addresses the
   relocation complaint that dogs Magic Storage, and is probably the clearest way
   not to read as a port.
-- ~~**Remote and wireless access**~~ — **the basic mechanism is built** (Aug 2026), untiered and
-  unrestricted: a Wireless Storage Terminal item pairs to a placed terminal by being used on it, and
-  opens that network's full interface from anywhere, including from a level the server has unloaded.
+- ~~**Remote and wireless access**~~ — **built and now tiered** (Aug 2026). A Wireless Terminal item pairs
+  to a placed **Wireless Transceiver** by being used on it, and opens that network's full interface,
+  including on a level the server has unloaded.
+
+  **The tiering, and the two things about it that are decisions rather than numbers.** Three rungs at each
+  end, Demonic → Tungsten → Fallen, and the **lower of the two governs**: rung 1 reaches its own level
+  within a configured 120 tiles, rung 2 its own level without limit, rung 3 any level. Both ends must be
+  upgraded for a rung to take effect, which is the point of there being two — and a refusal therefore names
+  *which* end to upgrade, since with two ladders the player cannot otherwise tell which purchase would have
+  helped. Pairing a lower terminal to a higher transceiver is allowed rather than refused: the reach is
+  already limited by the lower end, so refusing would cost the pairing for nothing.
+
+  **Pairing moved from the Storage Terminal to the transceiver**, and that is the more consequential half.
+  It gives the feature a device of its own to tier, position and pay for, and it makes reach a property of
+  the base rather than of whichever terminal happened to be clicked. A network may hold several
+  transceivers; they do not combine or compete, because a second door does not make a building bigger.
+
+  Reach is enforced **both at the right-click and every tick from the container's own validity check**. A
+  range checked only at open time is a number in a tooltip and nowhere else. The same tick also re-reads the
+  terminal from the player's bag, so banking it ends the session it entitled — which turned up one real
+  trap: deposit-all used to file the terminal away into the network it had opened, storing the only way back
+  inside the thing it opened, on a level the player was not on. Deposit-all now refuses that one item; a
+  deliberate drag is still allowed, because losing a key by accident and by choice are different events.
+
+  Ranges and **every cost in the mod** are now in the config file at `<cfg>/mods/elias.arcanestorage.cfg`,
+  with the jar's `recipes.properties` supplying the defaults. `CostTable`'s own comment used to argue
+  against exactly this, and the hazard it named is unsolved rather than reconsidered: the engine sends no
+  recipe data, so each side reads its own file and a client whose config disagrees with its server sees
+  ingredient lists the server refuses. That is the same class of mismatch as running a different mod
+  version, it is visible rather than corrupting, and in singleplayer there is one file.
 
   Three findings shaped it, and they are worth keeping because each closed off an approach:
 

@@ -85,6 +85,18 @@ public final class ArcaneStorageVerbs {
             Harness.registerObjectAlias(tier.suffix + "stationunit", tier.stationId());
          }
       }
+      // The transceiver ladder. 'transceiver' is the bottom rung, matching how 'unit' names the units' bottom rung,
+      // so a test that does not care about tiering never mentions one.
+      for (UnitTier tier : UnitTier.values()) {
+         if (!tier.hasWireless()) {
+            continue;
+         }
+
+         Harness.registerObjectAlias(
+               tier == UnitTier.WIRELESS_BOTTOM ? "transceiver" : tier.suffix + "transceiver",
+               tier.transceiverId());
+      }
+
       Harness.registerObjectAlias("conduit", ArcaneStorage.CONDUIT_STRING_ID);
       Harness.registerObjectAlias("importbus", ArcaneStorage.IMPORT_BUS_STRING_ID);
       Harness.registerObjectAlias("exportbus", ArcaneStorage.EXPORT_BUS_STRING_ID);
@@ -186,7 +198,7 @@ public final class ArcaneStorageVerbs {
       }
 
       public String usage() {
-         return "pair <dx> <dy>";
+         return "pair <dx> <dy> [demonic|tungsten|fallen]";
       }
 
       public int coordinateArgIndex() {
@@ -201,11 +213,38 @@ public final class ArcaneStorageVerbs {
          int x = context.tileX(context.intArg(1));
          int y = context.tileY(context.intArg(2));
 
+         // A tier may be named, because the reach a pairing grants is the lower of the two ends and a test about
+         // range has to be able to set both. Unnamed means the bottom rung, which is what most tests want.
+         UnitTier tier = UnitTier.WIRELESS_BOTTOM;
+         if (context.args.size() > 3) {
+            String named = context.args.get(3).toLowerCase(java.util.Locale.ROOT);
+            tier = null;
+
+            for (UnitTier candidate : UnitTier.values()) {
+               if (candidate.hasWireless() && candidate.name().toLowerCase(java.util.Locale.ROOT).equals(named)) {
+                  tier = candidate;
+               }
+            }
+
+            if (tier == null) {
+               context.fail("'" + named + "' is not a wireless tier");
+               return false;
+            }
+         }
+
          // Rebinds the one already carried rather than handing out another, which is what using the item on a
-         // second terminal does. Adding one per call also made a test read a stale binding off the first copy.
+         // second transceiver does. Adding one per call also made a test read a stale binding off the first copy.
+         // A named tier that differs from what is carried replaces it, since the carried rung is the thing under
+         // test.
          necesse.inventory.InventoryItem item = findWireless(context);
+         if (item != null && ((arcanestorage.remote.WirelessTerminalItem)item.item).tier != tier) {
+            context.client.playerMob.getInv().main.removeItems(context.level, context.client.playerMob,
+                  item.item, item.getAmount(), "harnesspair");
+            item = null;
+         }
+
          if (item == null) {
-            item = new necesse.inventory.InventoryItem(ArcaneStorage.WIRELESS_TERMINAL_STRING_ID, 1);
+            item = new necesse.inventory.InventoryItem(tier.wirelessTerminalId(), 1);
             new arcanestorage.remote.RemoteBinding(context.level, x, y).write(item);
             context.client.playerMob.getInv().addItem(item, true, "harnesspair");
             return true;
@@ -246,7 +285,19 @@ public final class ArcaneStorageVerbs {
          arcanestorage.remote.RemoteTerminal.Resolved resolved =
             arcanestorage.remote.RemoteTerminal.resolve(context.client, binding);
          if (!resolved.ok()) {
-            context.fail("the paired terminal could not be resolved: " + resolved.result);
+            context.fail("the paired transceiver could not be resolved: " + resolved.result);
+            return false;
+         }
+
+         // The same gate a right-click applies, so a scenario can assert a refusal rather than only a success. It is
+         // applied here rather than left to the container because the container's check runs a tick later, and a
+         // test that opened and was closed again looks like a test that never opened.
+         arcanestorage.remote.Reach.Decision decision = arcanestorage.remote.Reach.check(
+               context.client.playerMob, ((arcanestorage.remote.WirelessTerminalItem)held.item).tier,
+               resolved.tier(), binding.levelID, binding.tileX, binding.tileY);
+         if (!decision.ok()) {
+            context.fail("out of reach: " + decision.verdict + " (distance " + decision.distance
+                  + ", limit " + decision.limit + ")");
             return false;
          }
 

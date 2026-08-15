@@ -20,12 +20,14 @@ import necesse.inventory.recipe.Ingredient;
  * them had checked one of the two files and asserted the other. Numbers that exist once cannot drift from
  * themselves, and this file is also read directly by the Python scenario tests, so the tests cannot drift either.
  *
- * <p>It is a jar resource and not a config file, which is a deliberate limit. The engine does offer per-mod config
- * at {@code <cfg>/mods/<id>.cfg} through {@code ModSettings}, but those are <i>client</i> settings, reloadable from
- * the settings menu. Recipe costs read from there would let a client hold different numbers than the server it is
- * connected to -- and since the server revalidates every upgrade while the client draws the button, the visible
- * result would be a button that offers what the server refuses. Shipping the data in the jar makes both sides read
- * the same bytes by construction. Exposing an override is a separate feature with that hazard to solve first.
+ * <p><b>The jar's copy is the default and the config file may override it</b>, per key, at
+ * {@code <cfg>/mods/elias.arcanestorage.cfg}. An earlier version of this comment argued against allowing that at
+ * all, and the hazard it named is real and unsolved rather than reconsidered: the engine sends no recipe data, so
+ * each side reads its own file, and the server revalidates every craft and upgrade while the client draws the
+ * button. A client whose config disagrees with its server therefore sees ingredient lists the server refuses. That
+ * is a mismatch of the same kind as running a different version of the mod, it is visible rather than corrupting,
+ * and in singleplayer -- which is where these numbers get tuned -- there is only one file. Multiplayer wants both
+ * ends to hold the same config, and nothing here can check that they do.
  *
  * <h2>Failing loudly</h2>
  *
@@ -49,6 +51,12 @@ public final class CostTable {
 
    private static Map<String, Ingredient[]> materials;
 
+   /**
+    * What the jar says, kept separately from {@link #materials} so an override cannot become the thing the next
+    * override is compared against, and so the config file's stated default never drifts.
+    */
+   private static Map<String, Ingredient[]> defaults;
+
    private static Map<String, Integer> counts;
 
    private CostTable() {
@@ -62,6 +70,12 @@ public final class CostTable {
     * attribute.
     */
    public static void load() {
+      if (materials != null) {
+         // Idempotent because two callers need it and neither can be made to run first: the mod's init, and the
+         // settings object, which the loader constructs earlier still in order to write the config file's defaults.
+         return;
+      }
+
       Properties properties = new Properties();
 
       try (InputStream stream = CostTable.class.getResourceAsStream(RESOURCE)) {
@@ -98,6 +112,7 @@ public final class CostTable {
       }
 
       materials = Collections.unmodifiableMap(parsedMaterials);
+      defaults = materials;
       counts = Collections.unmodifiableMap(parsedCounts);
    }
 
@@ -180,6 +195,66 @@ public final class CostTable {
    public static int count(String key) {
       requireLoaded();
       return counts.getOrDefault(key + ".count", 1);
+   }
+
+   /**
+    * The jar's own string for a key, formatted as the config file writes it.
+    *
+    * <p>Rebuilt from the parsed ingredients rather than kept as text, so what the config file offers as its default
+    * is provably what the parser understood -- a default that did not round-trip would be a config file that
+    * changed the costs by being written.
+    */
+   public static String rawDefault(String key) {
+      requireLoaded();
+      Ingredient[] found = defaults.get(key + ".materials");
+      if (found == null) {
+         throw new IllegalStateException("Arcane Storage: no default for '" + key + "'");
+      }
+
+      StringBuilder text = new StringBuilder();
+
+      for (Ingredient ingredient : found) {
+         if (text.length() > 0) {
+            text.append(", ");
+         }
+
+         text.append(ingredient.ingredientStringID).append(' ').append(ingredient.getIngredientAmount());
+      }
+
+      return text.toString();
+   }
+
+   /**
+    * Replaces one key's materials with a line from the config file.
+    *
+    * <p>A malformed override is <b>refused rather than fatal</b>, which is the opposite of how the jar's own file is
+    * treated, and deliberately: a typo in a file the player edits should cost them that one line, not the mod. The
+    * jar's value stands and the reason is printed.
+    *
+    * @return whether the override was applied
+    */
+   public static boolean override(String key, String value) {
+      requireLoaded();
+      if (value == null || value.trim().isEmpty() || !defaults.containsKey(key + ".materials")) {
+         return false;
+      }
+
+      if (value.trim().equals(rawDefault(key))) {
+         return false;
+      }
+
+      try {
+         Ingredient[] parsed = parseMaterials(key + ".materials", value.trim());
+         Map<String, Ingredient[]> replaced = new LinkedHashMap<>(materials);
+         replaced.put(key + ".materials", parsed);
+         materials = Collections.unmodifiableMap(replaced);
+         System.out.println("Arcane Storage: cost override from config -- " + key + " = " + value.trim());
+         return true;
+      } catch (RuntimeException malformed) {
+         System.out.println("Arcane Storage: ignoring the config's '" + key + "' (" + malformed.getMessage()
+               + "). The value shipped in the jar is used instead.");
+         return false;
+      }
    }
 
    /** The material keys present, without their suffix. For error messages and for the test that checks coverage. */

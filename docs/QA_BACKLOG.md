@@ -33,8 +33,24 @@ surface unloads (the server logs `Unloaded level`), then open it. Expect the lev
 right, and — after closing — the level to unload again about 30 seconds later. Depositing something and then
 walking back to check it is really there is the test that matters.
 
-**0c. A sprite is missing.** `items/arcanestoragewirelessterminal.png`, 32x32. It shows the pink `[ER]`
-placeholder until it exists. Nothing else about the item is blocked on it.
+**0c. ~~A sprite is missing.~~** Six arrived on 2026-08-15 and are installed: three Wireless Terminals and
+three Wireless Transceivers, 32x32. The transceiver's is installed under both `objects/` and `items/`, since a
+placeable object needs both or the inventory icon shows `[ER]`. **Still wants eyes:** that the three rungs of
+each are told apart at a glance on the ground and in a hotbar, and that the transceiver reads as a device
+rather than as another chest.
+
+**0e. The tier gate, in play.** Only the distance rungs are covered by tests -- the harness runs one level, so
+nothing exercises the cross-level rung or the refusal a player gets from another level. Worth checking, in this
+order: a Demonic pairing refused past its range with the distance and limit in the message; the same pairing
+working after walking closer; a Tungsten pairing reaching across the level; a Fallen pairing opened from a cave
+while the base is on the surface; and the upgrade hint naming the right end when only one is upgraded. The
+number itself, 120 tiles, is a guess to tune: it should cover a base and its surroundings and fall short of the
+next biome.
+
+**0f. The config file.** It is written on first launch and now carries every cost as well as the three ranges.
+Worth confirming once that editing a range takes effect on the next open without a relaunch, that a malformed
+cost line is refused with a log line rather than stopping the mod, and that the file it writes reads well enough
+to edit by hand.
 
 **0d. Bandwidth, if a large network ever feels slow to open.** The mirror sends every non-empty slot the first
 time and only changes afterwards. A full Fallen network is over a thousand stacks, which has never been tried.

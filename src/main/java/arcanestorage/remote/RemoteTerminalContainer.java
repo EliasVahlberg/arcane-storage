@@ -5,6 +5,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import arcanestorage.ArcaneStorage;
+import arcanestorage.object.UnitTier;
 import arcanestorage.container.StorageTerminalContainer;
 import arcanestorage.network.NetworkStations;
 import arcanestorage.network.NetworkStorage;
@@ -378,6 +379,19 @@ public class RemoteTerminalContainer extends StorageTerminalContainer {
     * which would leave these slots pointing at inventories nothing saves. Identity comparison catches an unload
     * followed by a reload too, since that produces different objects.
     */
+   /**
+    * Never the terminal this container was opened with.
+    *
+    * <p>See the base method. Matched by binding rather than by type, so a spare terminal paired somewhere else still
+    * deposits -- a player tidying up their bag through a network they are looking at should not have that refused
+    * because of what the item is.
+    */
+   @Override
+   protected boolean depositable(InventoryItem item) {
+      return item == null || !(item.item instanceof WirelessTerminalItem)
+            || !this.binding.equals(RemoteBinding.read(item));
+   }
+
    @Override
    protected boolean isWithinReach(ServerClient client) {
       if (this.remoteLevel == null) {
@@ -385,7 +399,27 @@ public class RemoteTerminalContainer extends StorageTerminalContainer {
       }
 
       Level loaded = client.getServer().world.levelManager.getLevel(this.remoteLevel.getIdentifier());
-      return loaded == this.remoteLevel;
+      if (loaded != this.remoteLevel) {
+         return false;
+      }
+
+      // The tier is re-read from the player's bag every tick rather than remembered from the open, because the item
+      // is the link. Banking the terminal after opening at Fallen range, or swapping down a rung, has to end the
+      // session it entitled -- otherwise the ladder is a one-time toll rather than a range.
+      UnitTier held = WirelessTerminalItem.heldTier(client.playerMob, this.binding);
+      if (held == null) {
+         return false;
+      }
+
+      // And the range itself, every tick, so walking away closes what walking closer opened. Checking only at open
+      // time would put the number in the tooltip and nowhere else.
+      RemoteTerminal.Resolved resolved = RemoteTerminal.resolve(client, this.binding);
+      if (!resolved.ok()) {
+         return false;
+      }
+
+      return Reach.check(client.playerMob, held, resolved.tier(),
+            this.binding.levelID, this.binding.tileX, this.binding.tileY).ok();
    }
 
    /** Opens a wireless terminal for a client. The content is the binding server-side, the shape client-side. */

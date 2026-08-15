@@ -1,7 +1,7 @@
 package arcanestorage.remote;
 
-import arcanestorage.object.StorageTerminalObject;
-import arcanestorage.objectentity.StorageTerminalObjectEntity;
+import arcanestorage.object.WirelessTransceiverObject;
+import arcanestorage.objectentity.WirelessTransceiverObjectEntity;
 import necesse.engine.network.server.ServerClient;
 import necesse.engine.util.LevelIdentifier;
 import necesse.engine.world.World;
@@ -10,7 +10,11 @@ import necesse.level.maps.Level;
 import necesse.level.maps.regionSystem.Region;
 
 /**
- * Resolving a {@link RemoteBinding} to a live terminal, server-side, whether or not its level is loaded.
+ * Resolving a {@link RemoteBinding} to a live Wireless Transceiver, server-side, whether or not its level is loaded.
+ *
+ * <p>The binding names a transceiver rather than a placed Storage Terminal, which is the tile a player right-clicks
+ * to pair. Everything below is unchanged by that: a transceiver answers the same network questions, because its
+ * object entity extends the terminal's.
  *
  * <h2>Loading an unloaded level needs nothing invented</h2>
  *
@@ -68,9 +72,16 @@ public final class RemoteTerminal {
 
       public final Level level;
 
-      public final StorageTerminalObjectEntity terminal;
+      /**
+       * The transceiver, typed as what it is.
+       *
+       * <p>Still called {@code terminal} throughout the remote container, because to that container it is a
+       * terminal: it answers the same questions through the same class. See
+       * {@link WirelessTransceiverObjectEntity}.
+       */
+      public final WirelessTransceiverObjectEntity terminal;
 
-      private Resolved(Result result, Level level, StorageTerminalObjectEntity terminal) {
+      private Resolved(Result result, Level level, WirelessTransceiverObjectEntity terminal) {
          this.result = result;
          this.level = level;
          this.terminal = terminal;
@@ -78,6 +89,11 @@ public final class RemoteTerminal {
 
       public boolean ok() {
          return this.result == Result.OK;
+      }
+
+      /** The transceiver's tier, or null when nothing resolved. */
+      public arcanestorage.object.UnitTier tier() {
+         return this.terminal == null ? null : this.terminal.tier();
       }
    }
 
@@ -119,18 +135,18 @@ public final class RemoteTerminal {
       level.regionManager.getRegionByTile(binding.tileX, binding.tileY, true);
 
       ObjectEntity entity = level.entityManager.getObjectEntity(binding.tileX, binding.tileY);
-      if (!(entity instanceof StorageTerminalObjectEntity)) {
+      if (!(entity instanceof WirelessTransceiverObjectEntity)) {
          return new Resolved(Result.GONE, level, null);
       }
 
-      // The object entity existing is not proof the terminal does. Object entities outlive their object in
+      // The object entity existing is not proof the transceiver does. Object entities outlive their object in
       // some paths, so the object is checked too, by class rather than by registered ID -- which is how the
       // rest of the mod asks this question (UnitUpgrade tests instanceof StationUnitObject).
-      if (!(level.getObject(binding.tileX, binding.tileY) instanceof StorageTerminalObject)) {
+      if (!(level.getObject(binding.tileX, binding.tileY) instanceof WirelessTransceiverObject)) {
          return new Resolved(Result.GONE, level, null);
       }
 
-      return new Resolved(Result.OK, level, (StorageTerminalObjectEntity)entity);
+      return new Resolved(Result.OK, level, (WirelessTransceiverObjectEntity)entity);
    }
 
    /**

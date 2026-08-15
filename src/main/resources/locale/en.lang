@@ -11,9 +11,14 @@ arcanestoragestationunitfallen=Fallen Station Unit
 arcanestorageconduit=Storage Conduit
 arcanestorageimportbus=Arcane Import Bus
 arcanestorageexportbus=Arcane Export Bus
+arcanestoragewirelesstransceiver=Demonic Wireless Transceiver
+arcanestoragewirelesstransceivertungsten=Tungsten Wireless Transceiver
+arcanestoragewirelesstransceiverfallen=Fallen Wireless Transceiver
 
 [item]
-arcanestoragewirelessterminal=Wireless Storage Terminal
+arcanestoragewirelessterminal=Demonic Wireless Terminal
+arcanestoragewirelessterminaltungsten=Tungsten Wireless Terminal
+arcanestoragewirelessterminalfallen=Fallen Wireless Terminal
 
 [ui]
 arcanestorage_unittip=Access with a Storage Terminal
@@ -73,8 +78,23 @@ arcanestorage_tab_storage=Storage
 arcanestorage_tab_crafting=Crafting
 arcanestorage_tab_stations=Stations
 arcanestorage_group_by_category=Group by category
-arcanestorage_wireless_unpaired=Not paired. Use it on a Storage Terminal.
+arcanestorage_wireless_unpaired=Not paired. Use it on a Wireless Transceiver.
 arcanestorage_wireless_paired=Paired to <x>,<y>
-arcanestorage_wireless_pairedto=Paired to the terminal at <x>,<y>
-arcanestorage_wireless_alreadypaired=Already paired to this terminal.
-arcanestorage_wireless_gone=That terminal is gone.
+arcanestorage_wireless_pairedto=Paired to the transceiver at <x>,<y>
+arcanestorage_wireless_alreadypaired=Already paired to this transceiver.
+arcanestorage_wireless_gone=That transceiver is gone.
+arcanestorage_wireless_pairtotransceiver=Pair to a Wireless Transceiver.
+arcanestorage_wireless_toofar=Transceiver too far away (<distance> > <limit>)
+arcanestorage_wireless_wronglevel=Transceiver not accessible from this level.
+arcanestorage_wireless_upgrade=Upgrade <what> to access.
+arcanestorage_wireless_upgradeboth=both ends
+arcanestorage_wireless_terminalname=Wireless Terminal
+arcanestorage_wireless_transceivername=Wireless Transceiver
+arcanestorage_wireless_tiermismatch=Paired at <tier> - the lower end decides.
+arcanestorage_tier_demonic=Demonic
+arcanestorage_tier_tungsten=Tungsten
+arcanestorage_tier_fallen=Fallen
+arcanestorage_transceivertip=Pair a Wireless Terminal to it
+arcanestorage_transceiver_range=Reaches <range> tiles, this level only
+arcanestorage_transceiver_samelevel=Reaches anywhere on this level
+arcanestorage_transceiver_anylevel=Reaches any level

@@ -588,6 +588,10 @@ public class StorageTerminalContainer extends Container {
             continue;
          }
 
+         if (!this.depositable(inventory.getItem(slot))) {
+            continue;
+         }
+
          for (InventoryRange target : targets) {
             InventoryItem item = inventory.getItem(slot);
             if (item == null) {
@@ -610,6 +614,21 @@ public class StorageTerminalContainer extends Container {
       }
 
       return moved;
+   }
+
+   /**
+    * Whether deposit-all may take an item. Everything, here; a wireless terminal overrides it.
+    *
+    * <p>The case it exists for: deposit-all through a wireless terminal used to file <b>the terminal itself</b>
+    * away, and the container closes the moment the player stops holding it -- so one click stored the only way back
+    * to the network, in the network, on a level the player was not on. A test caught it, but only because the test
+    * happened to deposit before withdrawing.
+    *
+    * <p>Deliberately not applied to a deliberate drag into a slot. Losing a key by clicking "deposit all" is an
+    * accident worth preventing; dragging it in is a decision, and refusing decisions silently is its own confusion.
+    */
+   protected boolean depositable(InventoryItem item) {
+      return true;
    }
 
    /**
