@@ -1,8 +1,8 @@
 package arcanestorage.upgrade;
 
-import arcanestorage.container.FormColorFill;
 import arcanestorage.ui.ArcanePanel;
 import arcanestorage.ui.ArcaneStyles;
+import arcanestorage.ui.ArcaneText;
 import java.awt.Color;
 import java.awt.Rectangle;
 import necesse.engine.gameLoop.tickManager.TickManager;
@@ -53,26 +53,19 @@ public class UnitUpgradeContainerForm<T extends UnitUpgradeContainer> extends Co
     */
    private static final FontOptions COST_FONT = new FontOptions(18);
 
-   /**
-    * Drawn over the panel's centre, inset so the purple frame still reads as a border.
-    *
-    * <p>The alternative was to keep the panel's own brightness and pick a text colour to suit it, which is what the
-    * first attempt did by taking the interface style's active colour. That is theme-correct and was still hard to
-    * read, because the panel is the mod's own art and darker than the engine's, and the style's colours are chosen
-    * for the engine's. Fixing the background instead means the text colour can simply be white and stay legible
-    * whatever theme is set.
-    */
-   private static final Color BACKING = new Color(10, 7, 16, 235);
-
-   private static final Color TEXT = Color.WHITE;
+   // This panel used to paint a near-black fill over its own centre and force white text on top of it. That was the
+   // right call against the mod's old purple sheet, which was darker than anything the engine's styles are written
+   // for, so no style colour read well on it. It stopped being the right call when the panel became a recolour of the
+   // engine's own sprite: the slate theme sits at lightness 0.62 and the dark theme at 0.28, both of which the
+   // style's colours are chosen for. The fill was then the only surface in the mod that ignored the theme entirely --
+   // a black rectangle over a light slate panel -- so it is gone, and the text colour comes from the theme like
+   // everywhere else.
 
    /** The slot for the used/total line: one line at its font size, plus breathing room below it. */
    private static final int USAGE_HEIGHT = 16 + 12;
 
    /** Bottom padding below the last component, and the only thing that makes the panel's height not exact. */
    private static final int BOTTOM_PADDING = 12;
-
-   private final FormColorFill backing;
 
    private final FormLabel usage;
 
@@ -91,12 +84,9 @@ public class UnitUpgradeContainerForm<T extends UnitUpgradeContainer> extends Co
       ArcaneStyles.apply(this);
       this.setBackground(ArcanePanel.of());
 
-      // First, so it draws behind every label. Sized at the end, once the content's height is known.
-      this.backing = this.addComponent(new FormColorFill(4, 4, WIDTH - 8, 0, BACKING));
-
       FormFlow flow = new FormFlow(12);
 
-      final Color text = TEXT;
+      final Color text = ArcaneText.body(this);
 
       // Wrapped, and at 20 rather than 24. "Demonic Wireless Transceiver" is three words and wider than the panel at
       // any size worth reading, and a centred label with no max width does not wrap -- it runs off both edges at
@@ -157,7 +147,7 @@ public class UnitUpgradeContainerForm<T extends UnitUpgradeContainer> extends Co
             // row under the button. The amount passed is only a placeholder, since draw() rebuilds this every
             // frame with the pushed count -- what matters at this point is that the row has its true height.
             row.setCustomFairType(
-               container.cost[i].getTooltipText(COST_FONT, 0, TEXT, this.getInterfaceStyle().errorTextColor, true, null)
+               container.cost[i].getTooltipText(COST_FONT, 0, text, ArcaneText.errorColor(this), true, null)
             );
 
             this.rows[i] = this.addComponent(flow.nextY(row, 4));
@@ -179,7 +169,6 @@ public class UnitUpgradeContainerForm<T extends UnitUpgradeContainer> extends Co
       // height, so this is exact apart from the padding below it, and it removes the guessed constant that made
       // the panel both too tall and, for the top tier with no rows at all, mostly empty.
       this.setHeight(flow.next(BOTTOM_PADDING));
-      this.backing.setSize(WIDTH - 8, this.getHeight() - 8);
    }
 
    @Override
@@ -207,8 +196,10 @@ public class UnitUpgradeContainerForm<T extends UnitUpgradeContainer> extends Co
             ingredient.getTooltipText(
                COST_FONT,
                have,
-               TEXT,
-               this.getInterfaceStyle().errorTextColor,
+               // Resolved per frame rather than captured, so a theme change needs no window reopened for the rows
+               // at least; the labels around them take their colour at construction and still do.
+               ArcaneText.body(this),
+               ArcaneText.errorColor(this),
                true,
                null
             )

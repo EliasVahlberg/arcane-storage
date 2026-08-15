@@ -56,6 +56,18 @@ public class BaseStationContainerForm<T extends BaseStationContainer> extends Co
    /** The logistics tab's row pitch. */
    private static final int ROW_PITCH = 26;
 
+   /**
+    * The title's slot: one line at font 20, plus the gap below it.
+    *
+    * <p>One line is enough for every string that can appear here. The longest is a tier's own object name, and
+    * "Demonic Arcane Base Station" measures well under the 477 px the label is given to wrap in, so the max width is
+    * there to stop a name running off the panel edge rather than because a second line is expected.
+    */
+   private static final int TITLE_HEIGHT = 20 + 4;
+
+   /** The status line's slot: one line at font 12, plus the gap below it. Every state message fits one line. */
+   private static final int STATUS_HEIGHT = 12 + 6;
+
    /** Eight rows before it scrolls, which is a Tungsten band whole and half of a Fallen one. */
    private static final int VISIBLE_ROWS = 8;
 
@@ -91,14 +103,19 @@ public class BaseStationContainerForm<T extends BaseStationContainer> extends Co
       this.setBackground(ArcanePanel.of());
 
       FormFlow flow = new FormFlow(PADDING);
-      this.title = this.addComponent(flow.nextY(
-            new FormLabel("", ArcaneText.body(this, 20), -1, PADDING, 0), 4));
+      // Both the title and the status line are built empty and filled in draw(), so their slots are reserved rather
+      // than measured. FormLabel.getHeight() is lines.size() times the font size, and an empty string breaks into no
+      // lines at all -- so measuring one with flow.nextY reserves nothing but the trailing gap. That is what put the
+      // hint on top of the title, with 4 px reserved for a 20 px line, and pushed the green status line 6 px into the
+      // list and detail boxes below it. AccessPointContainerForm already reserves its status slot this way.
+      this.title = this.addComponent(new FormLabel("", ArcaneText.body(this, 20), -1, PADDING,
+            flow.next(TITLE_HEIGHT), WIDTH - PADDING * 2));
       this.addComponent(flow.nextY(new FormLocalLabel("ui", "arcanestorage_band_stationhint",
             ArcaneText.dim(this, 12), -1, PADDING, 0, WIDTH - PADDING * 2), 4));
 
       this.statusFont = ArcaneText.body(this, 12);
-      this.status = this.addComponent(flow.nextY(
-            new FormLabel("", this.statusFont, -1, PADDING, 0, WIDTH - PADDING * 2), 6));
+      this.status = this.addComponent(new FormLabel("", this.statusFont, -1, PADDING,
+            flow.next(STATUS_HEIGHT), WIDTH - PADDING * 2));
 
       int contentTop = flow.next(0);
       this.list = this.addComponent(new FormContentBox(PADDING, contentTop, LIST_WIDTH, LIST_HEIGHT));
@@ -126,7 +143,11 @@ public class BaseStationContainerForm<T extends BaseStationContainer> extends Co
             ? Localization.translate("object",
                   station == null ? "arcanestoragebasestation" : station.tier().baseStationId())
             : Localization.translate("ui", "arcanestorage_band_title",
-                  "band", String.valueOf(station.getBandId())));
+                  "band", String.valueOf(station.getBandId())),
+            // The width has to be passed here, not only at construction: setText(String) resolves to setText(text,
+            // -1), so every frame would otherwise re-break the text with no bound and a long tier name would run off
+            // the panel edge.
+            WIDTH - PADDING * 2);
 
       BandState state = station == null ? BandState.NO_TRANSCEIVER : station.getState();
       boolean transmitting = state.isActive() || state.localeKey == null;

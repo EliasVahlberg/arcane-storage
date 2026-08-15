@@ -775,3 +775,35 @@ disabled state have never been rendered once.
    but a terminal open at the same moment may show stale slots until reopened. Not yet tested either way.
 7. **Panel width against long item names.** Rows are centred and wrapped at 204px; `alchemyshard` with a
    five-digit held count is about the worst case.
+
+## The two interface themes, in play
+
+Neither theme has been verified in game beyond the panel surface, which was iterated on directly. Everything below
+is unverified, and each item names a different owner so that a report of "still looks wrong" is actionable:
+
+1. **Both themes, on every one of the five windows.** Terminal, base station, access point, bus, unit upgrade. An
+   outer panel in the wrong palette means a preset-owned `Form`; an inner one means a nested `new Form(...)` with no
+   `setBackground`; a wood tab strip means the preset's own style; a wood dropdown popup means `selectionbox`.
+2. **The dark theme's text colours against real content.** Success and error were lifted off the engine's
+   (0, 125, 0) and (150, 0, 0), which are chosen against parchment and near-unreadable on a dark panel. Whether the
+   lifted pair reads as clearly *green* and *red* on slate as well as on dark is a judgement only play can settle.
+3. **`checkbox_checked`'s tick stays dark in both themes.** Its colour is neutral `#141414` in the source sheet, so
+   the recolour leaves it alone. Legible on dark's mid-blue box but not ideal; a light tick needs that one colour
+   hand-set.
+4. **A theme change with a window already open.** The panel resolves its style per call, so it should follow
+   immediately, but every label takes its colour at construction. Expect text to keep the old theme's colour until
+   the window is reopened. Whether that is worth fixing depends on how obvious it looks.
+5. **The vanilla theme setting genuinely leaves the mod alone.** `ArcaneStyles.current()` returns null for it and
+   `ArcanePanel.of()` hands back `GameBackground.form`, so a player who dislikes both themes should see stock wood.
+
+## An unexplained burst of scenario failures
+
+`[Aug 2026]` One run of the Python suite reported **7 failed, 243 passed**; the two runs either side of it, against
+the **same jar**, both reported 250 passed. Since the jar did not change between them, the failures cannot be a code
+fault in what was built. `latest-crash.log` was days old, so no deadlock was involved.
+
+Not diagnosed, and deliberately not chased on a single occurrence -- but recorded, because a 7-failure burst is a
+larger signal than the single intermittent xfail already known from object-entity churn, and the shape to watch for
+is many scenarios failing at once rather than one flaking. Mob spawning now runs during scenarios, which
+`docs/WORKFLOW.md` names as the first place to look. If it recurs, capture the failing test names before re-running:
+that was missed here, and a re-run destroys the evidence.
