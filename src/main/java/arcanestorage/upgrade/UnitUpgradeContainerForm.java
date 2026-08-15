@@ -2,6 +2,7 @@ package arcanestorage.upgrade;
 
 import arcanestorage.container.FormColorFill;
 import arcanestorage.ui.ArcanePanel;
+import arcanestorage.ui.ArcaneStyles;
 import java.awt.Color;
 import java.awt.Rectangle;
 import necesse.engine.gameLoop.tickManager.TickManager;
@@ -85,6 +86,9 @@ public class UnitUpgradeContainerForm<T extends UnitUpgradeContainer> extends Co
       // count depends on the tier. Vanilla does the same in ConfirmationForm -- build, then setHeight -- and the
       // resize is safe here because nothing has positioned or drawn the form yet.
       super(client, WIDTH, 200, container);
+      // Before a single component is added: ComponentList.add copies the parent's style at add time, so a
+      // component added first would keep the player's global style and the window would end up half in each.
+      ArcaneStyles.apply(this);
       this.setBackground(ArcanePanel.of());
 
       // First, so it draws behind every label. Sized at the end, once the content's height is known.

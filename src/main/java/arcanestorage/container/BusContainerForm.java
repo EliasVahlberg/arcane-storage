@@ -4,6 +4,7 @@ import java.awt.Rectangle;
 
 import arcanestorage.objectentity.BusObjectEntity;
 import arcanestorage.ui.ArcanePanel;
+import arcanestorage.ui.ArcaneStyles;
 import necesse.engine.localization.Localization;
 import necesse.engine.network.client.Client;
 import necesse.gfx.forms.components.FormFlow;
@@ -68,6 +69,9 @@ public class BusContainerForm<T extends BusContainer> extends ContainerForm<T> {
          Localization.translate("ui", explanationKey), new FontOptions(12), -1, 6, 0);
       // The same panel as the terminal, so a bus's rules read as the same interface reached a different
       // way rather than as a vanilla dialogue that happens to be nearby.
+      // Before a single component is added: ComponentList.add copies the parent's style at add time, so a
+      // component added first would keep the player's global style and the window would end up half in each.
+      ArcaneStyles.apply(this);
       this.setBackground(ArcanePanel.of());
 
       this.addComponent(flow.nextY(explanation, 6));

@@ -6,6 +6,7 @@ import java.util.Comparator;
 import java.util.List;
 
 import arcanestorage.ui.ArcanePanel;
+import arcanestorage.ui.ArcaneStyles;
 import arcanestorage.ui.ArcaneText;
 import necesse.engine.gameLoop.tickManager.TickManager;
 import necesse.engine.input.Control;
@@ -170,7 +171,15 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
     * draws outside the panel, at {@code form.getY() - offset}. Missing one would leave a single tab
     * looking like a different mod's interface.
     */
+   /**
+    * A tab's own form. Both halves matter and neither covers the other: {@code apply} reaches the components added
+    * to it, and the background is the one thing a style does not reach -- see {@link ArcanePanel}.
+    *
+    * <p>Called on the form the moment the tab creates it, which is before anything is added to it, because
+    * {@code ComponentList.add} copies the parent's style at add time.
+    */
    private static Form styled(Form form) {
+      ArcaneStyles.apply(form);
       form.setBackground(ArcanePanel.of());
       return form;
    }

@@ -39,7 +39,9 @@ public final class ArcaneText {
    }
 
    private static boolean onOwnPanel() {
-      return ArcaneStorage.SETTINGS.useCustomPanel;
+      // Only the dark theme needs light text. The slate theme's panel sits at lightness 0.60, where the
+      // interface style's own near-black is correct -- and under the vanilla theme it is not ours to change.
+      return arcanestorage.ui.ArcaneStyles.theme() == ArcaneStyles.Theme.DARK;
    }
 
    /** The colour for anything that is simply text. */

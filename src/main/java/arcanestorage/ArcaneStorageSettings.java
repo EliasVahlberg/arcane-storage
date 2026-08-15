@@ -42,17 +42,20 @@ public class ArcaneStorageSettings extends ModSettings {
    public boolean groupCraftingByCategory = true;
 
    /**
-    * Whether the mod's interfaces draw on the mod's own purple panel rather than the player's chosen
-    * interface style.
+    * Which interface style the mod's own windows are drawn with: {@code slate}, {@code dark}, or {@code vanilla}.
     *
-    * <p>Defaults on, because the panel is the difference between a storage terminal that looks like
-    * part of this mod and one that looks like a chest with more buttons. It is a setting rather than a
-    * decision because the cost falls on a specific player: Necesse ships several interface styles and
-    * shows a selector when it has more than one, so anyone who deliberately themed their game has that
-    * choice quietly overridden for our forms. Off restores {@code GameBackground.form}, which is the
-    * panel a form would have used had this mod never touched it.
+    * <p>Defaults to a theme rather than to vanilla, because the difference is a storage terminal that looks like
+    * part of this mod against one that looks like a chest with more buttons. It stays a setting because the cost
+    * falls on a specific player: Necesse ships several interface styles and shows a selector when it has more
+    * than one, so anyone who deliberately themed their game has that choice overridden for these windows.
+    * {@code vanilla} hands it back and is a real path, not a fallback — the mod then draws exactly what any other
+    * container would.
+    *
+    * <p>This replaces an earlier {@code useCustomPanel} boolean, which chose between the player's style and one
+    * purple panel texture. An unrecognised value reads as {@code slate}, so an old config loses its preference
+    * rather than failing.
     */
-   public boolean useCustomPanel = true;
+   public String theme = arcanestorage.ui.ArcaneStyles.Theme.SLATE.settingValue();
 
    /**
     * Tiles a Demonic pairing reaches on the transceiver's own level.
@@ -150,8 +153,8 @@ public class ArcaneStorageSettings extends ModSettings {
    public void addSaveData(SaveData save) {
       save.addBoolean("groupCraftingByCategory", this.groupCraftingByCategory,
             "Group the terminal's crafting list into category sections rather than one flat grid");
-      save.addBoolean("useCustomPanel", this.useCustomPanel,
-            "Draw this mod's windows on its own panel rather than the interface style chosen in the game's settings");
+      save.addSafeString("theme", this.theme,
+            "Interface style for this mod's windows: slate, dark, or vanilla to use the game's own");
 
       SaveData reach = new SaveData("REACH");
       reach.addInt("demonic", this.wirelessRangeDemonic,
@@ -195,7 +198,7 @@ public class ArcaneStorageSettings extends ModSettings {
    @Override
    public void applyLoadData(LoadData save) {
       this.groupCraftingByCategory = save.getBoolean("groupCraftingByCategory", this.groupCraftingByCategory);
-      this.useCustomPanel = save.getBoolean("useCustomPanel", this.useCustomPanel);
+      this.theme = arcanestorage.ui.ArcaneStyles.Theme.of(save.getSafeString("theme", this.theme)).settingValue();
 
       LoadData reach = save.getFirstLoadDataByName("REACH");
       if (reach != null) {

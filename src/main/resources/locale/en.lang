@@ -145,3 +145,5 @@ arcanestorage_band_rowfree=<n>. Available
 arcanestorage_band_pickchannel=Pick a channel to see what is on it
 arcanestorage_band_freehint=Tune an Access Point to band <band>, channel <n>
 arcanestorage_band_where=<x>,<y> -- <distance> tiles away
+arcanestorage_theme_slate=Arcane Slate
+arcanestorage_theme_dark=Arcane Dark

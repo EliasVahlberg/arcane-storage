@@ -8,6 +8,7 @@ import arcanestorage.band.BandState;
 import arcanestorage.band.ChannelRow;
 import arcanestorage.objectentity.ArcaneBaseStationObjectEntity;
 import arcanestorage.ui.ArcanePanel;
+import arcanestorage.ui.ArcaneStyles;
 import arcanestorage.ui.ArcaneText;
 import necesse.engine.gameLoop.tickManager.TickManager;
 import necesse.engine.localization.Localization;
@@ -84,6 +85,9 @@ public class BaseStationContainerForm<T extends BaseStationContainer> extends Co
 
    public BaseStationContainerForm(Client client, T container) {
       super(client, WIDTH, 120, container);
+      // Before a single component is added: ComponentList.add copies the parent's style at add time, so a
+      // component added first would keep the player's global style and the window would end up half in each.
+      ArcaneStyles.apply(this);
       this.setBackground(ArcanePanel.of());
 
       FormFlow flow = new FormFlow(PADDING);

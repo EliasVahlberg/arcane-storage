@@ -250,7 +250,7 @@ public class ArcaneStorage {
       // Client-only, which is why the panel is loaded here and not in init(): a dedicated server never
       // calls this, never builds a form, and has no business holding UI textures. Object and item
       // textures still need no hand-loading -- InventoryObject.loadTextures finds those by string ID.
-      ArcanePanel.load();
+      arcanestorage.ui.ArcaneStyles.load();
    }
 
    public void postInit() {
