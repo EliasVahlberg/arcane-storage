@@ -68,6 +68,9 @@ public class UnitUpgradeContainer extends Container {
 
    public final boolean station;
 
+   /** What to head the panel with: the object's own locale key, or null when the tile is empty. */
+   public final String nameKey;
+
    public final UpgradeAction upgradeAction;
 
    /** The latest state, on both sides: computed on the server, received on the client. */
@@ -91,6 +94,7 @@ public class UnitUpgradeContainer extends Container {
       Level level = objectEntity.getLevel();
       this.tier = UnitUpgrade.tierAt(level, this.tileX, this.tileY);
       this.station = UnitUpgrade.isStation(level, this.tileX, this.tileY);
+      this.nameKey = UnitUpgrade.nameKeyAt(level, this.tileX, this.tileY);
       Ingredient[] resolved = UnitUpgrade.cost(level, this.tileX, this.tileY);
       this.cost = resolved == null ? new Ingredient[0] : resolved;
 

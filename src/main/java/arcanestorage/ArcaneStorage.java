@@ -198,11 +198,11 @@ public class ArcaneStorage {
          (client, uniqueSeed, objectEntity, content) -> {
             arcanestorage.upgrade.UnitUpgradeContainer container =
                new arcanestorage.upgrade.UnitUpgradeContainer(client.getClient(), uniqueSeed, objectEntity, content);
+            // The tile says what it is. See UnitUpgrade.nameKeyAt: this used to pick between two names on a
+            // boolean, and headed a Wireless Transceiver's panel "Demonic Storage Unit".
             return new arcanestorage.upgrade.UnitUpgradeContainerForm<>(
                client, container,
-               container.station
-                  ? (container.tier == null ? STATION_UNIT_STRING_ID : container.tier.stationId())
-                  : (container.tier == null ? UNIT_STRING_ID : container.tier.storageId())
+               container.nameKey == null ? UNIT_STRING_ID : container.nameKey
             );
          },
          (client, uniqueSeed, objectEntity, content, serverObject) ->

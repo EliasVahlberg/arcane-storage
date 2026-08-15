@@ -94,10 +94,14 @@ public class UnitUpgradeContainerForm<T extends UnitUpgradeContainer> extends Co
 
       final Color text = TEXT;
 
+      // Wrapped, and at 20 rather than 24. "Demonic Wireless Transceiver" is three words and wider than the panel at
+      // any size worth reading, and a centred label with no max width does not wrap -- it runs off both edges at
+      // once. The flow measures the laid-out label, so a name that takes two lines simply pushes the rest down.
       this.addComponent(
          flow.nextY(
             new FormLocalLabel(
-               new LocalMessage("object", nameKey), new FontOptions(24).color(text), 0, WIDTH / 2, 0
+               new LocalMessage("object", nameKey), new FontOptions(20).color(text), 0, WIDTH / 2, 0,
+               WIDTH - 24
             ),
             8
          )

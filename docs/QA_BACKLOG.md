@@ -47,6 +47,13 @@ while the base is on the surface; and the upgrade hint naming the right end when
 number itself, 120 tiles, is a guess to tune: it should cover a base and its surroundings and fall short of the
 next biome.
 
+**0h. A suite run started too soon after the previous one can fail wholesale.** Observed once: seven failures spread
+across files, including tests that had nothing to do with the change, immediately after a `make testjar && pytest`
+launched while the previous run's server was still shutting down. Three consecutive runs afterwards were clean with no
+code change in between. So a scattered multi-file failure is worth re-running once before believing -- and if it
+persists, it is real. Not chased further because the shape is known and the fix would be a wait-for-teardown in the
+Python fixture; noted so nobody bisects a phantom.
+
 **0g. The frequency band, in play.** Nothing about the two panels is covered by tests -- the harness drives a server,
 so what it proves is that tuning is refused for the right reason, not that the dropdown said so. Worth walking
 through once, in this order: place a Base Station beside a network with a transceiver and confirm it lights up and

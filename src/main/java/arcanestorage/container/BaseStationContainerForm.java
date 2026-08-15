@@ -115,8 +115,11 @@ public class BaseStationContainerForm<T extends BaseStationContainer> extends Co
    public void draw(TickManager tickManager, PlayerMob perspective, Rectangle renderBox) {
       ArcaneBaseStationObjectEntity station = this.container.station;
 
+      // The tier's own name, not the bottom rung's: hardcoding the Demonic key would head a Fallen station's panel
+      // "Demonic Arcane Base Station" for as long as it had no band, which is exactly when a player is looking.
       this.title.setText(station == null || station.getBandId() <= 0
-            ? Localization.translate("object", "arcanestoragebasestation")
+            ? Localization.translate("object",
+                  station == null ? "arcanestoragebasestation" : station.tier().baseStationId())
             : Localization.translate("ui", "arcanestorage_band_title",
                   "band", String.valueOf(station.getBandId())));
 

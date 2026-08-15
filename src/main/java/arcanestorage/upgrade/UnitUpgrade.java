@@ -173,6 +173,23 @@ public final class UnitUpgrade {
       return object instanceof StationUnitObject ? ((StationUnitObject)object).tier : null;
    }
 
+   /**
+    * The locale key naming whatever is on the tile, for the panel's own title.
+    *
+    * <p>Read off the object rather than derived from which ladder it belongs to. The panel used to choose between two
+    * names on a boolean, which was true while there were two ladders and quietly wrong once there were four: a
+    * Wireless Transceiver's panel was headed "Demonic Storage Unit". An object's string ID is its {@code [object]}
+    * locale key, so asking the tile cannot drift as rungs are added.
+    */
+   public static String nameKeyAt(Level level, int x, int y) {
+      if (level == null) {
+         return null;
+      }
+
+      GameObject object = level.getObject(x, y);
+      return object == null || object.getID() == 0 ? null : object.getStringID();
+   }
+
    /** True when the tile holds a Wireless Transceiver, whose ladder is priced separately from the units'. */
    public static boolean isTransceiver(Level level, int x, int y) {
       return level != null && level.getObject(x, y) instanceof arcanestorage.object.WirelessTransceiverObject;
