@@ -8,6 +8,7 @@ import arcanestorage.ArcaneStorage;
 import arcanestorage.container.StorageTerminalContainer;
 import arcanestorage.network.NetworkStations;
 import arcanestorage.network.NetworkStorage;
+import necesse.entity.objectEntity.ObjectEntity;
 import arcanestorage.objectentity.BusSummary;
 import arcanestorage.objectentity.StorageTerminalObjectEntity;
 import necesse.engine.localization.message.GameMessage;
@@ -223,7 +224,7 @@ public class RemoteTerminalContainer extends StorageTerminalContainer {
          return;
       }
 
-      RemoteTerminal.pin(this.remoteLevel);
+      RemoteTerminal.pin(this.remoteLevel, this.pinnedTiles());
       this.sendPending();
       this.sendBuses();
    }
@@ -254,6 +255,46 @@ public class RemoteTerminalContainer extends StorageTerminalContainer {
    @Override
    public List<BusSummary> getBuses() {
       return this.client.isServer() ? super.getBuses() : this.buses;
+   }
+
+   /**
+    * Every tile whose region must stay loaded: the terminal, and each unit holding an inventory this container
+    * can write into.
+    *
+    * <p>Rebuilt each tick rather than cached at open, because a network's membership changes while it is being
+    * looked at -- a unit placed by somebody else, or one broken -- and a stale list would either pin a region
+    * nothing needs or, worse, stop pinning one that is still being written to.
+    */
+   private List<long[]> pinnedTiles() {
+      List<long[]> tiles = new ArrayList<>();
+      if (this.terminal != null) {
+         tiles.add(new long[] {this.terminal.tileX, this.terminal.tileY});
+      }
+
+      for (NetworkStations station : this.stationUnits) {
+         ObjectEntity entity = station.getObjectEntity();
+         if (entity != null) {
+            tiles.add(new long[] {entity.tileX, entity.tileY});
+         }
+      }
+
+      for (NetworkStorage unit : this.linkedUnits) {
+         ObjectEntity entity = unit.getObjectEntity();
+         if (entity != null) {
+            tiles.add(new long[] {entity.tileX, entity.tileY});
+         }
+      }
+
+      // Buses too, though nothing the container does touches them. The Logistics tab reports each bus's state
+      // while it is being watched, and a bus whose region has unloaded is not moving anything -- so leaving them
+      // out would mean a tab that reads "active" for devices that had quietly stopped. It also means importing
+      // and exporting keep working while somebody is looking at them from elsewhere, which is the behaviour a
+      // player would assume from being able to see them at all.
+      for (BusSummary bus : super.getBuses()) {
+         tiles.add(new long[] {bus.tileX, bus.tileY});
+      }
+
+      return tiles;
    }
 
    private void sendPending() {

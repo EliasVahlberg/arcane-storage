@@ -24,7 +24,10 @@ unproven: holding the item and clicking a placed Storage Terminal should pair it
 else should open the network. `overridesObjectInteract` returns true, which is what stops the click opening the
 terminal normally instead — if pairing does nothing, that is the first thing to suspect.
 
-**0b. The case the feature exists for.** The harness has one level and one player, so nothing tests a network on
+**0b. The case the feature exists for.** *(Region pinning was missing entirely and is now fixed but unverified:
+opening after a wait said "That terminal is gone", and an open terminal closed itself when the region went. Both
+want retesting, on the same level and across levels. The check that matters most is depositing through a terminal
+that has been open for a few minutes, then walking there to confirm the items are really in the unit.)* The harness has one level and one player, so nothing tests a network on
 an unloaded level. Worth doing properly: pair on the surface, go down to a cave, wait past 30 seconds so the
 surface unloads (the server logs `Unloaded level`), then open it. Expect the level to load, the contents to be
 right, and — after closing — the level to unload again about 30 seconds later. Depositing something and then

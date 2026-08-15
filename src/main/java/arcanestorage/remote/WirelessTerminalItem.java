@@ -150,6 +150,12 @@ public class WirelessTerminalItem extends Item implements ItemInteractAction {
             client.sendChatMessage(Localization.translate("ui", "arcanestorage_wireless_unpaired"));
             return;
          case BAD_LEVEL:
+            // Distinguished on the console but not to the player, who has one thing to do about either. Worth
+            // separating at all because they read identically in chat, and that ambiguity sent an hour of
+            // diagnosis at the level unload when the real cause was the region under it.
+            System.out.println("Arcane Storage: a wireless terminal's level could not be resolved: " + binding);
+            client.sendChatMessage(Localization.translate("ui", "arcanestorage_wireless_gone"));
+            return;
          case GONE:
             client.sendChatMessage(Localization.translate("ui", "arcanestorage_wireless_gone"));
             return;

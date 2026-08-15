@@ -7,6 +7,7 @@ import necesse.engine.util.LevelIdentifier;
 import necesse.engine.world.World;
 import necesse.entity.objectEntity.ObjectEntity;
 import necesse.level.maps.Level;
+import necesse.level.maps.regionSystem.Region;
 
 /**
  * Resolving a {@link RemoteBinding} to a live terminal, server-side, whether or not its level is loaded.
@@ -108,6 +109,15 @@ public final class RemoteTerminal {
          return BAD_LEVEL;
       }
 
+      // A loaded level is not a loaded tile, which is the correction that made this work. Object entities live
+      // in regions, and regions unload on their own schedule -- the server logs "Unloading surface world region
+      // 0x-1 from memory to file system" -- so a terminal on a level that is fully loaded still reads as gone
+      // when nobody has been near it. It happens on the player's own level too, which is what ruled out the
+      // level unload as the explanation. Loading is synchronous here and generates the region if there is no
+      // file, and it is safe from this call site because a container ticks on the server thread, which is the
+      // thread that does this work anyway.
+      level.regionManager.getRegionByTile(binding.tileX, binding.tileY, true);
+
       ObjectEntity entity = level.entityManager.getObjectEntity(binding.tileX, binding.tileY);
       if (!(entity instanceof StorageTerminalObjectEntity)) {
          return new Resolved(Result.GONE, level, null);
@@ -124,16 +134,42 @@ public final class RemoteTerminal {
    }
 
    /**
-    * Keeps a level from being unloaded. Must be called every server tick for as long as it matters.
+    * Keeps a level, and the regions holding the given tiles, from being unloaded. Call every server tick.
     *
-    * <p>One line, and deliberately not more: no reference counting, no set of pinned levels. The engine's
-    * own mechanism is a countdown that anything may reset, so several open wireless terminals on the same
-    * level cooperate without knowing about each other, and forgetting to unpin cannot leak — the level
-    * simply resumes counting and unloads 30 seconds later.
+    * <p><b>Both halves are needed, and an earlier version had only the first.</b> Pinning the level alone kept
+    * the level in memory while its regions unloaded underneath, so an open wireless terminal closed itself about
+    * thirty seconds in -- the container's own validity check noticing that its units had stopped answering, which
+    * is the safety net working rather than failing. Vanilla does both together in every place it does either:
+    * {@code ArenaEntrancePortalMob} resets {@code unloadLevelBuffer} and then calls
+    * {@code getRegionByTile(...).unloadRegionBuffer.keepLoaded()} three lines later, and
+    * {@code ServerClient.tick} walks its own {@code loadedRegions} doing the same for every region a player can
+    * see.
+    *
+    * <p>Every tile is pinned, not just the terminal's, because a network spans regions and each unit's inventory
+    * belongs to an object entity in whichever region holds it. A unit whose region unloaded while the container
+    * was writing into it would be writing into something the engine has already saved and dropped, and those
+    * writes are a player's items. Regions are reloaded if they have gone, for the same reason: coming back is
+    * better than a container that is half attached.
+    *
+    * <p>No reference counting, and none needed: the engine's mechanism is a countdown that anything may reset, so
+    * two terminals open on one level cooperate without knowing about each other, and forgetting to unpin cannot
+    * leak -- everything simply resumes counting and unloads about thirty seconds later.
     */
-   public static void pin(Level level) {
-      if (level != null) {
-         level.unloadLevelBuffer = 0;
+   public static void pin(Level level, Iterable<long[]> tiles) {
+      if (level == null) {
+         return;
+      }
+
+      level.unloadLevelBuffer = 0;
+      if (tiles == null) {
+         return;
+      }
+
+      for (long[] tile : tiles) {
+         Region region = level.regionManager.getRegionByTile((int)tile[0], (int)tile[1], true);
+         if (region != null) {
+            region.unloadRegionBuffer.keepLoaded();
+         }
       }
    }
 }

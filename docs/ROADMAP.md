@@ -312,12 +312,23 @@ Worth doing, not worth blocking on, and none started.
      there is no file. Every design that started by persisting the network's contents somewhere —
      onto the item, into world data — would have been a second copy of items that already exist
      authoritatively, which is the one thing this mod must never hold.
-  2. **Loading is not keeping.** `Server` unloads any level whose `unloadLevelBuffer` passes the
-     30-second cooldown, saving it and dropping it. A container holding slots on it would go on
-     writing into an object nothing saves again. Vanilla's own answer is to reset that counter —
-     `ArenaEntrancePortalMob`, `AscendedWizardMob` and `ServerSettlementData` all do exactly that —
-     so the fix is one line per tick, plus an identity check that closes the container if the level
-     is ever swapped underneath it.
+  2. **Loading is not keeping, and a loaded level is not a loaded tile.** Two mechanisms, and the
+     first version of this feature knew about one of them. `Server` unloads any level whose
+     `unloadLevelBuffer` passes the 30-second cooldown, saving it and dropping it — but **regions
+     unload on their own schedule as well**, and object entities live in regions, so a terminal on a
+     fully loaded level still reads as gone when nobody has been near it. In game that showed up as
+     "That terminal is gone" after a wait, and as an open terminal closing itself about thirty
+     seconds in; it reproduced on the player's own level, which is what ruled out the level unload as
+     the explanation. The server says so plainly in its log: *Unloading surface world region 0x-1
+     from memory to file system*, followed by the settlement unloading for want of loaded regions.
+
+     Vanilla does both together everywhere it does either — `ArenaEntrancePortalMob` resets
+     `unloadLevelBuffer` and calls `getRegionByTile(...).unloadRegionBuffer.keepLoaded()` three lines
+     later, and `ServerClient.tick` walks a player's own `loadedRegions` doing the same. So the pin
+     covers the level plus the region of every tile the container can write into: the terminal, each
+     unit, and each bus. Regions are reloaded if they have gone, since coming back beats a container
+     that is half attached. **The earlier claim in this file that the fix was "one line per tick" was
+     wrong**, and it was wrong because the vanilla precedent was read three lines short.
   3. **The engine has no remote-inventory sync, so this mod now has one.** There is no
      container-slot packet at all; a client sees a container's contents only because it already has
      the underlying inventories, and an object entity's reach that client through
