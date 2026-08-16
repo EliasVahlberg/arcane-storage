@@ -13,6 +13,7 @@ import necesse.inventory.InventoryItem;
 import arcanestorage.network.NetworkStations;
 import arcanestorage.objectentity.BusSummary;
 import arcanestorage.network.NetworkStorage;
+import arcanestorage.container.MirroredMember;
 
 /**
  * What a remote client is told about a network it cannot see, and the stand-ins it builds from that.
@@ -170,7 +171,7 @@ public final class RemoteNetworkShape {
    public List<NetworkStations> stationUnits() {
       List<NetworkStations> units = new ArrayList<>(this.socketCounts.length);
       for (int i = 0; i < this.socketCounts.length; i++) {
-         units.add(new Mirrored(this.socketCounts[i], this.name, i));
+         units.add(new MirroredMember(this.socketCounts[i], this.name, i));
       }
 
       return units;
@@ -180,62 +181,10 @@ public final class RemoteNetworkShape {
    public List<NetworkStorage> units() {
       List<NetworkStorage> units = new ArrayList<>(this.unitSizes.length);
       for (int i = 0; i < this.unitSizes.length; i++) {
-         units.add(new Mirrored(this.unitSizes[i], this.name, i));
+         units.add(new MirroredMember(this.unitSizes[i], this.name, i));
       }
 
       return units;
    }
 
-   /**
-    * A network member that exists only in a remote client's memory.
-    *
-    * <p>An {@link Inventory} of the right size and nothing else. It deliberately implements both member
-    * interfaces, because the two differ only in which list they belong to and a second near-identical class
-    * would be two places to keep a decision.
-    *
-    * <p>The two overridden defaults matter. {@code isOnNetwork()} derives from an object entity in the real
-    * implementations, and here there is none — left inherited it would report every mirrored unit as gone, and
-    * the container closes itself when a unit drops off the network, so the remote terminal would shut the
-    * instant it opened. {@code tileOrder()} is likewise synthesised from the position in the sent list, which
-    * is already the tile order the server enumerated.
-    */
-   private static final class Mirrored implements NetworkStorage, NetworkStations {
-
-      private final Inventory inventory;
-
-      private final GameMessage name;
-
-      private final int order;
-
-      private Mirrored(int size, GameMessage name, int order) {
-         this.inventory = new Inventory(Math.max(size, 0));
-         this.name = name;
-         this.order = order;
-      }
-
-      @Override
-      public Inventory getInventory() {
-         return this.inventory;
-      }
-
-      @Override
-      public GameMessage getInventoryName() {
-         return this.name;
-      }
-
-      @Override
-      public ObjectEntity getObjectEntity() {
-         return null;
-      }
-
-      @Override
-      public boolean isOnNetwork() {
-         return true;
-      }
-
-      @Override
-      public long tileOrder() {
-         return this.order;
-      }
-   }
 }
