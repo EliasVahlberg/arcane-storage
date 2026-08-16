@@ -311,8 +311,12 @@ conventions, and the settings tab from `0b26f9a`. Two entries below outlive them
   player opening the same terminal, withdrawing while the first has it open, and seeing the grid
   update. This is the largest untested surface in the mod, and containers are exactly where desync
   shows.
-- **A world round-trip.** Quit to menu, reload, and confirm networks reform with their contents,
-  names and bus rules intact. Cheap to do and catches the worst class of bug there is.
+- ~~**A world round-trip.**~~ **Done, 16 Aug 2026.** Confirmed across both a reload and a full game
+  exit: bus custom names, Access Point band and channel tuning, and the Wireless Terminal's pairing
+  to a transceiver all come back. Those three were chosen because the scenario suite already proves
+  unit contents, network shape and bus rules survive a real server restart, and does not reach any of
+  them. The gap that remains is automated coverage of the three, which is issue #5 rather than a
+  release blocker now that each has been seen working.
 - Per backlog item 0h, leave a gap between scenario runs or a suite started before the previous
   server has finished shutting down fails scattered across files, which reads as a real regression.
 

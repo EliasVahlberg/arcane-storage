@@ -208,8 +208,11 @@ ones the 14 Aug rework changed, so re-read them against the reworked list at the
    should work and the new name should appear in the tab's row, in the bus's panel, and in any stopped-device
    reason that mentions it.
 4. **Clear the box.** It should go back to its assigned number rather than becoming blank.
-5. **Save and reload the world.** Names and numbers should come back. This is the one thing here no test covers:
-   the harness cannot reload a world.
+5. **Save and reload the world.** Names and numbers should come back. **Confirmed 16 Aug 2026**, across both a
+   reload and a full game exit. Note the claim this item used to carry, that the harness cannot reload a world,
+   was wrong: `storage.restart()` restarts the server and the world comes back off disk, which is how
+   `test_rules_survive_a_restart` and `test_persistence` work. What those do not cover is the bus *name*, since
+   they assert rules and contents rather than the custom name field.
 6. **Break a numbered bus and place a new one.** The survivors should keep their numbers and the new one should
    take a number nobody is using. Tested headlessly, but worth one look.
 7. **Cause a conflict** and read the reason. It should name the other device rather than only giving its
