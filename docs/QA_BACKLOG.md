@@ -840,8 +840,12 @@ working tree then passed 250 as well. One green run cannot convict an intermitte
 day, all against the same scenarios, is **two green and two red with the change, one green without it** -- so the
 change is not implicated, and neither is anything else yet.
 
-The remaining lead is the fixture's settle counts. `harness.settle(2)` either side of `reset` was tuned when it was
-written; if the fault is a race with deferred removal, the number that matters is whatever the slowest of these seven
-needs, and it may simply be larger than 2 on a loaded machine. Worth trying before anything more elaborate, and worth
-measuring rather than guessing: a failing run captured with the removal counts before and after each settle would say
-directly whether the removals had completed.
+The remaining lead was thought to be the fixture's settle counts. It is not: **this is item 0h at the top of this
+file**, which already recorded the same seven-failure shape and named the cause -- a run launched while the previous
+run's server is still shutting down. Both red runs here were started immediately after a preceding run, and every
+green one had a gap before it, which fits 0h exactly and fits deferred removal only by coincidence. The seven names
+above are still worth having, and they sharpen 0h rather than pointing elsewhere: what a half-dead server leaves
+behind is objects that will not go, so the tests that break something are the ones that notice.
+
+The fix 0h proposes stands -- a wait-for-teardown in the Python fixture -- and would turn a wholesale red run into a
+short delay. Until then the rule is 0h's: re-run once before believing a scattered multi-file failure.

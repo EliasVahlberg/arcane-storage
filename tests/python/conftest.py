@@ -46,12 +46,16 @@ MOD_DIR = Path(__file__).resolve().parents[2]
 def harness_config() -> ServerConfig:
     """Point the harness at this mod.
 
-    build/testjar rather than build/jar: the released jar deliberately excludes the harness-facing
-    classes, because the mod loader defines every class in a jar eagerly and a reference to an
-    absent optional mod is fatal rather than catchable. ``make testjar`` builds this one.
+    ``build/jar`` is the released jar, and deliberately so: the harness bridge ships inside it as
+    ``harnessbridge/**.classdata`` resources, which the mod loader ignores and
+    ``necesseheadlessharness.ModBridges`` defines at runtime. So these scenarios exercise the exact
+    artifact players download, including the deferred-definition path itself.
+
+    There used to be a second jar here because harness-facing classes could not ship; the cost was
+    that nothing ever tested what shipped.
     """
     config = ServerConfig()
-    config.mod_under_test = MOD_DIR / "build/testjar"
+    config.mod_under_test = MOD_DIR / "build/jar"
     config.world = "arcane_harness_py"
     return config
 

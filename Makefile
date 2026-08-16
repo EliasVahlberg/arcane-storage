@@ -33,29 +33,40 @@ build: ## Compile the mod and produce build/jar/<name>.jar
 	@ls -la build/jar/
 	@$(MAKE) --no-print-directory releasecheck
 
-releasecheck: ## Assert the release jar carries no trace of the harness (runs as part of 'make build')
-	@# Both properties below were broken at some point and neither announced itself: a jar containing
-	@# the bridge classes refuses to load for anyone without the harness, and a mod.info naming an
-	@# absent optional dependency draws the mod's name in warning colour on every player's mod list.
-	@# Neither is visible from this machine, where the harness is always installed -- hence a check
-	@# rather than a habit.
+releasecheck: ## Assert the one shipped jar is safe for players (runs as part of 'make build')
+	@# Three invariants, and each one has been broken at some point without announcing itself, because none of them is
+	@# visible from a machine where the harness is always installed.
+	@#
+	@# The fatal one is the supertype rule. A shipped class that implements a harness interface cannot be defined when
+	@# the harness is absent, and the mod loader turns that into a refusal to load the mod at all. A harness type named
+	@# in a method body is fine -- that resolves lazily -- so this checks declarations only, which is why it greps for
+	@# candidates and then reads each one's declaration line rather than trusting the grep.
 	@jar=$$(ls build/jar/*.jar); \
 	fail=0; \
-	n=$$(unzip -l "$$jar" | grep -c "arcanestorage/harness/" || true); \
-	if [ "$$n" != "0" ]; then echo "  FAIL: $$n harness class(es) in $$jar"; fail=1; \
-	else echo "  ok: no harness classes"; fi; \
+	n=$$(unzip -l "$$jar" | grep -cE "arcanestorage/harness/.*\.class$$" || true); \
+	if [ "$$n" != "0" ]; then echo "  FAIL: $$n harness class(es) ship as code, not as bridge resources"; fail=1; \
+	else echo "  ok: no harness classes ship as code"; fi; \
+	n=$$(unzip -l "$$jar" | grep -c "harnessbridge/.*\.classdata" || true); \
+	if [ "$$n" = "0" ]; then echo "  FAIL: the harness bridge resources are missing, so debugging is impossible"; fail=1; \
+	else echo "  ok: $$n bridge resources present"; fi; \
+	if ! unzip -l "$$jar" | grep -q "harnessbridge/bridge.txt"; then \
+	  echo "  FAIL: bridge.txt is missing, so the harness cannot find the entry class"; fail=1; \
+	else echo "  ok: bridge.txt present"; fi; \
 	if unzip -p "$$jar" mod.info | grep -q "necesseheadlessharness"; then \
 	  echo "  FAIL: mod.info names the harness"; fail=1; \
 	else echo "  ok: mod.info does not name the harness"; fi; \
-	if [ "$$fail" != "0" ]; then echo "  release jar is not shippable"; exit 1; fi
+	rm -rf build/relcheck && mkdir -p build/relcheck && (cd build/relcheck && unzip -q -o "../../$$jar"); \
+	bad=$$(cd build/relcheck && for c in $$(grep -rla "necesseheadlessharness" --include="*.class" . 2>/dev/null); do \
+	  javap -p "$$c" 2>/dev/null | grep -m1 -E "(class|interface|enum) " | grep -q "necesseheadlessharness" && echo "$$c"; \
+	done); \
+	if [ -n "$$bad" ]; then echo "  FAIL: these ship as code and inherit a harness type:"; echo "$$bad" | sed 's/^/    /'; fail=1; \
+	else echo "  ok: no shipped class inherits a harness type"; fi; \
+	rm -rf build/relcheck; \
+	if [ "$$fail" != "0" ]; then echo "  this jar is not shippable"; exit 1; fi
 
-testjar: ## Produce build/testjar/<name>.jar: the same mod plus the harness verbs, for scenarios only
-	@mkdir -p $(LOGDIR)
-	@# A separate jar because the released one excludes the harness-facing classes: the mod loader
-	@# defines every class in a jar eagerly, so a reference to an optional mod that is not installed
-	@# is fatal rather than catchable. Scenarios dev-load this one instead.
-	@$(GRADLE) buildTestModJar < /dev/null 2>&1 | tee $(LOGDIR)/testjar.log
-	@ls -la build/testjar/
+testjar: ## Deprecated: there is one jar now, and the scenarios use it. Builds it, for anything still calling this.
+	@echo "note: there is only one jar now -- the bridge ships as harnessbridge/**.classdata resources"
+	@$(MAKE) --no-print-directory build
 
 test: ## Run the unit tests (game-independent logic only; no game or Steam needed)
 	@mkdir -p $(LOGDIR)
@@ -63,7 +74,7 @@ test: ## Run the unit tests (game-independent logic only; no game or Steam neede
 
 scene: ## Build a state to look at, headlessly: make scene FILE=tests/scenes/full_network.txt
 	@test -n "$(FILE)" || { echo "usage: make scene FILE=tests/scenes/<name>.txt"; exit 2; }
-	@$(MAKE) --no-print-directory testjar > /dev/null
+	@$(MAKE) --no-print-directory build > /dev/null
 	@tools/run_scenario.sh --scene "$(FILE)"
 
 run: ## Launch the game with the in-development mod (needs Steam running). PACKETLOG=1 logs packets, HARNESS=1 enables /harness in-game
@@ -105,18 +116,18 @@ doctor: ## Verify the toolchain assumptions on this machine
 		|| echo "AWT         : HEADLESS JVM (runServer cannot work; error dialogs throw instead of showing)"
 
 pytest: ## Run the fast Python suite: everything except the slow tier (the one to run while working)
-	@$(MAKE) --no-print-directory testjar > /dev/null
+	@$(MAKE) --no-print-directory build > /dev/null
 	@# The venv lives in the harness repo, because the client is released with the jar.
 	@# -m 'not slow' drops the three server restarts and the largest-network budget check. What is
 	@# left is every correctness test, which is what a change needs to be judged against.
 	@$(HARNESS_VENV) -m pytest tests/python -q -m 'not slow'
 
 pytest-all: ## Run the whole Python suite including the slow tier (before a push or a release)
-	@$(MAKE) --no-print-directory testjar > /dev/null
+	@$(MAKE) --no-print-directory build > /dev/null
 	@$(HARNESS_VENV) -m pytest tests/python -q
 
 pytest-clock: ## Run the whole suite on the game's own clock: the control for detached ticks
-	@$(MAKE) --no-print-directory testjar > /dev/null
+	@$(MAKE) --no-print-directory build > /dev/null
 	@# The suite detaches game time from the wall clock by default, granting ticks instead of waiting for
 	@# them -- 20s against 333s. This target is the control: it runs the world on its own clock, so
 	@# something that passes here and fails by default means detached ticks are involved. Takes minutes.

@@ -25,18 +25,14 @@ project.ext.clientside = false
  * Uncomment and configure these if your mod has dependencies
  */
 //project.ext.modDependencies = ["other.modid1", "other.modid2"]
-// The harness is a development tool, not something a player installs, so it must not appear in the
-// released mod.info at all. An unmet optional dependency is not silently ignored: ModLoader's
-// addSortedMod honours optionalDependsOn for load order, and FormModListElement counts unmet
-// optional dependencies into dependWarning, which draws the mod's name in warningTextColor in the
-// Mods menu. Declaring a mod nobody can obtain would therefore flag this one as suspect on every
-// player's mod list.
+// No dependency on the harness is declared, in either direction, and that is deliberate rather than an omission.
 //
-// It still earns its place in the test jar, and for a real reason rather than for tidiness: that
-// same load-order rule is what guarantees the harness loads first, so its command exists by the
-// time postInit registers this mod's verbs into it. So the two jars carry different mod.info files
-// -- see createTestModInfoFile.
-project.ext.harnessModID = "elias.necesseheadlessharness"
+// An unmet optional dependency is not silently ignored: FormModListElement counts unmet ones into dependWarning, which
+// draws the mod's name in warningTextColor in the Mods menu, so declaring a mod nobody can obtain would flag this one
+// as suspect on every player's mod list. It is not needed either, because the harness discovers this mod's bridge from
+// its own postInit -- by which point the engine has run every mod's init -- so no load-order relationship exists to
+// express. See buildModJar for how the bridge ships.
+
 
 // The path to the games install directory, modify this only if the auto-detection fails
 // Allow overriding via gradle.properties (necesseGameDir), since the upstream
@@ -123,31 +119,19 @@ tasks.register('createModInfoFile', JavaExec) {
 // Makes compiling also create mod info file
 classes.dependsOn("createModInfoFile")
 
-// The test jar's mod.info, which differs from the released one in exactly one field: it declares the
-// harness as an optional dependency. That is what puts the harness ahead of this mod in load order,
-// so its command exists when postInit registers this mod's verbs into it.
+// Names the bridge's entry class for necesseheadlessharness.ModBridges, which reads this file from the jar and calls
+// the class's static register(). One name per line; '#' comments are ignored.
 //
-// Written to its own directory rather than over the one in the classes directory, because the two
-// jars are built from the same compiled output and a shared file would make the released jar depend
-// on which jar task ran last.
-tasks.register('createTestModInfoFile', JavaExec) {
+// A marker file rather than a naming convention, so the harness never has to guess a class name and a mod can move or
+// rename its bridge without the harness caring.
+tasks.register('createBridgeMarker') {
     group "necesse"
-    description "Creates the mod info file for the test jar, which declares the harness dependency"
+    description "Writes the harness bridge marker naming the bridge's entry class"
 
-    classpath = files(gameDirectory + "/Necesse.jar")
-
-    getMainClass().set("CreateModInfoFile")
-
-    args "-file", "${buildDir}/testmodinfo/mod.info",
-            "-id", "${project.ext.modID}",
-            "-name", "${project.ext.modName}",
-            "-version", "${project.ext.modVersion}",
-            "-gameVersion", "${project.ext.gameVersion}",
-            "-description", "${project.ext.modDescription}",
-            "-author", "${project.ext.author}",
-            "-clientside", "${project.ext.clientside}",
-            "-dependencies", project.ext.has("modDependencies") ? "[" + project.ext.modDependencies.join(", ") + "]" : "",
-            "-optionalDependencies", "[" + project.ext.harnessModID + "]"
+    doLast {
+        file("${buildDir}/harnessbridge").mkdirs()
+        file("${buildDir}/harnessbridge/bridge.txt").text = "arcanestorage.harness.ArcaneStorageVerbs\n"
+    }
 }
 
 tasks.register('preAntialiasTextures', JavaExec) {
@@ -199,7 +183,7 @@ tasks.register('runServer', JavaExec) {
 tasks.register('buildModJar', Jar) {
     group "necesse"
     description "Generates the mod jar into the build folder"
-    dependsOn "classes", "createModInfoFile"
+    dependsOn "classes", "createModInfoFile", "createBridgeMarker"
 
     doFirst {
         fileTree(dir: buildLocation).exclude("${jarName}.jar").visit { FileVisitDetails details ->
@@ -207,47 +191,39 @@ tasks.register('buildModJar', Jar) {
         }
     }
 
-    // Add mod output
-    from sourceSets.main.java.getClassesDirectory()
+    // Add mod output, minus the harness bridge, which ships below as resources instead
+    from(sourceSets.main.java.getClassesDirectory()) {
+        exclude "arcanestorage/harness/**"
+    }
+
+    // The harness bridge, shipped in the one jar everybody runs -- players included -- but renamed so the mod loader
+    // never treats it as code.
+    //
+    // Every class in arcanestorage/harness implements the harness's TestVerb or TestQuery. LoadedMod.loadClasses calls
+    // loadClass on each .class entry as the mod loads, and defining a class resolves its interfaces, so with the
+    // harness absent those definitions fail and the loader turns the LinkageError into a fatal ModLoadException. Note
+    // how narrow that is: only supertypes are eager. This mod's own entry class holds an invokestatic to a harness
+    // class and loads fine, because a method body resolves lazily.
+    //
+    // The loader's test for what is code is the .class suffix and nothing more, so a rename is enough to make these
+    // opaque. necesseheadlessharness.ModBridges reads them back and defines them, but only when the harness is
+    // actually running -- so a player's game never defines them at all, and the jar the scenario suite tests is the
+    // jar that ships. Do not "fix" this by excluding them again: that would return the suite to testing an artifact
+    // nobody runs.
+    from(sourceSets.main.java.getClassesDirectory()) {
+        include "arcanestorage/harness/**"
+        into "harnessbridge"
+        rename { String name -> name + "data" }
+    }
+    from("${buildDir}/harnessbridge") {
+        into "harnessbridge"
+    }
+
     // Add the dependencies
     from configurations.libDepends.collect { it.isDirectory() ? it : zipTree(it) }
 
-    // The harness-facing classes must NOT be in the released jar. They reference types from an
-    // optional mod, and LoadedMod.loadClasses eagerly defines every class in the jar, turning a
-    // LinkageError into a fatal ModLoadException -- so shipping them means the mod refuses to load
-    // for anyone who does not also install the harness. No try/catch can help: the failure happens
-    // during mod loading, before any of our code runs. Verified by booting a server without it.
-    exclude "arcanestorage/harness/**"
-
     setArchiveFileName("${jarName}.jar")
     setDestinationDirectory(file(buildLocation))
-}
-
-// The same jar WITH the harness-facing classes, for testing only, in its own directory because a
-// dev mod folder may hold exactly one jar. This is the one the scenario runner dev-loads.
-tasks.register('buildTestModJar', Jar) {
-    group "necesse"
-    description "Generates a test-only mod jar, including the harness verbs, into build/testjar"
-    dependsOn "classes", "createTestModInfoFile"
-
-    doFirst {
-        fileTree(dir: "${buildDir}/testjar").exclude("${jarName}.jar").visit { FileVisitDetails details ->
-            delete details.file
-        }
-    }
-
-    // Everything except mod.info comes from the shared compiled output; mod.info comes from the
-    // test-only copy, so this jar declares the harness dependency and the released one does not.
-    from(sourceSets.main.java.getClassesDirectory()) {
-        exclude "mod.info"
-    }
-    from("${buildDir}/testmodinfo") {
-        include "mod.info"
-    }
-    from configurations.libDepends.collect { it.isDirectory() ? it : zipTree(it) }
-
-    setArchiveFileName("${jarName}.jar")
-    setDestinationDirectory(file("${buildDir}/testjar"))
 }
 
 enum OS { WINDOWS, MAC, LINUX, UNKNOWN }
@@ -291,6 +267,13 @@ dependencies {
 
 test {
     useJUnit()
+
+    // JarLoadsWithoutHarnessTest reads the built jar and the game's classes, so both must exist and be findable. The
+    // jar dependency also means a plain 'gradlew test' cannot silently skip past the release invariant with a stale or
+    // absent jar.
+    dependsOn "buildModJar"
+    systemProperty 'necesseGameDir', gameDirectory
+
     testLogging {
         events "passed", "failed"
         exceptionFormat "full"
