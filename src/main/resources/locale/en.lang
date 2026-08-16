@@ -171,3 +171,6 @@ arcanestorage_settings_channels=Channels per tier
 arcanestorage_settings_tiles=<n> tiles
 arcanestorage_settings_unlimited=Whole level
 arcanestorage_settings_filehint=Config file: mods/elias.arcanestorage.cfg in the game's settings folder.
+
+[itemcategory]
+arcanestorage=Arcane Storage

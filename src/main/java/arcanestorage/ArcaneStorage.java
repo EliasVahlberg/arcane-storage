@@ -22,6 +22,9 @@ import necesse.engine.registries.ContainerRegistry;
 import necesse.engine.registries.ItemRegistry;
 import necesse.engine.registries.ObjectRegistry;
 import necesse.engine.registries.RecipeTechRegistry;
+import necesse.inventory.item.Item;
+import necesse.inventory.item.ItemCategory;
+import necesse.level.gameObject.GameObject;
 import necesse.inventory.recipe.Ingredient;
 import necesse.inventory.recipe.Recipe;
 import necesse.inventory.recipe.Recipes;
@@ -102,6 +105,64 @@ public class ArcaneStorage {
       return SETTINGS;
    }
 
+   /**
+    * The one category this mod's content lives in, in both the item tree and the crafting tree.
+    *
+    * <p>Flat rather than nested, and that is a deliberate choice with a cost. Nesting into storage, logistics and
+    * wireless would read better in a long crafting list, but the terminal's own category filter is built from the
+    * item tree, so nesting there would split this mod across three filter entries where one is what a player wants.
+    * Nesting is additive and can be done later without moving anything; splitting a filter entry cannot be undone
+    * for someone who has learned where to click.
+    */
+   public static final String CATEGORY = "arcanestorage";
+
+   /**
+    * Creates the mod's category in both trees, before anything is registered into it.
+    *
+    * <p>Order is not a style preference here. {@code ItemCategoryManager.getCategory} <b>throws</b>
+    * {@code IllegalStateException} for a tree it does not know, and an object carries its category tree as plain
+    * strings that are resolved when its item is generated during registration -- so a missing create is a crash at
+    * load rather than a category that quietly fails to appear.
+    *
+    * <p>The sort strings are chosen to move nothing vanilla. Vanilla's item tree uses single letters A through G and
+    * then Z for misc, so {@code H-A-A} lands after mobs and before misc. Vanilla's crafting tree runs to {@code
+    * I-A-A} for misc and then pins its station list at {@code Z-Z-Z}, so {@code J-A-A} lands after misc and still
+    * ahead of that pinned block. Touching {@code ItemCategory} at all is what forces its static initialiser to run,
+    * so vanilla's whole tree is guaranteed built before either call.
+    */
+   private static void createCategories() {
+      ItemCategory.masterManager.createCategory("H-A-A", CATEGORY);
+      ItemCategory.craftingManager.createCategory("J-A-A", CATEGORY);
+   }
+
+   /**
+    * Registers an object into this mod's category.
+    *
+    * <p>Exists so that adding an object cannot forget the category. Every object this mod ships is storage or
+    * logistics, so there is no case where the default {@code objects} tree is the right answer, and a helper is
+    * cheaper than a test that checks each call site.
+    *
+    * <p>The map flag is always true, matching every call this replaced.
+    */
+   private static void registerObject(String stringID, GameObject object, float lightLevel) {
+      object.setItemCategory(CATEGORY);
+      object.setCraftingCategory(CATEGORY);
+      ObjectRegistry.registerObject(stringID, object, lightLevel, true);
+   }
+
+   /**
+    * Registers an item into this mod's category, for the items that are not placeable objects.
+    *
+    * <p>A recipe with no category override of its own is grouped by its <b>result item's</b> crafting category
+    * ({@code CraftingStationContainerForm:339-341}), so setting it here is what makes the recipe appear under Arcane
+    * Storage. No recipe needs {@code setCraftingCategory} called on it.
+    */
+   private static void registerItem(String stringID, Item item, float brokerValue) {
+      item.setItemCategory(CATEGORY);
+      item.setItemCategory(ItemCategory.craftingManager, CATEGORY);
+      ItemRegistry.registerItem(stringID, item, brokerValue, true);
+   }
+
    public void init() {
       // Before anything can ask what something costs. Reading the file here rather than on first use means a
       // malformed entry stops the mod at startup, with the offending key named, instead of surfacing whenever a
@@ -116,17 +177,19 @@ public class ArcaneStorage {
          CostTable.override(override.getKey(), override.getValue());
       }
 
-      ObjectRegistry.registerObject(TERMINAL_STRING_ID, new StorageTerminalObject(), 10.0F, true);
+      createCategories();
+
+      registerObject(TERMINAL_STRING_ID, new StorageTerminalObject(), 10.0F);
       // Every rung of both ladders. The base tier keeps the original string IDs, which must never change,
       // and the upper three append their era. Registered in tier order so the crafting list reads as a ladder.
       for (UnitTier tier : UnitTier.values()) {
-         ObjectRegistry.registerObject(tier.storageId(), new StorageUnitObject(tier), 10.0F, true);
-         ObjectRegistry.registerObject(tier.stationId(), new StationUnitObject(tier), 10.0F, true);
+         registerObject(tier.storageId(), new StorageUnitObject(tier), 10.0F);
+         registerObject(tier.stationId(), new StationUnitObject(tier), 10.0F);
       }
       CONDUIT = new StorageConduitObject();
-      ObjectRegistry.registerObject(CONDUIT_STRING_ID, CONDUIT, 4.0F, true);
-      ObjectRegistry.registerObject(IMPORT_BUS_STRING_ID, new ImportBusObject(), 8.0F, true);
-      ObjectRegistry.registerObject(EXPORT_BUS_STRING_ID, new ExportBusObject(), 8.0F, true);
+      registerObject(CONDUIT_STRING_ID, CONDUIT, 4.0F);
+      registerObject(IMPORT_BUS_STRING_ID, new ImportBusObject(), 8.0F);
+      registerObject(EXPORT_BUS_STRING_ID, new ExportBusObject(), 8.0F);
 
       // The wireless ladder: three rungs of each, from the Demonic era up. The bottom rung keeps the unsuffixed
       // string IDs it was first registered under -- see UnitTier.wirelessSuffix -- and BASE has no rung at all.
@@ -135,17 +198,17 @@ public class ArcaneStorage {
             continue;
          }
 
-         ItemRegistry.registerItem(tier.wirelessTerminalId(),
-               new arcanestorage.remote.WirelessTerminalItem(tier), 200.0F, true);
-         ObjectRegistry.registerObject(tier.transceiverId(),
-               new arcanestorage.object.WirelessTransceiverObject(tier), 12.0F, true);
-         ObjectRegistry.registerObject(tier.baseStationId(),
-               new arcanestorage.object.ArcaneBaseStationObject(tier), 12.0F, true);
+         registerItem(tier.wirelessTerminalId(),
+               new arcanestorage.remote.WirelessTerminalItem(tier), 200.0F);
+         registerObject(tier.transceiverId(),
+               new arcanestorage.object.WirelessTransceiverObject(tier), 12.0F);
+         registerObject(tier.baseStationId(),
+               new arcanestorage.object.ArcaneBaseStationObject(tier), 12.0F);
       }
 
       // One rung: an Access Point has nothing a tier could buy. See the class comment.
-      ObjectRegistry.registerObject(arcanestorage.object.ArcaneAccessPointObject.STRING_ID,
-            new arcanestorage.object.ArcaneAccessPointObject(), 10.0F, true);
+      registerObject(arcanestorage.object.ArcaneAccessPointObject.STRING_ID,
+            new arcanestorage.object.ArcaneAccessPointObject(), 10.0F);
 
       // The band's own state, which is per level rather than per device -- see BandIndex. Registered here because
       // LevelDataRegistry closes with the others; the data itself is attached to a level on demand, the first time a
