@@ -2,7 +2,8 @@
 
 Ported from `tests/scenarios/topology.txt` and `multipath.txt`, which this replaces. The rules being
 pinned down are the ones a player has to be able to predict by looking at their base: units and
-conduits conduct, contact must be orthogonal, and a terminal never bridges two groups.
+conduits conduct, contact must be orthogonal, and a terminal conducts too -- so what meets at a terminal is one
+network, which it was not until the disagreement described in test_two_conduit_runs_meeting_at_a_terminal.
 """
 
 from __future__ import annotations
@@ -68,6 +69,55 @@ def test_two_terminals_share_one_network(storage):
 
     assert left.units() == 3
     assert right.units() == 3
+
+
+def test_two_conduit_runs_meeting_at_a_terminal_are_one_network(storage):
+    """A terminal conducts, so what meets at it is joined rather than merely co-visible.
+
+    This was a real disagreement rather than a missing feature. A terminal's own walk starts at its tile and
+    expands, so it always aggregated the groups touching it -- but no other walk could cross the terminal, so a
+    base station on the conduit run to its left could not see a transceiver on the run to its right, and a unit
+    could not empty itself into a unit on the far side. The terminal showed one inventory while every other part
+    of the mod saw two networks.
+    """
+    terminal = net(storage, 0, 30)
+
+    # A run to the left and a run to the right, touching nothing but the terminal.
+    storage.place("conduit", -1, 30)
+    storage.place("unit", -2, 30)
+    storage.place("conduit", 1, 30)
+    storage.place("unit", 2, 30)
+    storage.settle(5)
+
+    assert terminal.units() == 2, "the terminal should see both runs, as it always did"
+
+    # The new part: each unit's own walk reaches the other, which is what everything except the terminal uses.
+    storage.give("oaklog", 90)
+    storage.do("open", 0, 30)
+    storage.do("depositall")
+    storage.do("close")
+    storage.settle(5)
+
+    filled = -2 if storage.query("empty", -2, 30)["usedslots"] > 0 else 2
+    other = -filled
+
+    storage.do("empty", filled, 30)
+    storage.settle(5)
+
+    assert storage.query("empty", filled, 30)["outcome"] == "emptied", (
+        "a unit could not reach across the terminal to the other run"
+    )
+    assert storage.query("empty", other, 30)["usedslots"] == 1
+    assert storage.query("item", 0, 30, "oaklog")["count"] == 90
+
+
+def test_a_terminal_alone_still_joins_nothing_it_does_not_touch(storage):
+    """Conducting is not teleporting: the terminal joins only what is orthogonally against it or its runs."""
+    terminal = net(storage, 0, 34)
+    storage.place("unit", 2, 34)
+    storage.settle(5)
+
+    assert terminal.units() == 0
 
 
 def test_a_block_of_units_is_not_double_counted(storage):

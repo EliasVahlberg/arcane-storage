@@ -192,7 +192,7 @@ public class ArcaneBaseStationObjectEntity extends necesse.entity.objectEntity.I
          return candidate instanceof NetworkStorage && ((NetworkStorage)candidate).isOnNetwork()
             ? (NetworkStorage)candidate
             : null;
-      }, (x, y) -> level.getObject(x, y) instanceof NetworkConductor,
+      }, UnitNetwork.conductorsOn(level),
             StorageTerminalObjectEntity.MAX_UNITS, StorageTerminalObjectEntity.MAX_CONDUITS);
       BandState next;
       int otherX = 0;

@@ -276,7 +276,7 @@ public class StorageTerminalObjectEntity extends InventoryObjectEntity {
          }
 
          return null;
-      }, (x, y) -> level.getObject(x, y) instanceof NetworkConductor,
+      }, UnitNetwork.conductorsOn(level),
             arcanestorage.band.BandIndex.linksOn(level), MAX_UNITS, MAX_CONDUITS, MAX_LINKS);
 
       units.sort(Comparator.comparingLong(NetworkStations::tileOrder));
@@ -339,7 +339,7 @@ public class StorageTerminalObjectEntity extends InventoryObjectEntity {
          }
 
          return null;
-      }, (x, y) -> level.getObject(x, y) instanceof NetworkConductor,
+      }, UnitNetwork.conductorsOn(level),
             arcanestorage.band.BandIndex.linksOn(level), MAX_UNITS, MAX_CONDUITS, MAX_LINKS);
    }
 
@@ -511,7 +511,7 @@ public class StorageTerminalObjectEntity extends InventoryObjectEntity {
             ? (NetworkStorage)candidate
             : null;
       }, (x, y) -> {
-         if (!(level.getObject(x, y) instanceof NetworkConductor)) {
+         if (!UnitNetwork.conductorsOn(level).conductsAt(x, y)) {
             return false;
          }
 

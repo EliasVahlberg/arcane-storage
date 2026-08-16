@@ -7,7 +7,7 @@ plugins {
 
 project.ext.modID = "elias.arcanestorage" // The unique id of your mod. Must be all lowercase and cannot use special characters.
 project.ext.modName = "Arcane Storage" // The display name of your mod.
-project.ext.modVersion = "0.1.0" // Your current builds version. Must follow the xx.xx... format.
+project.ext.modVersion = "1.0.0" // Your current builds version. Must follow the xx.xx... format.
 project.ext.gameVersion = "1.3.2" // The target game version.
 project.ext.modDescription = "Unified, searchable storage and crafting. View every connected container as one inventory and craft from all of it." // Short description of what your mod is.
 project.ext.author = "Elias Vahlberg" // Your name

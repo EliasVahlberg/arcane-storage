@@ -211,7 +211,7 @@ public class ArcaneAccessPointObjectEntity extends ObjectEntity {
          return candidate instanceof NetworkStorage && ((NetworkStorage)candidate).isOnNetwork()
             ? (NetworkStorage)candidate
             : null;
-      }, (x, y) -> level.getObject(x, y) instanceof NetworkConductor,
+      }, UnitNetwork.conductorsOn(level),
             StorageTerminalObjectEntity.MAX_UNITS, StorageTerminalObjectEntity.MAX_CONDUITS);
 
       for (NetworkStorage member : members) {

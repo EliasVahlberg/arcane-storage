@@ -1,5 +1,7 @@
 package arcanestorage.network;
 
+import necesse.level.maps.Level;
+
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -50,6 +52,19 @@ public final class UnitNetwork {
    /** Whether a tile carries the network onward without holding items itself. */
    public interface ConductorTest {
       boolean conductsAt(int x, int y);
+   }
+
+   /**
+    * The one definition of what the network passes through, for every walk in the mod.
+    *
+    * <p><b>Why this is central rather than repeated.</b> Seven call sites used to write
+    * {@code level.getObject(x, y) instanceof NetworkConductor} out by hand, which meant the question "what is one
+    * network?" had seven answers that merely happened to agree -- and when they stopped agreeing, the symptom was
+    * silent: a walk that quietly saw less than the terminal did. Anything that changes what conducts must change it
+    * for everyone at once, so it changes here.
+    */
+   public static ConductorTest conductorsOn(final Level level) {
+      return (x, y) -> level != null && level.getObject(x, y) instanceof NetworkConductor;
    }
 
    /**

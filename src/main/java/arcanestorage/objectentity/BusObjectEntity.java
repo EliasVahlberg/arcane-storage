@@ -1060,7 +1060,7 @@ public abstract class BusObjectEntity extends ObjectEntity implements DeviceOnNe
 
          return null;
       }, (x, y) -> {
-         if (!(level.getObject(x, y) instanceof NetworkConductor)) {
+         if (!UnitNetwork.conductorsOn(level).conductsAt(x, y)) {
             return false;
          }
 
