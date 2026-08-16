@@ -83,8 +83,13 @@ public final class ArcaneStyles {
     * merely waste memory.
     */
    public static void load() {
-      slate = new GameInterfaceStyle(new LocalMessage("ui", "arcanestorage_theme_slate"), "arcane");
-      dark = new GameInterfaceStyle(new LocalMessage("ui", "arcanestorage_theme_dark"), "arcanedark");
+      // The second argument is a directory under resources/ui, and resource paths are shared across every loaded
+      // mod -- the wiki's warning about collisions is mutual, so whoever loads later wins. These were "arcane" and
+      // "arcanedark", which another mod could plausibly pick, and the failure would be someone else's buttons
+      // appearing inside this terminal. The name is not the persisted setting value, which stays slate and dark, so
+      // renaming the directories is invisible to an existing config file.
+      slate = new GameInterfaceStyle(new LocalMessage("ui", "arcanestorage_theme_slate"), "arcanestorageslate");
+      dark = new GameInterfaceStyle(new LocalMessage("ui", "arcanestorage_theme_dark"), "arcanestoragedark");
 
       // The dark set's panel sits at lightness 0.27, and the inherited colours are built for parchment: near-black
       // on that is the bug this mod already shipped once. Set before loadTextures only because it reads better

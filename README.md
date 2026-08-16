@@ -9,28 +9,36 @@ in all of them at once. Arcane Storage adds a single access point that presents
 every connected container as one searchable inventory, and lets you craft
 directly from all of it.
 
-> **Status: early development.** Not yet released, not yet on the Workshop.
+> **Status: version 1.0.0.**
 >
 > **On the art:** the sprites and the banner are generated with a local AI image
 > pipeline and then checked by hand against a fixed nine-colour palette. They are
 > original work rather than edits of Necesse's own art. Said plainly here because
 > people reasonably want to know.
 >
-> See [docs/ROADMAP.md](docs/ROADMAP.md) for what is planned and what works,
+> See [docs/RELEASE_ROADMAP.md](docs/RELEASE_ROADMAP.md) for what is left and why,
 > [docs/QA_BACKLOG.md](docs/QA_BACKLOG.md) for checks that need a live session,
 > and [docs/SPRITES.md](docs/SPRITES.md) for the art the mod needs.
 
-## Planned features
+## Features
 
 - **Unified storage view** — one panel showing the contents of every connected
   container, not one chest at a time.
 - **Search** — type to filter across everything you have stored.
-- **Unified crafting** — craft from materials anywhere in the network, with the
-  crafting stations you have connected.
+- **Unified crafting** — craft from materials anywhere in the network, using the
+  crafting stations you have installed in a Station Unit.
 - **Recipe search** — find a recipe by name and see whether you can afford it.
-- **Expandable capacity** — add containers to grow the network rather than
-  hitting a fixed cap.
-- **Sorting and filtering** — by category, and per-container item filters.
+- **Expandable capacity** — add Storage Units and conduits to grow the network
+  rather than hitting a fixed cap.
+- **Sorting and filtering** — by category, by stackable or not, and per-bus item
+  rules.
+- **Import and export buses** — move items between the network and any adjacent
+  container automatically, with per-bus rules and names.
+- **Wireless access** — a Wireless Terminal reaches a paired transceiver, and
+  Access Points bring distant storage onto the network over a band.
+- **Four tiers** — base, Demonic, Tungsten and Fallen rungs for units, stations,
+  transceivers and base stations, matching the game's own station ladder.
+- **Two interface themes** — a slate and a dark style, or the game's own.
 
 The interface deliberately follows the conventions of Terraria's
 [Magic Storage](https://github.com/blushiemagic/MagicStorage). Many Necesse
@@ -63,9 +71,10 @@ make test           # unit tests over the network traversal
 make pytest         # the whole suite against a real headless server, including a save/load restart
 ```
 
-`make pytest` is the automated suite: 53 tests driving a real dedicated server, with a real
-player and this mod's own container, including one test that restarts the server to prove the
-save round-trips. `make test` is JUnit over the traversal logic alone and needs no game.
+`make pytest` is the automated suite: 273 scenarios driving a real dedicated server, with a real
+player and this mod's own container, including one that restarts the server to prove the save
+round-trips. `make test` is 48 JUnit tests over the traversal logic and the release conventions,
+and needs no game.
 
 Nothing automated draws a pixel, so every UI change is unverified until someone looks at it;
 those checks live in [docs/QA_BACKLOG.md](docs/QA_BACKLOG.md).
