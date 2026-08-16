@@ -231,9 +231,27 @@ So: **steal the two ideas, take neither the dependency nor the patch.** A settin
 added without hijacking the back button, and server-authoritative values need a packet, which this
 mod already has the machinery for.
 
-- `[open]` Whether 1.0.0 needs the menu entry at all, or whether the terminal tab plus a documented
-  config file is honest enough for a first release. The sync gap is the one with a wrong-behaviour
-  failure mode; discoverability is only friction.
+### Decided for 1.0.0: no settings-menu entry, and the sync gap is documented rather than closed
+
+**No menu entry.** Discoverability is friction and nothing else. The terminal tab already covers every setting a
+player rather than a server owner would change, which is the theme and the crafting layout. A menu entry means either
+patching the vanilla settings form, which is the fragile thing CustomSettingsLib was rejected for doing, or building a
+separate window, and neither earns its risk on the eve of a first release.
+
+**The sync gap cannot be closed the way it first appears.** Costs are read from the table when recipes are registered,
+in `postInit`, independently on each side, and the engine sends no recipe data. So the client's `Recipe` objects
+already differ by the time anything could be sent, and no packet at container-open time can repair that. The real fix
+is detection rather than transmission: the server sends a fingerprint of its effective table, the client compares it
+against its own and says plainly that the two disagree. That is small and it is the next release's work, not this
+one's.
+
+What ships instead is a warning in the place the mistake is made. The `COSTS` section of the config file now carries a
+comment saying that changing costs on a server obliges every connecting player to use the same values. `SaveData` takes
+a comment for a section as well as for a value, which is what makes this possible. It reaches exactly the person who
+can cause the problem, at the moment they are causing it, which no amount of documentation elsewhere does.
+
+Out of the box there is no mismatch, because both sides ship the same defaults. Only an edit creates one, and the
+person who edits is the person who can distribute the file.
 
 ## Conventions compliance
 
@@ -262,10 +280,12 @@ by script rather than by eye.
   `art-submissions/2026-08-16/screenshots/`: the storage, crafting, logistics and station views, an access point, a
   base station, the settings tab, and one with no interface at all. `[open]` whether any belong in the tracked
   repository — they are roughly 2 MB each and the store page does not read them from here.
-- **`preview.png` doubles as the banner.** `[open]` whether to put the mod's name on it. Steam shows
-  it small in lists, where a name helps, and large on the page, where a name over gameplay art can
-  look cheap. A version without text and one with, compared at list size, settles it faster than
-  reasoning does.
+- **`preview.png` doubles as the banner. Decided: no name on it.** Both were rendered and compared at 268 and at
+  150 pixels wide, which is what settled it, and neither argument that was expected to decide it did. At the larger
+  size the text sits over the crafting table, which is the focal point of the art. At thumbnail size the art is
+  unreadable either way, so a name does not rescue it. What decides it is redundancy: Steam shows the mod's name as
+  text beside the image in the browse grid, on the item page and in the in-game mod list, so a name baked into the
+  image is duplicated in every place the image appears and only costs the art. Shipping the 1024x512 image unchanged.
 - **Two orphaned textures are being deleted**: `ui/arcanestoragepanel.png` and
   `ui/arcanestoragepaneledge.png`, the old purple pair, referenced by nothing and backed up in
   `art-submissions/2026-08-14-buses-and-unit/ui/`.
@@ -321,7 +341,34 @@ is: additive changes only, with defaults for anything absent. Worth one delibera
 persisted before upload rather than a migration path afterwards.
 
 Related, and worth saying on the store page rather than discovering in a bug report: removing the mod
-from a world removes its objects, and with them whatever they hold.
+from a world removes its objects, and with them whatever they hold. Said on the store page now, in
+`WORKSHOP.md`, along with the fact that a Storage Unit can be emptied into the rest of the network from its own panel,
+which is the intended way to relocate one.
+
+### The deliberate read, done 16 Aug 2026
+
+The whole surface, which is smaller than expected:
+
+| Where | Keys |
+|---|---|
+| `BandIndex`, level data | `BAND/{id, tier, x, y, n}` and `CH/{x, y}` |
+| `ArcaneAccessPointObjectEntity` | `bandId`, `channel`, `customName` |
+| `BusObjectEntity` | `customName`, `ordinal`, and a `FILTER` section written by the filter itself |
+| Item GND, `RemoteBinding` | `asrlevel`, `asrx`, `asry` |
+
+Unit and station contents are an engine-managed `Inventory` saved by `InventoryObjectEntity`, so they are not a
+commitment of this mod's at all. Item GND keys share one namespace across every mod, which is why those three carry an
+`asr` prefix rather than reading as `level`, `x` and `y`.
+
+**A suspected blocker turned out not to be one.** The bus ordinal is persisted, and the open question about deriving it
+deterministically from tile coordinates looked like something that had to be settled before upload, since renumbering a
+player's buses afterwards would be renaming things they had learned. It does not: assignment is guarded at
+`BusObjectEntity:583` on `ordinal != 0`, so a bus is numbered once, at placement, and the number is then read from the
+save forever. Changing the rule later can only change what a newly placed bus receives. The comment there already says
+why it is saved rather than derived, which is that deriving would renumber the survivors every time a bus was broken.
+
+So there is nothing to decide here before upload, and nothing to migrate from. Everything above is additive-only from
+the moment 1.0.0 is published.
 
 ## Player-facing documentation and support, added 16 Aug 2026
 

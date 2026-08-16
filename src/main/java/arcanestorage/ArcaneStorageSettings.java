@@ -194,7 +194,13 @@ public class ArcaneStorageSettings extends ModSettings {
       // One section per cost, holding one line per ingredient, rather than a single comma-separated string. The
       // file's own format separates entries with commas and would need the value escaped -- and an escaped
       // ingredient list in a file meant to be edited by hand defeats the point of putting it there.
-      SaveData costs = new SaveData("COSTS");
+      // The warning rides on the section, which is the only place it reaches the one person who can cause the
+      // problem, at the moment they are causing it. Recipes are built from this table when the mod registers them,
+      // independently on each side, and the engine sends no recipe data -- so a server whose costs differ from a
+      // client's has a client showing an ingredient list its server will refuse. Nothing detects that yet.
+      SaveData costs = new SaveData("COSTS",
+            "Recipe and upgrade costs. IF YOU CHANGE THESE ON A SERVER, every player connecting must use the same "
+               + "values, or their game will show costs the server refuses. Distribute this file with the modpack.");
       for (Map.Entry<String, String> entry : this.costs.entrySet()) {
          SaveData one = new SaveData(entry.getKey());
 
