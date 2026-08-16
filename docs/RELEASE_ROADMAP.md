@@ -1,5 +1,18 @@
 # Steam Workshop release roadmap — v1.0.0
 
+> **Uploaded 16 August 2026.** Workshop item `3784511362`, published from a dev-loaded session, held
+> initially in Steam's automated content check as any new item with an external link is. Everything
+> below is kept as the record of what was done and why, not as outstanding work. What is genuinely
+> still open is in [Deferred](#deferred-and-not-blocking-100), plus the two post-release items under
+> [Player-facing documentation](#player-facing-documentation-and-support-added-16-aug-2026).
+>
+> One thing the upload itself taught, which no amount of pre-flight checking had surfaced: the
+> `preview.png` in this repository is not the file Steam receives. The game re-encodes the loaded
+> texture with stb's PNG writer, which is far less efficient than the stored compression, so a 680KB
+> source arrived as 1,126,429 bytes and was refused for exceeding one megabyte. It is now 800x400,
+> and `ConventionsTest` bounds the projected encoded size rather than the file size, because the file
+> size is the misleading number. See `git show 3b0bc4d`.
+
 What has to be true before this mod is uploaded, in the order it should be done. Everything here is
 either a player-visible gap, a convention the game documents, or a risk that only shows up on
 someone else's machine.
