@@ -1100,20 +1100,56 @@ public abstract class BusObjectEntity extends ObjectEntity implements DeviceOnNe
       }
 
       for (int[] offset : UnitNetwork.NEIGHBOURS) {
-         int x = this.tileX + offset[0];
-         int y = this.tileY + offset[1];
-         ObjectEntity neighbour = level.entityManager.getObjectEntity(x, y);
-         if (neighbour == null) {
-            neighbour = masterEntity(level, x, y);
+         Inventory inventory = containerAt(level, this.tileX + offset[0], this.tileY + offset[1]);
+         if (inventory != null) {
+            return inventory;
          }
+      }
 
-         if (neighbour instanceof OEInventory && !(neighbour instanceof NetworkStorage)
-               && !neighbour.removed()) {
-            Inventory inventory = ((OEInventory)neighbour).getInventory();
-            if (inventory != null) {
-               return inventory;
-            }
+      return null;
+   }
+
+   /**
+    * Which way the container this bus serves lies, as an index into {@link UnitNetwork#NEIGHBOURS}, or -1 for none.
+    *
+    * <p>Exists for the sprite, which points at whatever the bus is attached to. It answers on a client: the container
+    * is by definition the next tile over, so it is inside the client's loaded regions whenever the bus is drawn at
+    * all — unlike the network behind the bus, which may not be.
+    *
+    * <p>The same tile scan as {@link #attachedContainer}, in the same order, so the sprite cannot point one way while
+    * items move another. That is the reason both go through {@link #containerAt} rather than each testing tiles for
+    * themselves.
+    */
+   public int attachedDirection() {
+      Level level = this.getLevel();
+      if (level == null) {
+         return -1;
+      }
+
+      for (int i = 0; i < UnitNetwork.NEIGHBOURS.length; i++) {
+         if (containerAt(level, this.tileX + UnitNetwork.NEIGHBOURS[i][0],
+               this.tileY + UnitNetwork.NEIGHBOURS[i][1]) != null) {
+            return i;
          }
+      }
+
+      return -1;
+   }
+
+   /**
+    * The inventory a bus would serve if it stood next to this tile, or null.
+    *
+    * <p>Network storage is excluded: a bus moves items between the network and something outside it, so a unit is
+    * never the thing on the far side.
+    */
+   private static Inventory containerAt(Level level, int x, int y) {
+      ObjectEntity neighbour = level.entityManager.getObjectEntity(x, y);
+      if (neighbour == null) {
+         neighbour = masterEntity(level, x, y);
+      }
+
+      if (neighbour instanceof OEInventory && !(neighbour instanceof NetworkStorage) && !neighbour.removed()) {
+         return ((OEInventory)neighbour).getInventory();
       }
 
       return null;

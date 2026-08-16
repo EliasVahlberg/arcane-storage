@@ -1006,6 +1006,10 @@ public final class ArcaneStorageVerbs {
          out.str("evaluation", bus.describeEvaluation());
          out.bool("container", bus.attachedContainer() != null);
 
+         // Which way the container lies, as an index into UnitNetwork.NEIGHBOURS, or -1. The sprite is
+         // chosen from this, and the sprite is the one thing here no scenario can look at.
+         out.num("direction", bus.attachedDirection());
+
          // The predicate's two numbers for a probe item, when one is named: ceiling from the importer,
          // floor from the exporter. A conflict is a ceiling strictly above a floor.
          if (context.argCount() > 4) {

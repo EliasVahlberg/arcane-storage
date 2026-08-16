@@ -24,6 +24,7 @@ import necesse.gfx.drawOptions.texture.TextureDrawOptions;
 import necesse.gfx.drawables.LevelSortedDrawable;
 import necesse.gfx.drawables.OrderableDrawables;
 import necesse.gfx.gameTexture.GameTexture;
+import arcanestorage.network.UnitNetwork;
 import necesse.level.maps.light.GameLight;
 import necesse.inventory.item.toolItem.ToolType;
 import necesse.level.gameObject.furniture.FurnitureObject;
@@ -83,17 +84,62 @@ public abstract class BusObject extends FurnitureObject implements NetworkConduc
    /** The locale key under {@code ui} describing this bus's purpose, shown on hover. */
    protected abstract String tipKey();
 
+   /**
+    * The five sprites for each state, indexed by {@link UnitNetwork#NEIGHBOURS} with the unattached one last.
+    *
+    * <p>One texture per state rather than one sheet with offsets, because the game loads
+    * {@code objects/<stringID>} for us and any extra file costs a single {@code fromFile} at load. A sheet would
+    * buy nothing here and would put the sprite's layout in two places.
+    */
+   private GameTexture[] directed;
+
+   private GameTexture[] directedInactive;
+
+   /** Where the unattached sprite sits in the two arrays above. */
+   private static final int UNATTACHED = UnitNetwork.NEIGHBOURS.length;
+
+   private static final String[] SUFFIXES = {"_n", "_e", "_s", "_w", ""};
+
    @Override
    public void loadTextures() {
       super.loadTextures();
       this.texture = GameTexture.fromFile("objects/" + this.textureName);
       this.inactiveTexture = GameTexture.fromFile("objects/" + this.textureName + "_inactive");
+
+      this.directed = new GameTexture[SUFFIXES.length];
+      this.directedInactive = new GameTexture[SUFFIXES.length];
+      for (int i = 0; i < SUFFIXES.length; i++) {
+         // Null on a missing file rather than the pink error sprite, which is what the no-argument fromFile
+         // substitutes. The distinction is deliberate: the base texture above is required, so its absence should be
+         // loudly visible, while a directional variant is an improvement on a sprite that already worked -- losing
+         // one should quietly fall back to that sprite, not paint [ER] on somebody's base.
+         this.directed[i] = GameTexture.fromFile("objects/" + this.textureName + SUFFIXES[i], null);
+         this.directedInactive[i] =
+            GameTexture.fromFile("objects/" + this.textureName + SUFFIXES[i] + "_inactive", null);
+      }
    }
 
    /** Whether the bus standing here has stopped, read from the object entity's synced state. */
    private static boolean isInactive(Level level, int tileX, int tileY) {
       ObjectEntity entity = level.entityManager.getObjectEntity(tileX, tileY);
       return entity instanceof BusObjectEntity && ((BusObjectEntity)entity).isInactive();
+   }
+
+   /**
+    * Which of the five sprites this tile should draw.
+    *
+    * <p>Falls back to the unattached sprite whenever the entity is missing, which is what a client sees for a tile
+    * whose region it has but whose entity has not arrived. Drawing the plain sprite is right for that moment: it says
+    * "no container", the state the bus is in as far as this client can tell.
+    */
+   private int spriteIndex(Level level, int tileX, int tileY) {
+      ObjectEntity entity = level.entityManager.getObjectEntity(tileX, tileY);
+      if (!(entity instanceof BusObjectEntity)) {
+         return UNATTACHED;
+      }
+
+      int direction = ((BusObjectEntity)entity).attachedDirection();
+      return direction < 0 || direction >= UNATTACHED ? UNATTACHED : direction;
    }
 
    @Override
@@ -110,9 +156,7 @@ public abstract class BusObject extends FurnitureObject implements NetworkConduc
       GameLight light = level.getLightLevel(tileX, tileY);
       int drawX = camera.getTileDrawX(tileX);
       int drawY = camera.getTileDrawY(tileY);
-      GameTexture sprite = isInactive(level, tileX, tileY) && this.inactiveTexture != null
-         ? this.inactiveTexture
-         : this.texture;
+      GameTexture sprite = this.spriteFor(level, tileX, tileY);
       final TextureDrawOptions options = sprite
          .initDraw()
          .addObjectDamageOverlay(this, level, tileX, tileY)
@@ -130,6 +174,23 @@ public abstract class BusObject extends FurnitureObject implements NetworkConduc
             options.draw();
          }
       });
+   }
+
+   /**
+    * The sprite for a tile: pointing at what it serves, and gray when it has stopped.
+    *
+    * <p>Every lookup falls back rather than failing, because this runs per visible bus per frame: a variant that did
+    * not load leaves a null in the array, and the bus then draws the plain sprite it always drew.
+    */
+   private GameTexture spriteFor(Level level, int tileX, int tileY) {
+      int index = this.spriteIndex(level, tileX, tileY);
+      boolean inactive = isInactive(level, tileX, tileY);
+      GameTexture[] set = inactive ? this.directedInactive : this.directed;
+      if (set != null && index < set.length && set[index] != null) {
+         return set[index];
+      }
+
+      return inactive && this.inactiveTexture != null ? this.inactiveTexture : this.texture;
    }
 
    @Override
