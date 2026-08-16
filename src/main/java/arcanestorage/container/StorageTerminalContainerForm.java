@@ -110,14 +110,24 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
     * names an item, never a position, so reordering cannot misdirect a click.
     */
    private enum SortMode {
-      GROUP("arcanestorage_sort_group"),
-      NAME("arcanestorage_sort_name"),
-      AMOUNT("arcanestorage_sort_amount");
+      GROUP("arcanestorage_sort_group", "G"),
+      NAME("arcanestorage_sort_name", "A"),
+      AMOUNT("arcanestorage_sort_amount", "#");
 
       final String localeKey;
 
-      SortMode(String localeKey) {
+      /**
+       * One character shown on the button, so the active mode is visible without hovering.
+       *
+       * <p>Not localised, deliberately. These are marks rather than words -- "#" for a count and "A" for
+       * alphabetical read the same in most languages a player is likely to be using, and a translated initial
+       * would collide with the other two as often as not in a single character.
+       */
+      final String badge;
+
+      SortMode(String localeKey, String badge) {
          this.localeKey = localeKey;
+         this.badge = badge;
       }
 
       SortMode next() {
@@ -629,6 +639,16 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
             }
          );
 
+      // The list must not sort itself, or the sort button is decorative.
+      //
+      // FormItemList defaults `sorted` to true, and in WAIT_FULl mode it builds its elements with
+      // insertSortedList and then sorts them again, both by Comparator.comparing(i -> i.item) -- that is
+      // InventoryItem.compareTo, category then display name. It does that to whatever addAllItems produced, so the
+      // comparator chosen above was applied to a list whose order was then thrown away. The visible order was always
+      // the engine's, which is why GROUP looked correct: GROUP *is* naturalOrder, the same comparator. NAME and
+      // AMOUNT did nothing at all, and no amount of rebuilding on click could have made them.
+      this.itemList.setSorted(false);
+
       flow.next(PADDING);
 
       // Controls reuse icons GameInterfaceStyle already provides, so this needs no new art.
@@ -665,8 +685,29 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
       this.sortButton = this.mainForm
          .addComponent(
             new FormContentIconButton(
-               controlX, controlY, FormInputSize.SIZE_24, ButtonColor.BASE, Settings.UI.inventory_sort, this.sortTooltip()
-            )
+                  controlX, controlY, FormInputSize.SIZE_24, ButtonColor.BASE, Settings.UI.inventory_sort,
+                  this.sortTooltip()) {
+               /**
+                * The current mode, as one character in the corner.
+                *
+                * <p>The button cycles three modes behind a single icon that never changes, so nothing about it said
+                * which mode was active or even that there was a choice -- the tooltip named the current mode, which
+                * reads as a promise of what the next click will do. A badge is used rather than three icons because
+                * the game ships exactly one sort icon, and inventing two more is an art decision that this does not
+                * need to wait for.
+                */
+               @Override
+               public void draw(TickManager tickManager, PlayerMob perspective, Rectangle renderBox) {
+                  super.draw(tickManager, perspective, renderBox);
+
+                  String badge = StorageTerminalContainerForm.this.sortMode.badge;
+                  FontOptions font = new FontOptions(12).color(this.getContentColor());
+                  FontManager.bit.drawString(
+                        this.getX() + this.getWidth() - FontManager.bit.getWidthCeil(badge, font) - 2,
+                        this.getY() + FormInputSize.SIZE_24.height - 12,
+                        badge, font);
+               }
+            }
          );
       this.sortButton.onClicked(event -> {
          this.sortMode = this.sortMode.next();
