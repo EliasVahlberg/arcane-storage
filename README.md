@@ -64,8 +64,8 @@ hang; run it in preference to `./gradlew` directly.
 ## Tests
 
 ```bash
-make test           # 57 JUnit tests: network traversal, and the release conventions
-make pytest         # 273 scenarios against a real headless dedicated server
+make test           # 58 JUnit tests: network traversal, and the release conventions
+make pytest         # 275 scenarios against a real headless dedicated server
 ```
 
 `make pytest` drives a real server with a real player and this mod's own container, including a scenario that
