@@ -2,6 +2,8 @@ package arcanestorage.release;
 
 import static org.junit.Assert.assertTrue;
 
+import java.awt.image.BufferedImage;
+import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -15,6 +17,7 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
+import javax.imageio.ImageIO;
 import org.junit.Assume;
 import org.junit.Test;
 
@@ -42,6 +45,17 @@ public class ConventionsTest {
 
    /** Paths the game itself dictates the name of, or that are the mod's own by definition. */
    private static final Set<String> EXEMPT = Set.of("preview.png", "recipes.properties");
+
+   /** Steam refuses a Workshop preview larger than this. */
+   private static final long STEAM_PREVIEW_LIMIT = 1024 * 1024;
+
+   /**
+    * What stb's PNG encoder costs per pixel, measured against the game's own encoder.
+    *
+    * <p>It ran 2.15 bytes per pixel at 1024x512 and 2.28 at 800x400 for this artwork. Budgeting 2.4 leaves room for
+    * art that compresses worse than today's.
+    */
+   private static final double STB_BYTES_PER_PIXEL = 2.4;
 
    @Test
    public void everyShippedResourcePathIsNamespaced() throws IOException {
@@ -216,5 +230,30 @@ public class ConventionsTest {
       }
 
       return all.toString();
+   }
+
+   @Test
+   public void thePreviewStaysSmallEnoughForSteamToAcceptIt() throws IOException {
+      // The file stored here is not the file that gets sent. GameTexture.saveTextureImage re-encodes the loaded
+      // texture with STBImageWrite.stbi_write_png, whose encoder is deliberately simple, so its output is far larger
+      // than the tuned PNG kept in the repository. A 680KB source left as 1,126,429 bytes and the upload failed with
+      // LimitExceeded, having already created the Workshop item.
+      //
+      // So the size on disk says nothing and cannot be the check. What stb writes is dominated by pixel count rather
+      // than by how well the source happens to compress, which is why this bounds the pixel count. The practical
+      // consequence, worth knowing before trying to fix a failure of this test: recompressing the file harder
+      // achieves nothing, because that compression is discarded before upload. It has to get smaller.
+      File preview = new File("src/main/resources/preview.png");
+      assertTrue("preview.png is required for a Workshop upload", preview.isFile());
+
+      BufferedImage image = ImageIO.read(preview);
+      long pixels = (long) image.getWidth() * image.getHeight();
+      long projected = (long) (pixels * STB_BYTES_PER_PIXEL);
+
+      assertTrue(
+         "preview.png is " + image.getWidth() + "x" + image.getHeight() + ", so stb would write roughly " + projected
+            + " bytes against Steam's limit of " + STEAM_PREVIEW_LIMIT + ". Reduce its dimensions rather than its"
+            + " file size.",
+         projected < STEAM_PREVIEW_LIMIT);
    }
 }
