@@ -701,16 +701,46 @@ public class StorageTerminalContainer extends Container {
    @Override
    public ContainerActionResult applyContainerAction(int slotIndex, ContainerAction action) {
       if (slotIndex == QUICK_STACK_SLOT) {
-         this.quickStackToInventories(this.networkTargets(), this.client.playerMob.getInv().main);
+         this.quickStackToInventories(this.networkTargets(), this.playerSource());
          return new ContainerActionResult(1);
       }
 
       if (slotIndex == RESTOCK_SLOT) {
+         // Deliberately the whole inventory, hotbar included, even when the hotbar is locked. Restock cannot start a
+         // new stack anywhere -- Inventory.restockFrom only combines with items already present -- so the most it can
+         // do to a locked hotbar is top up a stack the player put there themselves, which is precisely what vanilla
+         // permits: PlayerInventoryManager.addItem falls back to addItemOnlyCombine over slots 0-9 rather than
+         // refusing outright. Narrowing this would break refilling arrows and potions, the reason the button exists.
          this.restockFromInventories(this.networkTargets(), this.client.playerMob.getInv().main);
          return new ContainerActionResult(1);
       }
 
       return super.applyContainerAction(slotIndex, action);
+   }
+
+   /** Slots 0-9, the hotbar, as {@code PlayerInventoryManager} itself hardcodes them. */
+   private static final int HOTBAR_END = 9;
+
+   /**
+    * The player slots a terminal button may take items <i>out of</i>.
+    *
+    * <p>A locked hotbar is off limits. That is a decision rather than a rule inherited from the engine, and it is
+    * worth being clear about which: vanilla enforces {@code hotbarLocked} only on the way in, and its own chest
+    * quick-stack will empty a locked hotbar without hesitating, consulting only the per-slot pins.
+    *
+    * <p>The reason to diverge is what the flag means to the player. Locking the hotbar is how someone says "this
+    * arrangement is deliberate, stop moving things into it" -- and a button that empties all ten slots in one click
+    * is a far larger violation of that than the pickup it does block. Deposit-all is this mod's own button, so no
+    * habit learned from vanilla chests is being broken here.
+    *
+    * <p>Per-slot pins are handled separately, by the callers, because vanilla's helpers already check them and doing
+    * it twice would be the kind of duplicate rule that drifts.
+    */
+   private InventoryRange playerSource() {
+      Inventory main = this.client.playerMob.getInv().main;
+      return this.client.playerMob.hotbarLocked
+         ? new InventoryRange(main, HOTBAR_END + 1, main.getSize() - 1)
+         : new InventoryRange(main);
    }
 
    /**
@@ -721,17 +751,19 @@ public class StorageTerminalContainer extends Container {
     * is the right behaviour for a button called quick-stack and the wrong behaviour for
     * "empty my bag after a mining trip", which is the actual returning-player action.
     *
-    * <p>Locked slots are left alone, so the hotbar a player has deliberately pinned survives
-    * the click. Anything that will not fit stays with the player rather than being destroyed.
+    * <p>Locked slots are left alone, in both senses the game gives that word: a slot the player pinned
+    * individually, and the whole hotbar when they locked it. So the loadout someone deliberately arranged
+    * survives the click. Anything that will not fit stays with the player rather than being destroyed.
     */
    public int depositAll() {
       Level level = this.level();
       PlayerMob player = this.client.playerMob;
       Inventory inventory = player.getInv().main;
+      InventoryRange source = this.playerSource();
       ArrayList<InventoryRange> targets = this.networkTargets();
       int moved = 0;
 
-      for (int slot = 0; slot < inventory.getSize(); slot++) {
+      for (int slot = source.startSlot; slot <= source.endSlot; slot++) {
          if (inventory.isSlotClear(slot) || inventory.isItemLocked(slot)) {
             continue;
          }

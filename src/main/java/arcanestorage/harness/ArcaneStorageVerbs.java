@@ -144,6 +144,8 @@ public final class ArcaneStorageVerbs {
       Harness.registerVerb(new EmptyVerb());
       Harness.registerExpectation(new EmptyQuery());
       Harness.registerExpectation(new PlayerItemQuery());
+      Harness.registerVerb(new LockVerb());
+      Harness.registerExpectation(new PlayerSlotQuery());
       Harness.registerExpectation(new HookQuery());
       Harness.registerVerb(new RuleGlobalVerb());
       Harness.registerVerb(new RuleCategoryVerb());
@@ -476,6 +478,21 @@ public final class ArcaneStorageVerbs {
 
          for (Point tile : ours) {
             context.level.setObject(tile.x, tile.y, 0);
+         }
+
+         // The player's two lock flags, for exactly the reason every sweep above exists: a test that locked the
+         // hotbar or pinned a slot would otherwise decide what the next test's deposit-all is allowed to move, and
+         // the failure would surface in whichever test happened to run afterwards rather than in the one at fault.
+         //
+         // Only the flags. Clearing the inventory here as well was tried and made nine tests across five unrelated
+         // files fail, most reading -1 for objects that should have been standing, so tests that leave items behind
+         // clean up after themselves instead.
+         if (context.client != null && context.client.playerMob != null) {
+            context.client.playerMob.hotbarLocked = false;
+            necesse.inventory.Inventory main = context.client.playerMob.getInv().main;
+            for (int slot = 0; slot < main.getSize(); slot++) {
+               main.setItemLocked(slot, false);
+            }
          }
 
          context.info("reset removed " + ours.size() + " storage objects from the level");
@@ -2134,6 +2151,93 @@ public final class ArcaneStorageVerbs {
          necesse.inventory.recipe.Ingredient probe =
             new necesse.inventory.recipe.Ingredient(context.arg(2), 1);
          out.num("count", UnitUpgrade.inPlayer(context.level, context.client.playerMob, probe));
+      }
+   }
+
+   /**
+    * {@code lock hotbar <0|1>} or {@code lock slot <n> <0|1>} -- the two different things "locked" means.
+    *
+    * <p>They are unrelated engine features and a scenario has to be able to set them apart. {@code PlayerMob
+    * .hotbarLocked} is one flag covering slots 0-9; {@code Inventory.setItemLocked} pins one slot's item and is what
+    * vanilla's sort and quick-stack consult. A test that could only set one of them could not tell which rule a
+    * transfer button was honouring.
+    */
+   private static final class LockVerb implements TestVerb {
+      public String name() {
+         return "lock";
+      }
+
+      public String usage() {
+         return "lock hotbar <0|1> | lock slot <slot> <0|1>";
+      }
+
+      public int coordinateArgIndex() {
+         return -1;
+      }
+
+      public boolean needsPlayer() {
+         return true;
+      }
+
+      public boolean run(TestContext context) {
+         String what = context.arg(1);
+         necesse.inventory.Inventory inventory = context.client.playerMob.getInv().main;
+
+         if ("hotbar".equals(what)) {
+            boolean locked = context.intArg(2) != 0;
+            context.client.playerMob.hotbarLocked = locked;
+            context.info("hotbarLocked = " + locked);
+            return true;
+         }
+
+         if ("slot".equals(what)) {
+            int slot = context.intArg(2);
+            boolean locked = context.intArg(3) != 0;
+            if (slot < 0 || slot >= inventory.getSize()) {
+               return context.check(false, "lock slot " + slot, "outside the inventory");
+            }
+
+            inventory.setItemLocked(slot, locked);
+            // setItemLocked silently does nothing on an empty slot, and a test that locked an empty slot and then
+            // filled it would quietly assert nothing at all.
+            return context.check(inventory.isItemLocked(slot) == locked,
+               "lock slot " + slot + " = " + locked,
+               inventory.isSlotClear(slot) ? "slot is empty, so there is no item to lock" : "the lock did not take");
+         }
+
+         return context.check(false, "lock " + what, "expected 'hotbar' or 'slot'");
+      }
+   }
+
+   /** {@code query playerslot <slot>} -- one main-inventory slot, including whether its item is pinned. */
+   private static final class PlayerSlotQuery implements TestVerb, TestQuery {
+      public String name() {
+         return "playerslot";
+      }
+
+      public String usage() {
+         return "query playerslot <slot>";
+      }
+
+      public boolean needsPlayer() {
+         return true;
+      }
+
+      public boolean run(TestContext context) {
+         return true;
+      }
+
+      public void query(TestContext context, Json.Writer out) {
+         necesse.inventory.Inventory inventory = context.client.playerMob.getInv().main;
+         int slot = context.intArg(2);
+         necesse.inventory.InventoryItem item = slot >= 0 && slot < inventory.getSize()
+            ? inventory.getItem(slot)
+            : null;
+
+         out.str("item", item == null ? "none" : item.item.getStringID());
+         out.num("amount", item == null ? 0 : item.getAmount());
+         out.bool("locked", slot >= 0 && slot < inventory.getSize() && inventory.isItemLocked(slot));
+         out.bool("hotbarlocked", context.client.playerMob.hotbarLocked);
       }
    }
 
