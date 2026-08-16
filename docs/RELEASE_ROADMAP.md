@@ -90,21 +90,46 @@ containers into their config panel — though whether the behaviour behind that 
 So the wireless path carries goods but is invisible to every read. That asymmetry is the diagnosis: something on
 the write path resolves the far side and the read paths do not.
 
-**The design rule this should follow, which is the actual fix.** A wireless pair is a *connection mechanism* and
-nothing more. The path into a base station should branch to all of its channels exactly as though the far side were
-joined by conduits, so that nothing downstream — the storage view, capacity, the stations tab, buses, crafting, the
-transfer resolver — has any idea a link is involved. Every one of those needing its own handling of "and also the
-wireless side" is how three of them ended up not having it.
+**The rule the fix must follow.** A wireless pair is a *connection mechanism* and nothing more. The path into a base
+station branches to all of its channels exactly as though the far side were joined by conduits, so that nothing
+downstream — the storage view, capacity, the stations tab, buses, crafting, the transfer resolver — has any idea a link
+is involved. Each of those needing its own handling of "and also the wireless side" is how three of them ended up
+without it.
 
-That points at the current implementation being more elaborate than it needs to be. `UnitNetwork.discover` already
-takes a `LinkLookup`, and `BandIndex.linksOn(level)` already supplies the pairs, which is exactly the right shape:
-one hook, applied inside the one walk. The suspicion to test first is that only some walks pass it, or that the
-access point is not a link endpoint the way the transceiver is. Note `ArcaneAccessPointObject extends
-BandDeviceObject`, which does conduct, so passability is probably not the missing piece.
+**The cause, found and not guessed. It is not a missing `LinkLookup`.** All six network walks already pass
+`BandIndex.linksOn`, so the earlier suspicion recorded here — that some walk omits it — was wrong. The fault is that
+**membership is computed independently on each side**, and the client cannot compute it correctly even in principle:
+
+1. `BandIndex extends LevelData`, and `LevelDataManager` is populated **only** from `loadSaveData`. The engine has no
+   packet path for level data at all, so a client's `getLevelData` returns null, `BandIndex.existing` returns null,
+   `linksOn` returns null, and a client-side walk cannot cross a link.
+2. Syncing the link map would not be enough. **A client holds only the regions near its player** — the server sends
+   entities per region through `ServerClient.addLoadedRegion` — so a silo 200 tiles away has no object entities on the
+   client. A client walk that crossed the link would arrive and find nothing.
+3. `StorageTerminalContainer`'s own comment records the assumption this breaks: "membership is discovered
+   independently per side". That is sound only while the whole network is inside the client's loaded regions, which a
+   wireless link violates by construction — being far away is the entire point of the feature.
+
+Items still travel because the server moves them, and the server's view is correct. Every symptom is a **read** on the
+client: the storage view, the capacity readout and the station tab are built from container slots the client registers
+from its own walk. Bus config panels appear to work because each opens against its own local object entity with
+server-sent content.
+
+**So the fix is server-authoritative membership**, and the machinery already exists for the wireless terminal, which
+hit this same wall first: `RemoteNetworkShape` sends unit sizes and socket counts in the open packet, the client builds
+stand-ins, and `SlotMirrorEvent` keeps contents live from `IndexedInventories.slotChanged`. `StorageTerminalContainer`
+already has the membership-taking constructor that accepts stand-ins, and the local open packet already has an
+`extraContent` slot that is currently passed null.
+
+Converging the local path onto that model is the fix that satisfies the rule above: one container, one shape, one
+mirror, with "local" being the case where the terminal happens to be on your level. The tradeoff is that the local
+path stops reading live entity inventories and reads mirrored snapshots instead, which costs a batched packet per tick
+per open terminal — what the remote path already pays.
 
 Acceptance: a unit behind an access point is indistinguishable from a unit behind a conduit, in the storage view, in
 capacity, in the stations tab and in a bus's target set — asserted by taking existing scenarios and replacing a
-conduit run with a link.
+conduit run with a link. **Note the scenario harness runs server-side, so it cannot catch this class of bug at all**;
+these three symptoms were invisible to 258 passing tests. In-game verification is the only check that counts here.
 
 ### Fixed on the way here: a terminal did not conduct
 
