@@ -8,6 +8,7 @@ import arcanestorage.band.BandState;
 import arcanestorage.objectentity.ArcaneAccessPointObjectEntity;
 import arcanestorage.ui.ArcanePanel;
 import arcanestorage.ui.ArcaneStyles;
+import arcanestorage.ui.ArcaneDropdown;
 import arcanestorage.ui.ArcaneText;
 import necesse.engine.gameLoop.tickManager.TickManager;
 import necesse.engine.localization.Localization;
@@ -16,7 +17,6 @@ import necesse.engine.localization.message.LocalMessage;
 import necesse.engine.localization.message.StaticMessage;
 import necesse.engine.network.client.Client;
 import necesse.entity.mobs.PlayerMob;
-import necesse.gfx.forms.components.FormDropdownSelectionButton;
 import necesse.gfx.forms.components.FormFlow;
 import necesse.gfx.forms.components.FormInputSize;
 import necesse.gfx.forms.components.FormLabel;
@@ -47,9 +47,9 @@ public class AccessPointContainerForm<T extends AccessPointContainer> extends Co
 
    private final FormTextInput nameInput;
 
-   private final FormDropdownSelectionButton<Integer> bandButton;
+   private final ArcaneDropdown<Integer> bandButton;
 
-   private final FormDropdownSelectionButton<Integer> channelButton;
+   private final ArcaneDropdown<Integer> channelButton;
 
    private final FormLabel status;
 
@@ -92,7 +92,7 @@ public class AccessPointContainerForm<T extends AccessPointContainer> extends Co
       int bandY = flow.next(30);
       this.addComponent(new FormLocalLabel("ui", "arcanestorage_band_band",
             ArcaneText.body(this, 12), -1, PADDING, bandY + 6));
-      this.bandButton = this.addComponent(new FormDropdownSelectionButton<>(
+      this.bandButton = this.addComponent(new ArcaneDropdown<Integer>(
             PADDING + 70, bandY, FormInputSize.SIZE_24, ButtonColor.BASE, WIDTH - PADDING * 2 - 70));
       this.bandButton.onSelected(event -> {
          this.chosenBand = event.value == null ? 0 : event.value;
@@ -103,7 +103,7 @@ public class AccessPointContainerForm<T extends AccessPointContainer> extends Co
       int channelY = flow.next(30);
       this.addComponent(new FormLocalLabel("ui", "arcanestorage_band_channelrow",
             ArcaneText.body(this, 12), -1, PADDING, channelY + 6));
-      this.channelButton = this.addComponent(new FormDropdownSelectionButton<>(
+      this.channelButton = this.addComponent(new ArcaneDropdown<Integer>(
             PADDING + 70, channelY, FormInputSize.SIZE_24, ButtonColor.BASE, WIDTH - PADDING * 2 - 70));
       this.channelButton.onSelected(event -> {
          this.chosenChannel = event.value == null ? 0 : event.value;
@@ -145,8 +145,8 @@ public class AccessPointContainerForm<T extends AccessPointContainer> extends Co
    private void refreshButtons() {
       int range = ArcaneStorage.SETTINGS.bandRange;
 
-      this.bandButton.options.clear();
-      this.bandButton.options.add(0, new LocalMessage("ui", "arcanestorage_band_none"));
+      this.bandButton.choices.clear();
+      this.bandButton.choices.add(0, new LocalMessage("ui", "arcanestorage_band_none"));
       BandOption chosen = null;
       for (BandOption band : this.container.bands) {
          GameMessage label = new StaticMessage(Localization.translate("ui", "arcanestorage_band_option",
@@ -154,7 +154,7 @@ public class AccessPointContainerForm<T extends AccessPointContainer> extends Co
                "x", String.valueOf(band.stationX), "y", String.valueOf(band.stationY),
                "distance", String.valueOf(band.distance))
                + (band.inRange(range) ? "" : " " + Localization.translate("ui", "arcanestorage_band_outofrangeshort")));
-         this.bandButton.options.add(band.id, label);
+         this.bandButton.choices.add(band.id, label);
          if (band.id == this.chosenBand) {
             chosen = band;
          }
@@ -165,12 +165,12 @@ public class AccessPointContainerForm<T extends AccessPointContainer> extends Co
             : new StaticMessage(Localization.translate("ui", "arcanestorage_band_short",
                   "band", String.valueOf(chosen.id))));
 
-      this.channelButton.options.clear();
+      this.channelButton.choices.clear();
       final BandOption band = chosen;
       if (band != null) {
          for (int channel = 1; channel <= band.channelCount(); channel++) {
             final int n = channel;
-            this.channelButton.options.add(n, new StaticMessage(
+            this.channelButton.choices.add(n, new StaticMessage(
                   Localization.translate("ui", "arcanestorage_band_channel", "n", String.valueOf(n))
                      + (band.isTaken(n) ? " " + Localization.translate("ui", "arcanestorage_band_inuse") : "")),
                   null, () -> !band.isTaken(n));

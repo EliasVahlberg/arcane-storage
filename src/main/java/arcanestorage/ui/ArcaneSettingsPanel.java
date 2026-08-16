@@ -5,7 +5,6 @@ import necesse.engine.Settings;
 import necesse.engine.localization.Localization;
 import necesse.engine.localization.message.LocalMessage;
 import necesse.gfx.forms.Form;
-import necesse.gfx.forms.components.FormDropdownSelectionButton;
 import necesse.gfx.forms.components.FormFlow;
 import necesse.gfx.forms.components.FormInputSize;
 import necesse.gfx.forms.components.FormLabel;
@@ -57,15 +56,15 @@ public final class ArcaneSettingsPanel {
       form.addComponent(flow.nextY(new FormLocalLabel("ui", "arcanestorage_settings_themelabel",
             ArcaneText.body(form, 16), -1, PADDING, 0, textWidth), 4));
 
-      FormDropdownSelectionButton<ArcaneStyles.Theme> theme = form.addComponent(
-            new FormDropdownSelectionButton<>(PADDING, flow.next(FormInputSize.SIZE_24.height + 6),
+      ArcaneDropdown<ArcaneStyles.Theme> theme = form.addComponent(
+            new ArcaneDropdown<ArcaneStyles.Theme>(PADDING, flow.next(FormInputSize.SIZE_24.height + 6),
                   FormInputSize.SIZE_24, ButtonColor.BASE, 220));
 
       // Listed in this order rather than the enum's, which declares VANILLA first because it is the identity case.
       // A player opening this wants the two themes the mod ships at the top and the opt-out at the bottom.
       for (ArcaneStyles.Theme option : new ArcaneStyles.Theme[] {
             ArcaneStyles.Theme.SLATE, ArcaneStyles.Theme.DARK, ArcaneStyles.Theme.VANILLA }) {
-         theme.options.add(option, label(option));
+         theme.choices.add(option, label(option));
       }
 
       theme.setSelected(ArcaneStyles.theme(), label(ArcaneStyles.theme()));

@@ -7,6 +7,7 @@ import java.util.List;
 
 import arcanestorage.ui.ArcanePanel;
 import arcanestorage.ui.ArcaneStyles;
+import arcanestorage.ui.ArcaneDropdown;
 import arcanestorage.ui.ArcaneText;
 import necesse.engine.gameLoop.tickManager.TickManager;
 import necesse.engine.input.Control;
@@ -46,7 +47,6 @@ import necesse.gfx.forms.Form;
 import necesse.gfx.forms.components.FormFlow;
 import necesse.gfx.forms.components.FormInputSize;
 import necesse.gfx.forms.components.FormContentIconButton;
-import necesse.gfx.forms.components.FormDropdownSelectionButton;
 import necesse.gfx.GameColor;
 import necesse.engine.localization.message.GameMessage;
 import necesse.gfx.forms.components.FormLabel;
@@ -408,7 +408,7 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
    public FormContentIconButton sortButton;
 
    /** Picks a category to filter by. Built from the game's own tree, so mods appear in it too. */
-   public FormDropdownSelectionButton<ItemCategory> categoryButton;
+   public ArcaneDropdown<ItemCategory> categoryButton;
 
    /**
     * The live search filter, rebuilt whenever the query changes.
@@ -516,11 +516,11 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
       int categoryY = flow.next(categoryHeight + PADDING);
       this.categoryButton = this.mainForm
          .addComponent(
-            new FormDropdownSelectionButton<>(PADDING, categoryY, FormInputSize.SIZE_20, ButtonColor.BASE, 150)
+            new ArcaneDropdown<ItemCategory>(PADDING, categoryY, FormInputSize.SIZE_20, ButtonColor.BASE, 150)
          );
       this.categoryButton.setSelected(null, new LocalMessage("ui", "arcanestorage_category_all"));
-      this.categoryButton.options.add(null, new LocalMessage("ui", "arcanestorage_category_all"));
-      addCategoryOptions(this.categoryButton.options, ItemCategory.masterCategory, 1);
+      this.categoryButton.choices.add(null, new LocalMessage("ui", "arcanestorage_category_all"));
+      addCategoryOptions(this.categoryButton.choices, ItemCategory.masterCategory, 1);
       this.categoryButton.onSelected(event -> {
          this.categoryFilter = event.value;
          this.refreshList();
@@ -1275,7 +1275,7 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
     * creative menu uses, so the menu reads in the order a player has already seen elsewhere.
     */
    private static void addCategoryOptions(
-         FormDropdownSelectionButton<ItemCategory>.OptionsList<ItemCategory> options, ItemCategory parent, int depth) {
+         ArcaneDropdown<ItemCategory>.Options options, ItemCategory parent, int depth) {
       List<ItemCategory> children = new ArrayList<>();
       parent.getChildren().forEach(children::add);
       children.sort(Comparator.naturalOrder());
@@ -1283,7 +1283,7 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
       for (ItemCategory category : children) {
          boolean hasChildren = category.getChildren().iterator().hasNext();
          if (hasChildren && depth < CATEGORY_MENU_DEPTH) {
-            FormDropdownSelectionButton<ItemCategory>.OptionsList<ItemCategory> sub = options.addSub(category.displayName);
+            ArcaneDropdown<ItemCategory>.Options sub = options.addSub(category.displayName);
             sub.add(category, new LocalMessage("ui", "arcanestorage_category_everything", "category", category.displayName.translate()));
             addCategoryOptions(sub, category, depth + 1);
          } else {

@@ -99,6 +99,15 @@ public final class ArcaneStyles {
       dark.highlightButtonTextColor = new Color(255, 255, 255);
       dark.inactiveButtonTextColor = new Color(140, 152, 163);
 
+      // The dropdown menu's own three colours, which default to near-black (20,20,20) and were unreachable until
+      // ArcaneDropdown existed: the engine's Solid menu style read the global interface style, so a scoped one
+      // never decided them. Measured, not guessed -- the dark set's selection box art averages luma 61, and its
+      // highlighted and inactive variants 74 and 53, so all three need lifting. The slate set averages 137 and
+      // keeps the inherited near-black.
+      dark.selectionBoxActiveTextColor = DARK_TEXT;
+      dark.selectionBoxHighlightedTextColor = new Color(255, 255, 255);
+      dark.selectionBoxInactiveTextColor = new Color(140, 152, 163);
+
       // The engine's success and error greens and reds are (0,125,0) and (150,0,0) — chosen against parchment and
       // close to unreadable on a dark panel. Lifted, not hue-shifted: which colour means what is a convention the
       // player already knows from the rest of the game.
