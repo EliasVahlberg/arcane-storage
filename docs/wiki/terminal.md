@@ -76,6 +76,8 @@ Every bus on the network, with what it is doing. This is where you name a bus an
 
 ## Settings
 
+![The Settings tab, with the interface style picker and the world rules](screenshots/settings_tab_example.png)
+
 - **Interface style** switches between the two themes this mod ships and the game's own. Panels change
   immediately and text follows when a window is reopened.
 - **World rules** shows the wireless reach, the access point range and the channels per tier. These are shown
