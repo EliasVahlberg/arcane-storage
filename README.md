@@ -7,7 +7,8 @@ not give you a way to see inside all of them at once. Arcane Storage joins your 
 puts a single screen in front of it, so you search one list instead of opening twenty lids, and craft from
 everything you own at once.
 
-**[Player guide](docs/wiki/README.md)** — what each item does and how to build a network.
+**[Player guide](https://github.com/EliasVahlberg/arcane-storage/wiki)** covers what each item does and how to build a network. Its pages are written in
+[docs/wiki/](docs/wiki/README.md) and published to the wiki from there.
 
 ## What it offers
 

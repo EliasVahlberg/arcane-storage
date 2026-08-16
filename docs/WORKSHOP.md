@@ -72,7 +72,7 @@ first. A Storage Unit can be emptied into the rest of the network from its own p
 intended way to relocate one.
 
 A full player guide, with every item and what it does, is at
-https://github.com/EliasVahlberg/arcane-storage/blob/main/docs/wiki/README.md
+https://github.com/EliasVahlberg/arcane-storage/wiki
 
 Bugs and crash reports are welcome in the pinned discussion on this page. A crash log helps a great
 deal: on Windows it is in `%APPDATA%\Necesse`, and on Linux in `~/.config/Necesse`.
