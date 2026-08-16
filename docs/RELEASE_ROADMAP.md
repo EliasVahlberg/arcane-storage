@@ -56,6 +56,10 @@ renamed. The outcome is separated from `no_room` in the code and worded differen
 
 ### Persist the terminal's sort mode
 
+Sorting itself now works and the active mode is visible on the button (`d5c8723`), so persistence is all that is
+left of this. Note the bug that fix corrected: the comparators were always right and the engine discarded their
+result, so anything written here about sorting before that commit was describing a feature that did not run.
+
 - The chosen mode survives closing the terminal, changing level, and restarting the game.
 - Per player, not per terminal or per world — the player is who has the preference.
 - `[open]` Where it lives. The mod config is per-machine and not per-player, so a shared save would
@@ -210,8 +214,8 @@ missing:
    a client's, the two disagree about what a recipe costs. Presentation (theme) is safe to keep
    local; anything the server enforces must be read server-side, and anything both sides compute
    from must be sent.
-3. **The terminal settings tab has never been seen in game.** Predicted ~302 px of content in a
-   ~404 px tab. Until it is opened once, it is unverified, not done.
+3. ~~**The terminal settings tab has never been seen in game.**~~ Opened and confirmed in the 16 Aug pass. The
+   predicted ~302 px of content in a ~404 px tab fits.
 
 `[verified]` **CustomSettingsLib was evaluated and rejected as a dependency.** It would put settings
 in the game's own menu and it has `addServerSettings` plus a `PacketReadServerSettings` — the two
@@ -254,10 +258,10 @@ by script rather than by eye.
 
 ## Art and store page
 
-- **Showcase images do not exist yet.** Only `preview.png` does. Worth capturing: the terminal with a
-  full grid and a search active; the crafting tab showing source tickboxes; the logistics tab with a
-  few buses; a built base with conduits and units; the wireless terminal in hand; and the slate and
-  dark themes side by side.
+- **Showcase images exist as of 16 Aug 2026.** Eight captures in
+  `art-submissions/2026-08-16/screenshots/`: the storage, crafting, logistics and station views, an access point, a
+  base station, the settings tab, and one with no interface at all. `[open]` whether any belong in the tracked
+  repository — they are roughly 2 MB each and the store page does not read them from here.
 - **`preview.png` doubles as the banner.** `[open]` whether to put the mod's name on it. Steam shows
   it small in lists, where a name helps, and large on the page, where a name over gameplay art can
   look cheap. A version without text and one with, compared at list size, settles it faster than
@@ -278,13 +282,11 @@ by script rather than by eye.
 The scenario suite covers the logic; none of it covers the client. These are the ones where failure
 is player-visible and nothing automated will catch it. Full detail in `QA_BACKLOG.md`.
 
-- **P0** — wireless terminal withdraw (it crashed the client once, was fixed, and has not been
-  re-tested) and the pairing click path; breaking a terminal with benches installed must drop them,
-  never eat them; the transfer resolver and the Phase 5 buses seen once by eyes; and one `make server`
-  boot, because `clientside = false` means every dedicated server loads this.
-- **P1** — the Stations tab has never been drawn; live bench install/uninstall updating the recipe
-  list; collapsible sections and group-by-category; capacity bar colours at 25/50/75; grid click
-  conventions; and the settings tab from `0b26f9a`.
+**P0 and P1 were both cleared in game on 16 Aug 2026**, which closes the wireless terminal withdraw and pairing
+path, benches dropping when a terminal is broken, the transfer resolver and Phase 5 buses, the `make server` boot,
+the Stations tab, live bench install and uninstall, collapsible sections, the capacity bar colours, grid click
+conventions, and the settings tab from `0b26f9a`. Two entries below outlive them.
+
 - **Multiplayer has never been run.** Two clients via `make run` + `make dev`, one hosting: a second
   player opening the same terminal, withdrawing while the first has it open, and seeing the grid
   update. This is the largest untested surface in the mod, and containers are exactly where desync
@@ -293,6 +295,23 @@ is player-visible and nothing automated will catch it. Full detail in `QA_BACKLO
   names and bus rules intact. Cheap to do and catches the worst class of bug there is.
 - Per backlog item 0h, leave a gap between scenario runs or a suite started before the previous
   server has finished shutting down fails scattered across files, which reads as a real regression.
+
+### Fixed after the P0/P1 pass, each found by playing rather than by testing
+
+Recorded because all four were invisible to 273 scenarios and 40 unit tests, which is the argument for the pass
+having been worth doing.
+
+- **A container wider than one tile was only found from some sides** (`813c1fa`, issue #3). A multi-tile object
+  registers its entity on the master tile only, so which side worked depended on the rotation it was placed with.
+- **The wireless terminal showed nothing** (`57a95c8`). A refactor left two identical stand-in classes, and only one
+  of them was recognised.
+- **Deposit all emptied a locked hotbar** (`230f30e`). "Locked" means two unrelated things in this engine, and the
+  one the padlock sets was not being read. A deliberate divergence from vanilla, which enforces that flag only on
+  the way in.
+- **Two of the three sort modes had never worked** (`d5c8723`). `FormItemList` re-sorted the grid by its own
+  comparator over whatever the form had produced. GROUP concealed it perfectly by being the same comparator. The
+  active mode is now shown on the button as well.
+- **Every dropdown panel drew base-game wood** (`67bc834`), in a mod whose whole interface is themed.
 
 ## Save compatibility starts now
 
@@ -303,6 +322,46 @@ persisted before upload rather than a migration path afterwards.
 
 Related, and worth saying on the store page rather than discovering in a bug report: removing the mod
 from a world removes its objects, and with them whatever they hold.
+
+## Player-facing documentation and support, added 16 Aug 2026
+
+
+### A player wiki — wanted for 1.0.0
+
+Written for players rather than developers: plain explanations, every item shown with its own texture, and links out
+to [the official Necesse wiki](https://necessewiki.com) for base game items rather than re-explaining them.
+
+**Decision: the pages live in this repository, not in the GitHub wiki.** The GitHub wiki is a separate git repo, so
+it cannot reference the mod's own sprite files by relative path and would need either duplicated images or absolute
+raw URLs. It also versions independently of the code, so a page could describe a release that does not exist yet.
+Keeping the pages here means one clone holds everything, a page points at the texture that actually ships, and the
+documentation moves with the release it documents.
+
+`[open]` Whether to render them through GitHub Pages later. The markdown reads acceptably on GitHub as it stands,
+and a player following a link from the store page lands on a document rather than on source code.
+
+Note for whoever writes them: pixel art scaled by a browser is blurred, and GitHub markdown offers no way to ask
+for nearest-neighbour. Ship pre-scaled copies of each sprite rather than resizing 32×32 files in HTML.
+
+### A bug report channel — deliberately after the release
+
+Researched 16 Aug 2026. Necesse's modding community is Discord-centric, but the pattern worth copying is what
+Necesse Expanded (~21k subscribers) does: a **pinned Workshop discussion thread** on the mod's own page. Every
+subscriber already has a Steam account, so it is the lowest friction option that exists, and the author does not
+have to read the comments to find reports.
+
+Its one real limit is that Workshop discussions accept no file attachments, so a crash log has to be pasted or
+linked. Two things follow, and both were verified on this machine rather than assumed:
+
+- `~/.config/Necesse/latest-log.txt` is the ordinary client log, and `~/.config/Necesse/logs/` keeps timestamped
+  archives.
+- `<install>/latest-crash.log` is a different file, written by `ThreadFreezeMonitor` on a crash or deadlock,
+  alongside any JVM `hs_err_pid*.log`. The Windows equivalents under `%APPDATA%\Necesse\` are documented but were
+  not checked here.
+
+GitHub Issues stays the internal tracker: it needs an account, which is the wrong ask of a player. A Discord server
+or a form service with anonymous file upload can be added later if the thread proves insufficient.
+
 
 ## Deferred, and not blocking 1.0.0
 
@@ -316,9 +375,12 @@ from a world removes its objects, and with them whatever they hold.
   fault's class rather than each instance, and one home for panel chrome.
 - Dropping "Arcane" from the tiered rung names — one line in `en.lang`.
 
-## Blocked on art in progress
+## Blocked on art in progress — **done, 16 Aug 2026**
 
-**Placed objects use the old sprite rather than the item icon.** Storage units, station units and
-buses all draw one texture in the world and a different one in the inventory, and the item icons —
-based on the access-point and transceiver art — are the better basis for both. Deliberately left
-alone: the art is being remade, and matching them now would only have to be redone.
+Placed objects now draw the same texture as their item icon. The buses gained a directed set that also points at
+the container they serve (`3364827`), and all eight unit sprites — storage and station, across four rungs — became
+their own icons byte for byte (`376cba8`). Both confirmed in game.
+
+One consequence is deliberate: the old unit art was full-bleed, so a bank of units abutted into an unbroken wall,
+and the icon art is a centred cabinet, so tile edges are now visible between neighbours. That matches how vanilla
+chests and barrels look placed in a row, which is the standard being followed.
