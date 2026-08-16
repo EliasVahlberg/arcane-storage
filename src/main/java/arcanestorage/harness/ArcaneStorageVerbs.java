@@ -7,6 +7,7 @@ import java.util.Locale;
 
 import arcanestorage.ArcaneStorage;
 import arcanestorage.object.UnitTier;
+import arcanestorage.upgrade.UnitEmptying;
 import arcanestorage.upgrade.UnitUpgrade;
 import arcanestorage.container.StorageTerminalContainer;
 import arcanestorage.network.NetworkContents;
@@ -140,6 +141,8 @@ public final class ArcaneStorageVerbs {
       Harness.registerExpectation(new IndexDriftQuery());
       Harness.registerVerb(new UpgradeVerb());
       Harness.registerExpectation(new UpgradeQuery());
+      Harness.registerVerb(new EmptyVerb());
+      Harness.registerExpectation(new EmptyQuery());
       Harness.registerExpectation(new PlayerItemQuery());
       Harness.registerExpectation(new HookQuery());
       Harness.registerVerb(new RuleGlobalVerb());
@@ -1957,6 +1960,82 @@ public final class ArcaneStorageVerbs {
          int y = context.tileY(context.intArg(2));
          lastUpgrade = UnitUpgrade.attempt(context.level, x, y, context.client);
          return true;
+      }
+   }
+
+   /**
+    * The last emptying attempt's outcome, for the same reason the upgrade keeps one: the interesting assertions are
+    * about refusals and partial moves, both of which must leave the run going.
+    */
+   private static UnitEmptying.Result lastEmpty;
+
+   private static final class EmptyVerb implements TestVerb {
+      public String name() {
+         return "empty";
+      }
+
+      public String usage() {
+         return "empty <dx> <dy>";
+      }
+
+      public int coordinateArgIndex() {
+         return 1;
+      }
+
+      public boolean needsPlayer() {
+         return true;
+      }
+
+      public boolean run(TestContext context) {
+         int x = context.tileX(context.intArg(1));
+         int y = context.tileY(context.intArg(2));
+         lastEmpty = UnitEmptying.attempt(context.level, x, y, context.client);
+         return true;
+      }
+   }
+
+   private static final class EmptyQuery implements TestVerb, TestQuery {
+      public String name() {
+         return "empty";
+      }
+
+      public String usage() {
+         return "query empty <dx> <dy>";
+      }
+
+      public int coordinateArgIndex() {
+         return 2;
+      }
+
+      public boolean run(TestContext context) {
+         return true;
+      }
+
+      public void query(TestContext context, Json.Writer out) {
+         int x = context.tileX(context.intArg(2));
+         int y = context.tileY(context.intArg(3));
+
+         out.str("outcome", lastEmpty == null ? "none" : lastEmpty.outcome.name().toLowerCase(java.util.Locale.ROOT));
+         out.num("moved", lastEmpty == null ? -1 : lastEmpty.moved);
+         out.num("remaining", lastEmpty == null ? -1 : lastEmpty.remaining);
+
+         // The tile's own state, read fresh rather than from the result, so a test can assert the unit really is
+         // empty rather than that the operation claimed to empty it.
+         necesse.entity.objectEntity.ObjectEntity entity =
+            context.level == null ? null : context.level.entityManager.getObjectEntity(x, y);
+         int used = -1;
+         int size = -1;
+
+         if (entity instanceof necesse.entity.objectEntity.InventoryObjectEntity) {
+            necesse.inventory.Inventory inventory =
+               ((necesse.entity.objectEntity.InventoryObjectEntity)entity).getInventory();
+            used = inventory.getUsedSlots();
+            size = inventory.getSize();
+         }
+
+         out.num("usedslots", used);
+         out.num("slots", size);
+         out.bool("storageunit", UnitUpgrade.isStorageUnit(context.level, x, y));
       }
    }
 

@@ -211,6 +211,19 @@ public final class UnitUpgrade {
       return level != null && level.getObject(x, y) instanceof StationUnitObject;
    }
 
+   /**
+    * True when the tile holds a Storage Unit, the only one of the four ladders with contents to move.
+    *
+    * <p>Tested on the <b>object</b> rather than on the object entity, because this has to give the same answer on
+    * both sides: the upgrade panel is built on the client too, where a region's object entities may not be in
+    * memory but the tile's object always is. A station unit has an inventory as well, which is why "is this an
+    * {@code InventoryObjectEntity}" is not the question -- its inventory holds benches, and it is
+    * {@code NetworkStations}, not {@code NetworkStorage}.
+    */
+   public static boolean isStorageUnit(Level level, int x, int y) {
+      return level != null && level.getObject(x, y) instanceof arcanestorage.object.StorageUnitObject;
+   }
+
    /** The string ID this tile would become, or null if there is no tier above it. */
    public static String targetId(Level level, int x, int y) {
       UnitTier tier = tierAt(level, x, y);
@@ -292,7 +305,7 @@ public final class UnitUpgrade {
             }
 
             return null;
-         }, (tx, ty) -> level.getObject(tx, ty) instanceof NetworkConductor,
+         }, UnitNetwork.conductorsOn(level),
             arcanestorage.band.BandIndex.linksOn(level),
             StorageTerminalObjectEntity.MAX_UNITS, StorageTerminalObjectEntity.MAX_CONDUITS,
             StorageTerminalObjectEntity.MAX_LINKS)

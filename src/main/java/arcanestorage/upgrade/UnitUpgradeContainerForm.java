@@ -72,6 +72,8 @@ public class UnitUpgradeContainerForm<T extends UnitUpgradeContainer> extends Co
    private final FormFairTypeLabel[] rows;
 
    private final FormLocalTextButton upgradeButton;
+   /** Null for anything that is not a storage unit -- transceivers and base stations have nothing to empty. */
+   private final FormLocalTextButton emptyButton;
 
    public UnitUpgradeContainerForm(Client client, T container, String nameKey) {
       // A provisional height. The real one is measured from the laid-out content at the end of this constructor,
@@ -165,6 +167,24 @@ public class UnitUpgradeContainerForm<T extends UnitUpgradeContainer> extends Co
          this.upgradeButton.onClicked(event -> this.container.upgradeAction.runAndSend());
       }
 
+      // Emptying is offered whatever the tier, including at the top of the ladder where there is no upgrade button
+      // at all -- relocating a maxed-out unit is if anything the more likely reason to want this.
+      if (container.storage) {
+         flow.next(this.upgradeButton == null ? 10 : 6);
+
+         this.emptyButton = this.addComponent(
+            flow.nextY(
+               new FormLocalTextButton(
+                  "ui", "arcanestorage_emptyunit", 20, 0, WIDTH - 40, FormInputSize.SIZE_24, ButtonColor.BASE
+               )
+            )
+         );
+         this.emptyButton.onClicked(event -> this.container.emptyAction.runAndSend());
+         this.emptyButton.setTooltip(Localization.translate("ui", "arcanestorage_emptyunittip"));
+      } else {
+         this.emptyButton = null;
+      }
+
       // Fit the panel to what was actually laid out. The flow's position after the last component is the content's
       // height, so this is exact apart from the padding below it, and it removes the guessed constant that made
       // the panel both too tall and, for the top tier with no rows at all, mostly empty.
@@ -210,6 +230,10 @@ public class UnitUpgradeContainerForm<T extends UnitUpgradeContainer> extends Co
          // The button's own state is the client's read of pushed numbers, which is a convenience only. The
          // server revalidates in UpgradeAction, so a stale or tampered client cannot upgrade for free.
          this.upgradeButton.setActive(this.container.canUpgrade());
+      }
+
+      if (this.emptyButton != null) {
+         this.emptyButton.setActive(this.container.canEmpty());
       }
 
       super.draw(tickManager, perspective, renderBox);

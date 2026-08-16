@@ -11,6 +11,7 @@ import necesse.engine.network.Packet;
 import necesse.engine.network.PacketReader;
 import necesse.engine.network.PacketWriter;
 import necesse.engine.network.packet.PacketOpenContainer;
+import necesse.engine.localization.Localization;
 import necesse.engine.network.server.ServerClient;
 import necesse.engine.registries.ContainerRegistry;
 import necesse.entity.objectEntity.InventoryObjectEntity;
@@ -67,11 +68,15 @@ public class UnitUpgradeContainer extends Container {
    public final Ingredient[] cost;
 
    public final boolean station;
+   /** Whether the tile holds a Storage Unit, which is the only ladder with contents worth emptying. */
+   public final boolean storage;
 
    /** What to head the panel with: the object's own locale key, or null when the tile is empty. */
    public final String nameKey;
 
    public final UpgradeAction upgradeAction;
+   /** Empties a storage unit into the rest of its network, so it can be picked up and moved. */
+   public final EmptyAction emptyAction;
 
    /** The latest state, on both sides: computed on the server, received on the client. */
    private UpgradeStateEvent state;
@@ -94,11 +99,13 @@ public class UnitUpgradeContainer extends Container {
       Level level = objectEntity.getLevel();
       this.tier = UnitUpgrade.tierAt(level, this.tileX, this.tileY);
       this.station = UnitUpgrade.isStation(level, this.tileX, this.tileY);
+      this.storage = UnitUpgrade.isStorageUnit(level, this.tileX, this.tileY);
       this.nameKey = UnitUpgrade.nameKeyAt(level, this.tileX, this.tileY);
       Ingredient[] resolved = UnitUpgrade.cost(level, this.tileX, this.tileY);
       this.cost = resolved == null ? new Ingredient[0] : resolved;
 
       this.upgradeAction = this.registerAction(new UpgradeAction());
+      this.emptyAction = this.registerAction(new EmptyAction());
 
       if (client.isServer()) {
          OPEN.add(this);
@@ -139,6 +146,18 @@ public class UnitUpgradeContainer extends Container {
    public boolean canUpgrade() {
       UpgradeStateEvent current = this.state;
       return this.cost.length > 0 && current != null && current.affordable;
+   }
+
+   /**
+    * Whether the Empty button should be usable: a storage unit with something in it.
+    *
+    * <p>A client-side read of pushed numbers, like {@link #canUpgrade}, and equally advisory -- {@link EmptyAction}
+    * revalidates everything server-side. Its only job is to stop the button looking clickable when there is nothing
+    * to move, since an empty unit has no feedback to give.
+    */
+   public boolean canEmpty() {
+      UpgradeStateEvent current = this.state;
+      return this.storage && current != null && current.used > 0;
    }
 
    /** Called from the change hook for every inventory that changes anywhere. Must stay cheap. */
@@ -271,6 +290,70 @@ public class UnitUpgradeContainer extends Container {
          } else {
             UnitUpgradeContainer.this.dirty = true;
          }
+      }
+   }
+
+   /**
+    * Empties the unit into the rest of its network, and says what happened.
+    *
+    * <p>Every outcome gets a message, including the ones where nothing moved. A button that does nothing visible is
+    * indistinguishable from a broken one, and this one's most likely honest outcome -- a network with no room -- is
+    * exactly the case where silence would look like a bug.
+    *
+    * <p>The panel is not closed on success, unlike the upgrade path: the unit is still the same object at the same
+    * tile, the usage readout above the button is the point of the panel, and watching it drop to 0/40 is the
+    * confirmation. It is marked dirty instead, so the next tick pushes fresh numbers.
+    */
+   public class EmptyAction extends ContainerCustomAction {
+
+      public void runAndSend() {
+         this.runAndSendAction(new Packet());
+      }
+
+      @Override
+      public void executePacket(PacketReader reader) {
+         // Same guard, same reason as UpgradeAction: runAndSendAction calls this locally on the clicking client too,
+         // where getServerClient() would throw.
+         if (!UnitUpgradeContainer.this.client.isServer()) {
+            return;
+         }
+
+         ServerClient serverClient = UnitUpgradeContainer.this.client.getServerClient();
+         Level level = serverClient.getLevel();
+
+         UnitEmptying.Result result = UnitEmptying.attempt(
+            level, UnitUpgradeContainer.this.tileX, UnitUpgradeContainer.this.tileY, serverClient
+         );
+
+         switch (result.outcome) {
+            case EMPTIED:
+               serverClient.sendChatMessage(
+                  Localization.translate("ui", "arcanestorage_emptied", "moved", String.valueOf(result.moved))
+               );
+               break;
+            case PARTIAL:
+               serverClient.sendChatMessage(
+                  Localization.translate(
+                     "ui", "arcanestorage_emptiedpartial",
+                     "moved", String.valueOf(result.moved), "left", String.valueOf(result.remaining)
+                  )
+               );
+               break;
+            case NO_ROOM:
+               serverClient.sendChatMessage(Localization.translate("ui", "arcanestorage_emptynoroom"));
+               break;
+            case NO_OTHER_UNITS:
+               serverClient.sendChatMessage(Localization.translate("ui", "arcanestorage_emptynoothers"));
+               break;
+            case NOTHING_TO_MOVE:
+            case NOT_A_UNIT:
+            default:
+               // Nothing to say. An empty unit's button is already inactive, and a tile that is not a unit means the
+               // panel is stale -- the refresh below is the answer to both.
+               break;
+         }
+
+         UnitUpgradeContainer.this.dirty = true;
       }
    }
 
