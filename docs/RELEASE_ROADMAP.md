@@ -131,6 +131,29 @@ capacity, in the stations tab and in a bus's target set — asserted by taking e
 conduit run with a link. **Note the scenario harness runs server-side, so it cannot catch this class of bug at all**;
 these three symptoms were invisible to 258 passing tests. In-game verification is the only check that counts here.
 
+### Implemented, awaiting in-game verification
+
+Membership is now server-authoritative. `NetworkShape` travels in the terminal's open packet — the station and unit
+tiles with their sizes, in the tile order that fixes every slot index — and the client uses it instead of walking.
+Each entry is resolved against the client's own level where it can be, so a base with no wireless links behaves
+exactly as before and keeps the engine's inventory sync; where it cannot, a `MirroredMember` stands in with an
+inventory of the stated size.
+
+Contents for stand-ins arrive by the mirror that already existed for the wireless terminal, now moved into the shared
+base container so there is one implementation rather than two. **The client asks for what it needs**, listing the
+slots it stood in for, because the alternative — the server inferring what the client can see from its loaded regions
+— derives the same answer from different mutable state on two machines, and every disagreement is either a slot
+nobody updates, which is this bug again, or one everybody updates twice.
+
+Verified so far: 258 scenarios and 34 JUnit tests green, including four new `NetworkShapeTest` cases covering the
+packet round trip, a negative tile, and an unresolvable member becoming a stand-in of the right size rather than being
+dropped — dropping one is what used to shift every slot index after it. The server side of the shape is smoke-tested
+by every scenario that opens a terminal, since the harness opens through `interact`.
+
+Not verified: everything client-side, which is the half that was broken. Needs a base with an Access Point and Base
+Station, checking that the far side's items appear in the storage view, that its capacity counts, that a Station Unit
+behind the link can take stations, and that a normal base with no links looks and behaves exactly as it did.
+
 ### Fixed on the way here: a terminal did not conduct
 
 The same class of fault, found while building unit emptying and confirmed by the same symptom in play — a base

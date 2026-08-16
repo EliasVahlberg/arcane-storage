@@ -61,24 +61,6 @@ public class RemoteTerminalContainer extends StorageTerminalContainer {
    /** The level the network is on. Server-side only; null on a client. */
    private final Level remoteLevel;
 
-   /** Every open remote container, so an inventory change anywhere can find the ones that care. */
-   private static final Set<RemoteTerminalContainer> OPEN = new HashSet<>();
-
-   /** Container slot indices whose contents the client has not been told about yet. */
-   private final Set<Integer> pending = new HashSet<>();
-
-   /** What the client was last told each slot holds, indexed by container slot. Server-side only. */
-   private final InventoryItem[] mirrored;
-
-   /**
-    * How many slots this container registered.
-    *
-    * <p>Counted by probing, because {@code Container} keeps its slot list private and exposes only
-    * {@code getSlot(index)}, which returns null past the end. Probing once at construction is cheaper than the
-    * alternative of tracking every {@code addSlot} the parent makes, and it cannot fall out of step with it.
-    */
-   private final int slotCount;
-
    /**
     * The Logistics tab's contents on a remote client, and on the server the copy the client was last sent.
     *
@@ -146,28 +128,13 @@ public class RemoteTerminalContainer extends StorageTerminalContainer {
       super(client, uniqueSeed, parsed.terminal, parsed.stationUnits, parsed.units, parsed.name);
       this.binding = parsed.binding;
       this.remoteLevel = parsed.level;
-      int count = 0;
-      while (this.getSlot(count) != null) {
-         count++;
-      }
 
-      this.slotCount = count;
-      this.mirrored = new InventoryItem[count];
-
-      if (client.isServer()) {
-         OPEN.add(this);
-
-         // Everything is pending at open, so the first tick sends whatever is actually there. The alternative --
-         // packing the contents into the open packet -- was tried first and rejected: the open packet would then
-         // carry a full network, and PacketOpenContainer is sent before the container exists on either side, so
-         // a mistake in it is a crash on open rather than a missing item in a grid.
-         for (int i = 0; i < this.slotCount; i++) {
-            this.pending.add(i);
-         }
-      } else {
+      // Slot mirroring itself is the base's, and is driven by what the client says it stood in for. Every member here
+      // is a stand-in, so that request covers the whole network and this class no longer keeps a second copy of the
+      // machinery. What stays here is the bus list: a client standing next to a terminal receives it through the
+      // entity's own content packet, and a client on another level never can.
+      if (!client.isServer()) {
          this.applyShape(parsed.shape);
-         this.subscribeEvent(SlotMirrorEvent.class, event -> true, () -> true);
-         this.onEvent(SlotMirrorEvent.class, this::applyMirror);
          this.subscribeEvent(BusMirrorEvent.class, event -> true, () -> true);
          this.onEvent(BusMirrorEvent.class, event -> this.buses = event.buses);
       }
@@ -183,12 +150,6 @@ public class RemoteTerminalContainer extends StorageTerminalContainer {
 
       for (RemoteNetworkShape.SlotItem entry : shape.contents) {
          this.writeSlot(entry.index, entry.item);
-      }
-   }
-
-   private void applyMirror(SlotMirrorEvent event) {
-      for (int i = 0; i < event.indices.length; i++) {
-         this.writeSlot(event.indices[i], event.items[i]);
       }
    }
 
@@ -226,7 +187,6 @@ public class RemoteTerminalContainer extends StorageTerminalContainer {
       }
 
       RemoteTerminal.pin(this.remoteLevel, this.pinnedTiles());
-      this.sendPending();
       this.sendBuses();
    }
 
@@ -298,76 +258,9 @@ public class RemoteTerminalContainer extends StorageTerminalContainer {
       return tiles;
    }
 
-   private void sendPending() {
-      // Compared against what was last sent rather than sent blindly, because the change hook is deliberately
-      // imprecise -- it fires for any inventory the network touches -- and an unchanged slot costs a packet for
-      // nothing. This is also what makes a re-marked slot idempotent.
-      SlotMirrorEvent.Batch batch = new SlotMirrorEvent.Batch();
-      List<Integer> sent = new ArrayList<>();
-
-      for (int index : this.pending) {
-         if (index < 0 || index >= this.slotCount) {
-            sent.add(index);
-            continue;
-         }
-
-         ContainerSlot slot = this.getSlot(index);
-         InventoryItem current = slot == null ? null : slot.getItem();
-         if (!sameItem(current, this.mirrored[index])) {
-            this.mirrored[index] = current == null ? null : current.copy();
-            batch.add(index, current);
-         }
-
-         sent.add(index);
-      }
-
-      this.pending.removeAll(sent);
-      if (!batch.isEmpty()) {
-         batch.toEvent().applyAndSendToClient(this.client.getServerClient());
-      }
-   }
-
-   /**
-    * Whether a slot still looks the way the client was told.
-    *
-    * <p>Amount is compared as well as identity, which {@code InventoryItem.equals} deliberately does not do --
-    * it exists to answer "are these the same kind of thing", and a stack growing from 3 to 4 is exactly the
-    * change a storage UI must show.
-    */
-   private static boolean sameItem(InventoryItem a, InventoryItem b) {
-      if (a == null || b == null) {
-         return a == b;
-      }
-
-      return a.item.getID() == b.item.getID() && a.getAmount() == b.getAmount()
-            && a.getGndData().equals(b.getGndData());
-   }
-
-   /** Marks a slot for resending. Called from the mod's inventory-change hook; must stay cheap. */
-   public static void inventoryChanged(Inventory inventory) {
-      if (OPEN.isEmpty()) {
-         return;
-      }
-
-      for (RemoteTerminalContainer container : OPEN) {
-         for (int i = 0; i < container.slotCount; i++) {
-            ContainerSlot slot = container.getSlot(i);
-            if (slot != null && slot.getInventory() == inventory) {
-               container.pending.add(i);
-            }
-         }
-      }
-   }
-
    /** Forgets everything, for the harness between scenarios. */
    public static void forget() {
-      OPEN.clear();
-   }
-
-   @Override
-   public void onClose() {
-      super.onClose();
-      OPEN.remove(this);
+      StorageTerminalContainer.forgetOpen();
    }
 
    /**

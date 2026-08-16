@@ -167,7 +167,7 @@ public class ArcaneStorage {
 
       TERMINAL_CONTAINER = ContainerRegistry.registerOEContainer(
          (client, uniqueSeed, objectEntity, content) -> new StorageTerminalContainerForm<>(
-            client, new StorageTerminalContainer(client.getClient(), uniqueSeed, (StorageTerminalObjectEntity)objectEntity)
+            client, new StorageTerminalContainer(client.getClient(), uniqueSeed, (StorageTerminalObjectEntity)objectEntity, content)
          ),
          (client, uniqueSeed, objectEntity, content, serverObject) -> new StorageTerminalContainer(
             client, uniqueSeed, (StorageTerminalObjectEntity)objectEntity

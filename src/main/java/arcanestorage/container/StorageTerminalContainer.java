@@ -14,6 +14,7 @@ import necesse.engine.localization.Localization;
 import necesse.engine.network.NetworkClient;
 import necesse.engine.network.Packet;
 import necesse.engine.network.PacketReader;
+import arcanestorage.remote.SlotMirrorEvent;
 import necesse.engine.network.PacketWriter;
 import necesse.engine.network.packet.PacketOpenContainer;
 import necesse.engine.network.server.ServerClient;
@@ -132,9 +133,86 @@ public class StorageTerminalContainer extends Container {
 
    private final LinkedHashSet<Inventory> craftPool;
 
+   /** Every open terminal container, so an inventory change anywhere can find the ones that care. */
+   private static final java.util.Set<StorageTerminalContainer> OPEN = new java.util.HashSet<>();
+
+   /**
+    * Slots the client asked to be told about, because it could not resolve the member holding them.
+    *
+    * <p>Empty for a network that does not cross a wireless link, which is the common case and pays nothing.
+    */
+   private final java.util.Set<Integer> mirrorSlots = new java.util.HashSet<>();
+
+   /** Mirrored slots whose contents the client has not been told about yet. */
+   private final java.util.Set<Integer> pending = new java.util.HashSet<>();
+
+   /** What the client was last told each mirrored slot holds, indexed by container slot. Server-side only. */
+   private final InventoryItem[] mirrored;
+
+   /**
+    * How many slots this container registered.
+    *
+    * <p>Counted by probing, because {@code Container} keeps its slot list private and exposes only
+    * {@code getSlot(index)}, which returns null past the end. Probing once at construction is cheaper than tracking
+    * every {@code addSlot} the constructor makes, and it cannot fall out of step with it.
+    */
+   protected final int slotCount;
+
+   /** Asks the server to mirror the slots this client stood in for. */
+   public final MirrorRequestAction mirrorRequestAction;
+
    public StorageTerminalContainer(NetworkClient client, int uniqueSeed, StorageTerminalObjectEntity terminal) {
       this(client, uniqueSeed, java.util.Objects.requireNonNull(terminal, "the local path always has a terminal"),
             terminal.getLinkedStationUnits(), terminal.getLinkedUnits(), null);
+   }
+
+   /**
+    * The client's path for a locally-opened terminal: membership from the packet, not from its own walk.
+    *
+    * <p>The client still has the terminal object entity -- it is standing next to it -- so everything that reads the
+    * terminal itself is unchanged. Only <i>who is on the network</i> now comes from the server, which is the one thing
+    * a client cannot determine correctly once a Base Station is involved. Members it can resolve are used for real, so
+    * a base with no wireless links behaves exactly as before; see {@link NetworkShape}.
+    *
+    * <p>A packet with nothing in it is tolerated rather than rejected: the container is also opened by the harness and
+    * by any path that predates the shape, and falling back to the old behaviour is strictly better than refusing to
+    * open a terminal.
+    */
+   public StorageTerminalContainer(NetworkClient client, int uniqueSeed, StorageTerminalObjectEntity terminal,
+         Packet content) {
+      this(client, uniqueSeed, terminal, shapeFrom(content));
+   }
+
+   /**
+    * Membership from the shape when there is one, from the terminal's own walk when there is not.
+    *
+    * <p>{@code requireNonNull} rather than a side check: this path is only reached for a locally-opened terminal,
+    * where both sides hold the entity, and the fallback below dereferences it. A remote client's half arrives through
+    * the list-taking constructor instead, with no terminal at all.
+    */
+   private StorageTerminalContainer(NetworkClient client, int uniqueSeed, StorageTerminalObjectEntity terminal,
+         NetworkShape shape) {
+      this(client, uniqueSeed, java.util.Objects.requireNonNull(terminal, "the local path always has a terminal"),
+            shape == null ? terminal.getLinkedStationUnits()
+                  : shape.stationUnits(terminal.getLevel(), terminal.getInventoryName()),
+            shape == null ? terminal.getLinkedUnits()
+                  : shape.units(terminal.getLevel(), terminal.getInventoryName()),
+            null);
+   }
+
+   /** The shape a local open packet carries, or null when it carries none. */
+   private static NetworkShape shapeFrom(Packet content) {
+      if (content == null || content.getSize() == 0) {
+         return null;
+      }
+
+      try {
+         return NetworkShape.fromPacket(new PacketReader(content));
+      } catch (RuntimeException e) {
+         // A malformed shape must not stop a terminal opening: the fallback is the walk this replaced, which is
+         // correct for every network that does not cross a link.
+         return null;
+      }
    }
 
    /**
@@ -246,6 +324,76 @@ public class StorageTerminalContainer extends Container {
       this.setRulesAction = this.registerAction(new StorageTerminalContainer.SetRulesAction());
       this.rejectRulesAction = this.registerAction(new StorageTerminalContainer.RejectRulesAction());
       this.setNameAction = this.registerAction(new StorageTerminalContainer.SetNameAction());
+      this.mirrorRequestAction = this.registerAction(new StorageTerminalContainer.MirrorRequestAction());
+
+      int count = 0;
+      while (this.getSlot(count) != null) {
+         count++;
+      }
+
+      this.slotCount = count;
+      this.mirrored = new InventoryItem[count];
+
+      if (this.client.isServer()) {
+         OPEN.add(this);
+      } else {
+         this.subscribeEvent(SlotMirrorEvent.class, event -> true, () -> true);
+         this.onEvent(SlotMirrorEvent.class, this::applyMirror);
+         this.requestMirroring();
+      }
+   }
+
+   /**
+    * Tells the server which slots this client cannot fill for itself.
+    *
+    * <p>Identified by inventory identity rather than by recomputing index arithmetic from the sizes: the slots were
+    * registered from these very inventories a few lines ago, so identity is exact, while a second derivation of
+    * "station sockets, then units, in order" would be a copy of the rule that could drift from it.
+    */
+   private void requestMirroring() {
+      java.util.Set<Inventory> standIns = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+      for (NetworkStations unit : this.stationUnits) {
+         if (unit instanceof MirroredMember) {
+            standIns.add(unit.getInventory());
+         }
+      }
+
+      for (NetworkStorage unit : this.linkedUnits) {
+         if (unit instanceof MirroredMember) {
+            standIns.add(unit.getInventory());
+         }
+      }
+
+      if (standIns.isEmpty()) {
+         return;
+      }
+
+      List<Integer> indices = new ArrayList<>();
+      for (int i = 0; i < this.slotCount; i++) {
+         ContainerSlot slot = this.getSlot(i);
+         if (slot != null && standIns.contains(slot.getInventory())) {
+            indices.add(i);
+         }
+      }
+
+      if (!indices.isEmpty()) {
+         this.mirrorRequestAction.runAndSend(indices);
+      }
+   }
+
+   /** Writes mirrored slots the server pushed. */
+   private void applyMirror(SlotMirrorEvent event) {
+      for (int i = 0; i < event.indices.length; i++) {
+         int index = event.indices[i];
+         if (index < 0 || index >= this.slotCount) {
+            continue;
+         }
+
+         ContainerSlot slot = this.getSlot(index);
+         if (slot != null) {
+            slot.setItem(event.items[i]);
+         }
+      }
    }
 
    /**
@@ -699,13 +847,132 @@ public class StorageTerminalContainer extends Container {
       if (this.client.isServer() && this.terminal != null) {
          this.terminal.startUser(this.client.playerMob);
       }
+
+      if (this.client.isServer()) {
+         this.sendPending();
+      }
    }
 
    @Override
    public void onClose() {
       super.onClose();
+      OPEN.remove(this);
       if (this.client.isServer() && this.terminal != null) {
          this.terminal.stopUser(this.client.playerMob);
+      }
+   }
+
+   /**
+    * Pushes the slots this client cannot see for itself, and only those.
+    *
+    * <p>Compared against what was last sent rather than sent blindly, because the change hook is deliberately
+    * imprecise -- it fires for any inventory the network touches -- and an unchanged slot costs a packet for nothing.
+    * That is also what makes a re-marked slot idempotent.
+    */
+   private void sendPending() {
+      if (this.pending.isEmpty()) {
+         return;
+      }
+
+      SlotMirrorEvent.Batch batch = new SlotMirrorEvent.Batch();
+      for (int index : this.pending) {
+         if (index < 0 || index >= this.slotCount) {
+            continue;
+         }
+
+         ContainerSlot slot = this.getSlot(index);
+         InventoryItem current = slot == null ? null : slot.getItem();
+         if (!sameItem(current, this.mirrored[index])) {
+            this.mirrored[index] = current == null ? null : current.copy();
+            batch.add(index, current);
+         }
+      }
+
+      this.pending.clear();
+      if (!batch.isEmpty()) {
+         batch.toEvent().applyAndSendToClient(this.client.getServerClient());
+      }
+   }
+
+   /**
+    * Whether a slot still looks the way the client was told.
+    *
+    * <p>Amount is compared as well as identity, which {@code InventoryItem.equals} deliberately does not do -- it
+    * exists to answer "are these the same kind of thing", and a stack growing from 3 to 4 is exactly the change a
+    * storage UI must show.
+    */
+   private static boolean sameItem(InventoryItem a, InventoryItem b) {
+      if (a == null || b == null) {
+         return a == b;
+      }
+
+      return a.item.getID() == b.item.getID() && a.getAmount() == b.getAmount()
+            && a.getGndData().equals(b.getGndData());
+   }
+
+   /**
+    * Marks a slot for resending. Called from the mod's inventory-change hook; must stay cheap.
+    *
+    * <p>Walks only the slots somebody is actually mirroring rather than every slot of every open container, so a
+    * network with nothing mirrored -- every base without a wireless link -- costs one empty-set check per change.
+    */
+   public static void inventoryChanged(Inventory inventory) {
+      if (OPEN.isEmpty()) {
+         return;
+      }
+
+      for (StorageTerminalContainer container : OPEN) {
+         for (int index : container.mirrorSlots) {
+            ContainerSlot slot = container.getSlot(index);
+            if (slot != null && slot.getInventory() == inventory) {
+               container.pending.add(index);
+            }
+         }
+      }
+   }
+
+   /** Forgets every open container, for the harness between scenarios. */
+   public static void forgetOpen() {
+      OPEN.clear();
+   }
+
+   /**
+    * What the client asks for once, on open: the slots it had to stand in for.
+    *
+    * <p><b>Asked rather than inferred, because inference here cannot be made safe.</b> The server could try to work
+    * out what the client can see -- it knows which regions that client has loaded -- but the two answers are derived
+    * from different mutable state on different machines, and every way they can disagree is a slot that either nobody
+    * updates (items invisible, the bug this fixes) or everybody updates twice. The client is the only party that knows
+    * what it actually built, so it says, and the server believes it. The set is empty for any network that does not
+    * cross a link, which is why this costs nothing in the common case.
+    */
+   public class MirrorRequestAction extends ContainerCustomAction {
+
+      @Override
+      public void executePacket(PacketReader reader) {
+         if (!StorageTerminalContainer.this.client.isServer()) {
+            return;
+         }
+
+         int count = reader.getNextShortUnsigned();
+         for (int i = 0; i < count; i++) {
+            int index = reader.getNextShortUnsigned();
+            if (index >= 0 && index < StorageTerminalContainer.this.slotCount) {
+               StorageTerminalContainer.this.mirrorSlots.add(index);
+               StorageTerminalContainer.this.pending.add(index);
+            }
+         }
+      }
+
+      public void runAndSend(List<Integer> indices) {
+         Packet content = new Packet();
+         PacketWriter writer = new PacketWriter(content);
+         writer.putNextShortUnsigned(indices.size());
+         for (int index : indices) {
+            writer.putNextShortUnsigned(index);
+         }
+
+         this.runAndSendAction(content);
       }
    }
 
@@ -772,6 +1039,17 @@ public class StorageTerminalContainer extends Container {
     * {@code PacketOpenContainer.LevelObject} and {@code .ObjectEntity} produce the same
     * layout, so either works.
     */
+   /**
+    * The terminal at a tile, or null.
+    *
+    * <p>Resolved through the object entity rather than trusting the caller, because the open path is reached from an
+    * object's {@code interact} and the tile is the only thing that path is sure of.
+    */
+   private static StorageTerminalObjectEntity terminalAt(Level level, int tileX, int tileY) {
+      necesse.entity.objectEntity.ObjectEntity entity = level.entityManager.getObjectEntity(tileX, tileY);
+      return entity instanceof StorageTerminalObjectEntity ? (StorageTerminalObjectEntity)entity : null;
+   }
+
    public static void openAndSendContainer(int containerID, ServerClient client, Level level, int tileX, int tileY, Packet extraContent) {
       if (!level.isServer()) {
          throw new IllegalStateException("Level must be a server level");
@@ -779,6 +1057,17 @@ public class StorageTerminalContainer extends Container {
 
       Packet packet = new Packet();
       PacketWriter writer = new PacketWriter(packet);
+
+      // The membership the client is to use, rather than leaving it to work the same thing out. See NetworkShape for
+      // why it cannot: a network reaching through a Base Station extends past the regions the client has been sent,
+      // so its own walk produced a shorter list, and every slot index after the first missing unit meant something
+      // different on each side.
+      StorageTerminalObjectEntity terminal = terminalAt(level, tileX, tileY);
+      NetworkShape shape = terminal == null
+            ? new NetworkShape(new long[0], new int[0], new long[0], new int[0])
+            : NetworkShape.of(terminal.getLinkedStationUnits(), terminal.getLinkedUnits());
+      shape.writePacket(writer);
+
       if (extraContent != null) {
          writer.putNextContentPacket(extraContent);
       }
