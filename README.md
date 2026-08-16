@@ -16,6 +16,9 @@ directly from all of it.
 > original work rather than edits of Necesse's own art. Said plainly here because
 > people reasonably want to know.
 >
+> **Playing it?** [docs/wiki/](docs/wiki/README.md) is the player guide: what each item does, how to build a
+> network, and how the buses and wireless access work.
+>
 > See [docs/RELEASE_ROADMAP.md](docs/RELEASE_ROADMAP.md) for what is left and why,
 > [docs/QA_BACKLOG.md](docs/QA_BACKLOG.md) for checks that need a live session,
 > and [docs/SPRITES.md](docs/SPRITES.md) for the art the mod needs.
