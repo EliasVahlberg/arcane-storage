@@ -42,6 +42,20 @@ public class ArcaneStorageSettings extends ModSettings {
    public boolean groupCraftingByCategory = true;
 
    /**
+    * How the terminal's item grid is ordered: {@code group}, {@code name} or {@code amount}.
+    *
+    * <p>Here rather than attached to the player, and the reasoning is the same as for the theme. This decides what
+    * one client draws and nothing else -- the withdrawal path names an item and never a position -- so a server has
+    * no interest in it, and putting it in player data would mean a packet and a permanent save format commitment for
+    * a purely visual choice. The cost of the config file is that it is per machine, so two people sharing a computer
+    * share a sort order.
+    *
+    * <p>Defaults to {@code group}, the engine's own category-then-name order, which is what the player's inventory
+    * sort button produces. An unrecognised value reads as {@code group} rather than failing.
+    */
+   public String sortMode = "group";
+
+   /**
     * Which interface style the mod's own windows are drawn with: {@code slate}, {@code dark}, or {@code vanilla}.
     *
     * <p>Defaults to a theme rather than to vanilla, because the difference is a storage terminal that looks like
@@ -155,6 +169,8 @@ public class ArcaneStorageSettings extends ModSettings {
             "Group the terminal's crafting list into category sections rather than one flat grid");
       save.addSafeString("theme", this.theme,
             "Interface style for this mod's windows: slate, dark, or vanilla to use the game's own");
+      save.addSafeString("sortMode", this.sortMode,
+            "How the terminal orders its grid: group, name or amount. Set from the terminal's sort button");
 
       SaveData reach = new SaveData("REACH");
       reach.addInt("demonic", this.wirelessRangeDemonic,
@@ -199,6 +215,11 @@ public class ArcaneStorageSettings extends ModSettings {
    public void applyLoadData(LoadData save) {
       this.groupCraftingByCategory = save.getBoolean("groupCraftingByCategory", this.groupCraftingByCategory);
       this.theme = arcanestorage.ui.ArcaneStyles.Theme.of(save.getSafeString("theme", this.theme)).settingValue();
+
+      // Not validated against the enum here: the enum is a private member of the terminal's form, which is client
+      // code, and this class is also constructed on a dedicated server. An unrecognised value is resolved to group
+      // where it is read instead, so a hand-edited typo costs the preference rather than the load.
+      this.sortMode = save.getSafeString("sortMode", this.sortMode);
 
       LoadData reach = save.getFirstLoadDataByName("REACH");
       if (reach != null) {

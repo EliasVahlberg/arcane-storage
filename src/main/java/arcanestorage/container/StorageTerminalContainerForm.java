@@ -59,6 +59,7 @@ import necesse.gfx.forms.components.localComponents.FormLocalTextButton;
 import necesse.gfx.forms.presets.containerComponent.ContainerFormSwitcher;
 import necesse.engine.Settings;
 import necesse.gfx.ui.ButtonColor;
+import necesse.gfx.ui.ButtonTexture;
 import necesse.gfx.gameFont.FontManager;
 import necesse.gfx.gameFont.FontOptions;
 import necesse.inventory.InventoryItem;
@@ -109,6 +110,60 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
     * <p>Sorting is safe to do purely in the view for the same reason filtering is: a withdrawal
     * names an item, never a position, so reordering cannot misdirect a click.
     */
+   /**
+    * Whether the grid shows everything, only things that stack, or only things that do not.
+    *
+    * <p>The point is finding gear without wading through materials, and materials without wading through gear.
+    *
+    * <p><b>Stack size is the test, and the obvious alternative is worse.</b> {@code ItemCategory.equipmentManager}
+    * looks like the precise answer to "is this gear", but vanilla only ever puts weapons and armor in it -- no tools
+    * and no trinkets -- so a pickaxe and a trinket would count as materials, which no player would accept. Stack size
+    * is also the property the player can see on the item, so the two halves of the grid match something visible
+    * rather than an internal taxonomy.
+    *
+    * <p>Session-only, unlike the sort mode. A terminal that reopens still filtered looks like a terminal that has
+    * lost its contents, which is the same reason the search box and the category picker do not persist either.
+    */
+   private enum StackFilter {
+      /** Everything. Carries no badge, so the button is plain in the state a player has not chosen. */
+      ALL("arcanestorage_stack_all", ""),
+
+      /** Things that come in stacks: materials, ammunition, food, blocks. */
+      STACKABLE("arcanestorage_stack_stackable", "+"),
+
+      /** Things that do not stack: weapons, tools, armor, trinkets, and anything else unique. */
+      SINGLE("arcanestorage_stack_single", "1");
+
+      final String localeKey;
+
+      /**
+       * One character in the corner, as on the sort button, and chosen to describe the test rather than the intent.
+       * A plus for more than one and a 1 for exactly one need no translation, whereas an initial for "gear" would.
+       */
+      final String badge;
+
+      StackFilter(String localeKey, String badge) {
+         this.localeKey = localeKey;
+         this.badge = badge;
+      }
+
+      StackFilter next() {
+         return values()[(this.ordinal() + 1) % values().length];
+      }
+
+      boolean accepts(InventoryItem item) {
+         switch (this) {
+            case STACKABLE:
+               return item.item.getStackSize() > 1;
+            case SINGLE:
+               return item.item.getStackSize() <= 1;
+            case ALL:
+            default:
+               return true;
+         }
+      }
+   }
+
    private enum SortMode {
       GROUP("arcanestorage_sort_group", "G"),
       NAME("arcanestorage_sort_name", "A"),
@@ -132,6 +187,28 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
 
       SortMode next() {
          return values()[(this.ordinal() + 1) % values().length];
+      }
+
+      /**
+       * The name this mode is written into the config file under.
+       *
+       * <p>Lowercased rather than {@code name()} verbatim because it is a value a player may reasonably edit by hand,
+       * and shouting is unfriendly in a file full of lowercase keys. Deliberately not the ordinal: reordering the
+       * enum would silently change what an existing config means.
+       */
+      String settingValue() {
+         return this.name().toLowerCase();
+      }
+
+      /** The mode written as {@code settingValue}, or GROUP for anything unrecognised. */
+      static SortMode of(String value) {
+         for (SortMode mode : values()) {
+            if (mode.settingValue().equalsIgnoreCase(value)) {
+               return mode;
+            }
+         }
+
+         return GROUP;
       }
 
       Comparator<InventoryItem> comparator() {
@@ -407,6 +484,8 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
    public final FormLabel problemsLabel;
    public FormContentIconButton sortButton;
 
+   public FormContentIconButton stackButton;
+
    /** Picks a category to filter by. Built from the game's own tree, so mods appear in it too. */
    public ArcaneDropdown<ItemCategory> categoryButton;
 
@@ -436,7 +515,17 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
     * The current ordering. Not persisted anywhere: it resets when the terminal is reopened,
     * which keeps it out of config and save data until there is evidence a player misses it.
     */
-   private SortMode sortMode = SortMode.GROUP;
+   /**
+    * Restored from the mod's config file, so a player who chose a sort order keeps it.
+    *
+    * <p>Per machine rather than per player, which is what the config file is. Two people sharing one computer share
+    * a sort order, and that is the whole cost -- weighed against attaching this to player data, which would mean a
+    * server round trip and a save format commitment for a choice that only ever affects what one client draws.
+    * It also puts this next to the theme, which is the same kind of preference.
+    */
+   private SortMode sortMode = SortMode.of(ArcaneStorage.SETTINGS.sortMode);
+
+   private StackFilter stackFilter = StackFilter.ALL;
 
    /**
     * The network's contents as of this frame.
@@ -564,6 +653,7 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
                   GameBlackboard blackboard = new GameBlackboard();
                   for (InventoryItem item : StorageTerminalContainerForm.this.aggregated) {
                      if (StorageTerminalContainerForm.this.matchesCategory(item)
+                           && StorageTerminalContainerForm.this.stackFilter.accepts(item)
                            && StorageTerminalContainerForm.this.searchTester.matches(item, client.getPlayer(), blackboard)) {
                         list.add(item);
                      }
@@ -712,6 +802,50 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
       this.sortButton.onClicked(event -> {
          this.sortMode = this.sortMode.next();
          this.sortButton.setTooltips(this.sortTooltip());
+         this.refreshList();
+
+         // Written on the click rather than on close, which is what vanilla's own crafting form does for its
+         // only-craftable and highlight checkboxes (CraftingStationContainerForm:105 and :132). A click is
+         // human-paced, so the write costs nothing anyone can perceive, and it means a crash or a kill does not
+         // quietly discard the preference.
+         ArcaneStorage.SETTINGS.sortMode = this.sortMode.settingValue();
+         Settings.saveClientSettings();
+      });
+
+      // Next to the sort button, because the two answer the same question from different ends: sorting decides the
+      // order of everything, filtering decides what "everything" is.
+      controlX -= controlHeight + PADDING;
+      this.stackButton = this.mainForm
+         .addComponent(
+            new FormContentIconButton(
+                  controlX, controlY, FormInputSize.SIZE_24, ButtonColor.BASE,
+                  // The game ships no filter icon and no stack icon, so the equipment slot's own weapon glyph is
+                  // borrowed: it is the picture the game already uses to mean "a thing you equip". It is a plain
+                  // GameTexture rather than a ButtonIcon, hence the wrapper, and useTextColor matches how every
+                  // other icon on this row is tinted.
+                  new ButtonTexture(Settings.UI, Settings.UI.inventoryslot_icon_weapon),
+                  this.stackTooltip()) {
+               /** The active state as one character, for the same reason the sort button carries one. */
+               @Override
+               public void draw(TickManager tickManager, PlayerMob perspective, Rectangle renderBox) {
+                  super.draw(tickManager, perspective, renderBox);
+
+                  String badge = StorageTerminalContainerForm.this.stackFilter.badge;
+                  if (badge.isEmpty()) {
+                     return;
+                  }
+
+                  FontOptions font = new FontOptions(12).color(this.getContentColor());
+                  FontManager.bit.drawString(
+                        this.getX() + this.getWidth() - FontManager.bit.getWidthCeil(badge, font) - 2,
+                        this.getY() + FormInputSize.SIZE_24.height - 12,
+                        badge, font);
+               }
+            }
+         );
+      this.stackButton.onClicked(event -> {
+         this.stackFilter = this.stackFilter.next();
+         this.stackButton.setTooltips(this.stackTooltip());
          this.refreshList();
       });
 
@@ -1317,6 +1451,11 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
    /** Names the current ordering, so one cycling button does not leave the player guessing. */
    private GameMessage sortTooltip() {
       return new LocalMessage("ui", "arcanestorage_sorttip", "mode", Localization.translate("ui", this.sortMode.localeKey));
+   }
+
+   private LocalMessage stackTooltip() {
+      return new LocalMessage("ui", "arcanestorage_stacktip", "mode",
+            Localization.translate("ui", this.stackFilter.localeKey));
    }
 
    /**
