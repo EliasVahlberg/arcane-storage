@@ -13,6 +13,10 @@ An item you carry. Use it and the terminal screen opens wherever you are.
 It has to be paired with a Wireless Transceiver first. Hold the terminal and click a transceiver to pair
 them. After that, using the terminal opens the network that transceiver is on.
 
+![The storage screen opened from a wireless terminal, away from the network](screenshots/wireless_terminal_storage_ui.png)
+
+It is the same screen as the placed terminal, with the same tabs and the same controls.
+
 ## Wireless Transceiver
 
 <img src="images/arcanestoragewirelesstransceiver.png" width="96" alt="Wireless Transceiver">
@@ -38,9 +42,31 @@ An Access Point brings **distant storage** onto it.
 <img src="images/arcanestorageaccesspoint.png" width="96" alt="Access Point">
 <img src="images/arcanestoragebasestation.png" width="96" alt="Base Station">
 
+A Base Station also needs a **Wireless Transceiver on its own network** to transmit through. Without one it
+says so and does nothing:
+
+![A base station reporting that it needs a wireless transceiver](screenshots/base_station_no_transceiver.png)
+
+Only one Base Station may run on a network. Put two on the same one and **both** go dark rather than one
+quietly winning, because a station that had silently lost would be impossible to tell apart from a working
+one.
+
+With a transceiver present it transmits, and its panel lists every channel and what is tuned to it:
+
+![A base station transmitting, with two access points tuned to it](screenshots/base_station_turned_on.png)
+
 Put a **Base Station** on your main network. Put an **Access Point** next to storage somewhere else, up to 200
 tiles away, and tune it to one of the base station's channels. That storage is now part of the main network,
 exactly as if you had run conduit to it.
+
+Tuning an Access Point is three steps in its panel. Name it, pick the band, pick a free channel, then press
+**Tune**.
+
+<img src="screenshots/access_point_ui_filled_in.png" alt="An access point named but not yet tuned" width="300"> <img src="screenshots/access_point_ui_band_select.png" alt="Choosing a band" width="300"> <img src="screenshots/access_point_ui_channel_select.png" alt="Choosing a channel" width="300">
+
+Once tuned it confirms which band and channel it is on:
+
+![A tuned access point confirming its band and channel](screenshots/access_point_ui_filled_in_and_tuned.png)
 
 It behaves the same as conduit in every way. The items show up in your terminal, they count towards capacity,
 crafting can use them, and a Station Unit out there works too.

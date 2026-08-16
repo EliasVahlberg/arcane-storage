@@ -5,6 +5,8 @@ A guide for players. Everything here is about how the mod works in game, not how
 Necesse gives you plenty of chests. It does not give you a way to see what is in all of them at once.
 Arcane Storage adds a network you build, and one screen that shows everything on it.
 
+![The storage screen of a large network](screenshots/storage_tab_full_network.png)
+
 ## Pages
 
 - **[Getting started](getting-started.md)** covers your first terminal and your first storage unit.

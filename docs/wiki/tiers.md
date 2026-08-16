@@ -11,6 +11,10 @@ upgrading everything else.
 | Tungsten | [Tungsten Workstation](https://necessewiki.com/Tungsten_Workstation) | [Tungsten Bar](https://necessewiki.com/Tungsten_Bar) |
 | Fallen | [Fallen Workstation](https://necessewiki.com/Fallen_Workstation) | [Upgrade Shard](https://necessewiki.com/Upgrade_Shard) |
 
+All four rungs are visibly different colours, so a glance along a conduit run tells you what you have:
+
+![Four storage units, one of each tier, on a single conduit run](screenshots/showing_storage_unit_tiers.png)
+
 ## Storage Units
 
 Each rung doubles the slots.
@@ -39,12 +43,16 @@ Each rung doubles the number of crafting stations you can install.
 ## Wireless
 
 The Wireless Transceiver and Base Station start at Demonic rather than base. See
-[Reaching further](wireless.md) for what each rung buys.
+[Reaching further](wireless.md) for what each rung buys. They upgrade from their own panels the same way:
+
+<img src="screenshots/transceiver_upgrade_ui.png" alt="A transceiver offering its upgrade" width="330"> <img src="screenshots/base_station_upgrade_ui.png" alt="A base station offering its upgrade" width="330">
 
 ## Upgrading an existing unit
 
 You do not have to break a unit and lose its contents. Click a unit and its panel has an upgrade button.
 Upgrading in place keeps everything inside.
+
+![A storage unit panel offering its upgrade](screenshots/storage_unit_upgrade_empty_ui.png)
 
 An upgrade costs the tier's material, and the panel tells you exactly what before you commit.
 

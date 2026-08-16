@@ -6,6 +6,8 @@ The Storage Terminal is the screen you open. It has five tabs across the top.
 
 ## Storage
 
+![The Storage tab, showing a network holding 8265 items across 174 kinds](screenshots/storage_tab_full_network.png)
+
 The main grid. Every item on the network, gathered into one list, with identical stacks added together. A
 stack of 200 iron bars spread across four units shows once, as 200.
 
@@ -43,6 +45,8 @@ something you can spot.
 
 ## Crafting
 
+![The Crafting tab, with recipes grouped by category and the installed stations listed above](screenshots/crafting_tab_example.png)
+
 Every recipe the network can make, from the stations you have installed in Station Units. Materials come from
 anywhere on the network.
 
@@ -57,11 +61,15 @@ terminal reopened.
 
 ## Stations
 
+![The Stations tab with no stations installed yet](screenshots/empty_station_ui.png)
+
 What is installed, and where. Each Station Unit on the network is listed with the stations in it.
 
 If this tab tells you to place a Station Unit, the network has none, or none that is connected.
 
 ## Logistics
+
+![The Logistics tab, listing every bus with one selected for editing](screenshots/logistics_tab_example.png)
 
 Every bus on the network, with what it is doing. This is where you name a bus and set its rules. See
 [Buses](buses.md).

@@ -22,6 +22,12 @@ the terminal.
 
 Open the terminal again and it now has 40 slots. Put something in. That is a working network.
 
+![A terminal with a storage unit placed directly beside it](screenshots/simplest_network.png)
+
+Open it and the Storage tab lists what the unit is holding, with the slot count along the bottom.
+
+![The Storage tab of a small network](screenshots/simple_storage_system_storage_tab.png)
+
 A unit next to the terminal is connected. A unit further away needs conduits, which is the next step.
 
 ## Step three, conduits
@@ -30,6 +36,8 @@ A unit next to the terminal is connected. A unit further away needs conduits, wh
 
 **Arcane Conduits** carry the network across the floor. Four of them cost one Iron Bar and no crafting
 station, so you can make them in your inventory.
+
+![A conduit run from the terminal to a storage unit some distance away](screenshots/storage_conduit_simple_example.png)
 
 Lay a line of conduit from the terminal and put units at the end of it. Anything joined by conduit is on the
 same network. A gap in the line breaks it, so if a unit stops showing up, look for the missing tile.
@@ -43,8 +51,14 @@ Conduits go under floors and are walked over normally. You do not need to leave 
 A **Station Unit** holds crafting stations. Craft one at a Workstation for the same cost as a Storage Unit,
 connect it to the network, and open it. It has one slot at the base tier.
 
+Conduit branches, so one run can feed a storage unit and a station unit at once.
+
+![A conduit branching to a storage unit and a station unit](screenshots/simple_station_unit_setup.png)
+
 Put a [Workstation](https://necessewiki.com/Workstation) or an
-[Iron Anvil](https://necessewiki.com/Iron_Anvil) into that slot. Now open the terminal and go to the
+[Iron Anvil](https://necessewiki.com/Iron_Anvil) into that slot. ![A station unit holding one workstation](screenshots/station_unit_one_workbench_ui.png)
+
+Now open the terminal and go to the
 **Crafting** tab. Everything that station can make is listed, and the materials come from anywhere on the
 network.
 

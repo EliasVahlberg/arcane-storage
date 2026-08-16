@@ -12,6 +12,8 @@ Both kinds cost 20 [Any Log](https://necessewiki.com/Any_Log) and 10
 
 Takes items **out of** the container and puts them **into** the network.
 
+![An import bus lit up beside a chest, joined to the terminal by conduit](screenshots/storage_network_import_bus_connected.png)
+
 The usual first one goes next to the chest you empty your pockets into when you get home. Drop everything in
 the chest, walk away, and it ends up sorted into your network.
 
@@ -20,6 +22,8 @@ the chest, walk away, and it ends up sorted into your network.
 <img src="images/arcanestorageexportbus.png" width="96" alt="Export Bus">
 
 Takes items **out of** the network and puts them **into** the container.
+
+![An export bus lit up beside a chest](screenshots/storage_network_export_bus_connected.png)
 
 Useful for keeping something topped up. An export bus set to wood, next to a chest by your building spot,
 means that chest always has wood in it.
@@ -30,6 +34,10 @@ A bus needs two things. It must touch the network, through a conduit or by being
 terminal. And it must be directly next to the container it serves, in one of the four directions, not
 diagonally.
 
+A bus with nothing beside it goes dark, which is what a mistake looks like:
+
+![The same bus dark and inactive because no container is next to it](screenshots/storage_network_import_bus_disabled.png)
+
 The bus sprite shows which way it is facing once it has found a container. If it looks unattached, it has not
 found one, and the usual reason is that the container is diagonal rather than beside it.
 
@@ -38,6 +46,8 @@ A container wider than one tile works from any of its sides.
 ## Rules
 
 Click a bus to open it. Every bus starts with no rules, which means everything is allowed.
+
+<img src="screenshots/import_bus_ui_default.png" alt="An import bus panel, freshly placed" width="330"> <img src="screenshots/export_bus_default_ui.png" alt="An export bus panel, freshly placed" width="330">
 
 - **Item rules** let you list what may pass. An import bus with a rule for ore moves only ore and leaves the
   rest in the chest.
@@ -54,6 +64,8 @@ You can rename any bus to something you will recognise, like Farm or Smelter. Th
 Logistics tab, which is where a large base becomes readable instead of being a list of numbers.
 
 ## The Logistics tab
+
+![The Logistics tab with a bus selected and its category rules showing](screenshots/logistics_tab_example.png)
 
 Open the terminal and go to Logistics. Every bus is listed with its name, what it is attached to, and whether
 it is working.

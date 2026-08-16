@@ -29,6 +29,9 @@ public class WikiTest {
 
    private static final Path WIKI = Path.of("docs/wiki");
 
+   /** The largest shot at the time of writing is the full-network storage view at 775KB. */
+   private static final long MAX_SCREENSHOT_KB = 900;
+
    @Test
    public void noEmDashesAndNoSemicolons() throws IOException {
       List<String> offences = new ArrayList<>();
@@ -103,6 +106,45 @@ public class WikiTest {
          "these wiki images have no matching item texture, so they show something the mod no longer ships: "
             + orphans,
          orphans.isEmpty());
+   }
+
+   @Test
+   public void everyScreenshotIsUsedAndNoneIsOversized() throws IOException {
+      // Screenshots are the only large files this repository tracks, and both failure modes are easy to commit by
+      // accident: a shot that no page ever shows, and a raw capture straight off the screen. The originals are
+      // 2184x1439 at over two megabytes each, so a ceiling is what stops one of those landing here.
+      Path shots = WIKI.resolve("screenshots");
+      if (!Files.isDirectory(shots)) {
+         return;
+      }
+
+      StringBuilder pages = new StringBuilder();
+      for (Path page : pages()) {
+         pages.append(Files.readString(page, StandardCharsets.UTF_8));
+      }
+
+      List<String> unused = new ArrayList<>();
+      List<String> oversized = new ArrayList<>();
+
+      try (Stream<Path> files = Files.list(shots)) {
+         for (Path shot : files.toList()) {
+            String name = shot.getFileName().toString();
+            if (!pages.toString().contains("screenshots/" + name)) {
+               unused.add(name);
+            }
+
+            long kb = Files.size(shot) / 1024;
+            if (kb > MAX_SCREENSHOT_KB) {
+               oversized.add(name + " is " + kb + "KB");
+            }
+         }
+      }
+
+      assertTrue("no page shows these, so they are only making the clone bigger: " + unused, unused.isEmpty());
+      assertTrue(
+         "crop to the interface rather than committing a whole screen, ceiling is " + MAX_SCREENSHOT_KB + "KB: "
+            + oversized,
+         oversized.isEmpty());
    }
 
    @Test
