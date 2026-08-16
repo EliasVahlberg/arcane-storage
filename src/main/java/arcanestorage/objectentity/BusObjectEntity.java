@@ -23,6 +23,8 @@ import necesse.engine.save.LoadData;
 import necesse.engine.save.SaveData;
 import necesse.entity.objectEntity.ObjectEntity;
 import necesse.entity.objectEntity.interfaces.OEInventory;
+import necesse.level.maps.LevelObject;
+import necesse.level.gameObject.GameObject;
 import necesse.inventory.Inventory;
 import necesse.inventory.InventoryItem;
 import necesse.inventory.item.Item;
@@ -1083,6 +1085,13 @@ public abstract class BusObjectEntity extends ObjectEntity implements DeviceOnNe
     * <p>Orthogonal neighbours only, in {@link UnitNetwork#NEIGHBOURS} order, and the first match wins —
     * so a bus between two chests is not ambiguous in behaviour, only in appearance, and the fix for that
     * is a facing sprite rather than a rule.
+    *
+    * <p>A tile is resolved to its multi-tile master before its entity is looked for, because an object
+    * occupying several tiles registers an entity on one of them. A Shipping Chest is two tiles and two
+    * distinct objects — {@code ShippingChestObject} plus a counterpart — and only the master carries the
+    * entity, so a bus against the other half found nothing and reported that it served no container at all.
+    * It is not one chest's quirk: it is every object wider than a tile, and whether a given side works
+    * depends on the rotation it was placed with, which is why it looked like the order of placement mattered.
     */
    public Inventory attachedContainer() {
       Level level = this.getLevel();
@@ -1091,8 +1100,13 @@ public abstract class BusObjectEntity extends ObjectEntity implements DeviceOnNe
       }
 
       for (int[] offset : UnitNetwork.NEIGHBOURS) {
-         ObjectEntity neighbour =
-            level.entityManager.getObjectEntity(this.tileX + offset[0], this.tileY + offset[1]);
+         int x = this.tileX + offset[0];
+         int y = this.tileY + offset[1];
+         ObjectEntity neighbour = level.entityManager.getObjectEntity(x, y);
+         if (neighbour == null) {
+            neighbour = masterEntity(level, x, y);
+         }
+
          if (neighbour instanceof OEInventory && !(neighbour instanceof NetworkStorage)
                && !neighbour.removed()) {
             Inventory inventory = ((OEInventory)neighbour).getInventory();
@@ -1103,6 +1117,22 @@ public abstract class BusObjectEntity extends ObjectEntity implements DeviceOnNe
       }
 
       return null;
+   }
+
+   /**
+    * The entity of the multi-tile object occupying a tile, looked up on whichever tile holds it.
+    *
+    * <p>Only reached when the tile itself has no entity, so a single-tile neighbour — which is nearly all of
+    * them, and this runs on every bus tick — costs one null check and nothing else.
+    */
+   private static ObjectEntity masterEntity(Level level, int x, int y) {
+      GameObject object = level.getObject(x, y);
+      if (object == null || !object.isMultiTile()) {
+         return null;
+      }
+
+      LevelObject master = level.getMasterLevelObject(x, y);
+      return master == null ? null : master.getObjectEntity();
    }
 
    /** Every member's inventory, in network order, so transfers fill the network the way it is walked. */
