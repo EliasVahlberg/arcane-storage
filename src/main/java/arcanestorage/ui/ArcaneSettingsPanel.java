@@ -1,6 +1,8 @@
 package arcanestorage.ui;
 
 import arcanestorage.ArcaneStorage;
+import arcanestorage.object.UnitTier;
+import arcanestorage.remote.Reach;
 import necesse.engine.Settings;
 import necesse.engine.localization.Localization;
 import necesse.engine.localization.message.LocalMessage;
@@ -94,12 +96,14 @@ public final class ArcaneSettingsPanel {
       // Read from this client's own copy of the config, which is what the note above them says. In singleplayer that
       // copy is the authority; against a dedicated server the numbers actually enforced are that server's, and
       // implying otherwise would be worse than showing nothing.
-      value(form, flow, width, "arcanestorage_settings_reachdemonic",
-            tiles(ArcaneStorage.SETTINGS.wirelessRangeDemonic));
-      value(form, flow, width, "arcanestorage_settings_reachtungsten",
-            tiles(ArcaneStorage.SETTINGS.wirelessRangeTungsten));
-      value(form, flow, width, "arcanestorage_settings_reachfallen",
-            tiles(ArcaneStorage.SETTINGS.wirelessRangeFallen));
+      //
+      // Asked per tier rather than per number. The number alone cannot answer this: Tungsten and Fallen are both
+      // unlimited on their own level, and what separates them is that Fallen also leaves it, which is a property of
+      // the tier and not of the range. Rendering the range alone made the Fallen row identical to the Tungsten one,
+      // so the upgrade read as buying nothing.
+      value(form, flow, width, "arcanestorage_settings_reachdemonic", Reach.summarise(UnitTier.DEMONIC));
+      value(form, flow, width, "arcanestorage_settings_reachtungsten", Reach.summarise(UnitTier.TUNGSTEN));
+      value(form, flow, width, "arcanestorage_settings_reachfallen", Reach.summarise(UnitTier.FALLEN));
       value(form, flow, width, "arcanestorage_settings_bandrange",
             tiles(ArcaneStorage.SETTINGS.bandRange));
       value(form, flow, width, "arcanestorage_settings_channels",

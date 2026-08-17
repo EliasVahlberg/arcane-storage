@@ -2,6 +2,7 @@ package arcanestorage.remote;
 
 import arcanestorage.ArcaneStorage;
 import arcanestorage.object.UnitTier;
+import necesse.engine.localization.Localization;
 import necesse.entity.mobs.PlayerMob;
 
 /**
@@ -114,6 +115,44 @@ public final class Reach {
    /** Whether a tier reaches a level the player is not standing on. */
    public static boolean crossesLevels(UnitTier tier) {
       return tier == UnitTier.FALLEN;
+   }
+
+   /**
+    * A tier's reach as one sentence for a player.
+    *
+    * <p>Here rather than at each call site because it was written out at each call site first, identically, on the
+    * transceiver and on the terminal item -- and then a third time on the settings panel from the range alone, which
+    * cannot tell Tungsten from Fallen because both have no tile limit and only one of them leaves the level. That
+    * panel row claimed the Fallen upgrade bought nothing. Two copies agreeing is not a guarantee that a third will,
+    * so the branch belongs where the rule does.
+    */
+   public static String describe(UnitTier tier) {
+      if (crossesLevels(tier)) {
+         return Localization.translate("ui", "arcanestorage_transceiver_anylevel");
+      }
+
+      int range = sameLevelRange(tier);
+      return range < 0
+            ? Localization.translate("ui", "arcanestorage_transceiver_samelevel")
+            : Localization.translate("ui", "arcanestorage_transceiver_range", "range", String.valueOf(range));
+   }
+
+   /**
+    * The same reach, terse enough to sit after a label in the settings tab.
+    *
+    * <p>A separate wording rather than {@link #describe}, because those rows already say "Fallen wireless reach" and
+    * a value reading "Reaches any level" would repeat the label back. What it must not do is drop the distinction
+    * {@link #describe} makes, which is the whole of issue #4.
+    */
+   public static String summarise(UnitTier tier) {
+      if (crossesLevels(tier)) {
+         return Localization.translate("ui", "arcanestorage_settings_anylevel");
+      }
+
+      int range = sameLevelRange(tier);
+      return range < 0
+            ? Localization.translate("ui", "arcanestorage_settings_unlimited")
+            : Localization.translate("ui", "arcanestorage_settings_tiles", "n", String.valueOf(range));
    }
 
    /**

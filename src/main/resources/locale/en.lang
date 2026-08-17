@@ -168,7 +168,8 @@ arcanestorage_settings_reachfallen=Fallen wireless reach
 arcanestorage_settings_bandrange=Access Point range
 arcanestorage_settings_channels=Channels per tier
 arcanestorage_settings_tiles=<n> tiles
-arcanestorage_settings_unlimited=Whole level
+arcanestorage_settings_unlimited=This level, any distance
+arcanestorage_settings_anylevel=Any level, any distance
 arcanestorage_settings_filehint=Config file: mods/elias.arcanestorage.cfg in the game's settings folder.
 
 [itemcategory]

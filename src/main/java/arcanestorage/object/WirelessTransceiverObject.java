@@ -66,15 +66,7 @@ public class WirelessTransceiverObject extends StorageBoxInventoryObject impleme
       ListGameTooltips tooltips = super.getItemTooltips(item, perspective);
       tooltips.add(Localization.translate("ui", "arcanestorage_transceivertip"));
 
-      int range = arcanestorage.remote.Reach.sameLevelRange(this.tier);
-      if (arcanestorage.remote.Reach.crossesLevels(this.tier)) {
-         tooltips.add(Localization.translate("ui", "arcanestorage_transceiver_anylevel"));
-      } else if (range < 0) {
-         tooltips.add(Localization.translate("ui", "arcanestorage_transceiver_samelevel"));
-      } else {
-         tooltips.add(Localization.translate("ui", "arcanestorage_transceiver_range",
-               "range", String.valueOf(range)));
-      }
+      tooltips.add(arcanestorage.remote.Reach.describe(this.tier));
 
       return tooltips;
    }

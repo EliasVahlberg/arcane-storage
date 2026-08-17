@@ -53,15 +53,7 @@ public class WirelessTerminalItem extends Item implements ItemInteractAction {
 
       // The reach this end allows. Stated on the item as well as on the transceiver because the lower of the two
       // decides, so a player comparing them needs both numbers visible.
-      int range = Reach.sameLevelRange(this.tier);
-      if (Reach.crossesLevels(this.tier)) {
-         tooltips.add(Localization.translate("ui", "arcanestorage_transceiver_anylevel"));
-      } else if (range < 0) {
-         tooltips.add(Localization.translate("ui", "arcanestorage_transceiver_samelevel"));
-      } else {
-         tooltips.add(Localization.translate("ui", "arcanestorage_transceiver_range",
-               "range", String.valueOf(range)));
-      }
+      tooltips.add(Reach.describe(this.tier));
 
       return tooltips;
    }
