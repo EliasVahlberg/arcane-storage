@@ -68,7 +68,7 @@ A slate style and a dark style, or the game's own if you have themed it yourself
 A full player guide, with every item and what it does, is at
 [url=https://github.com/EliasVahlberg/arcane-storage/wiki]github.com/EliasVahlberg/arcane-storage/wiki[/url]
 
-Bugs and crash reports are welcome in the discussion board on this page. A crash log helps a great deal: on Windows it is in [i]%APPDATA%\Necesse[/i], and on Linux in [i]~/.config/Necesse[/i].
+Bugs and crash reports are welcome in the discussion board on this page. Two files help, and they are not in the same place. If the game crashed, [i]latest-crash.log[/i] is in the game's own install folder, next to the Necesse executable. The ordinary log is [i]latest-log.txt[/i], in [i]%APPDATA%\Necesse[/i] on Windows or [i]~/.config/Necesse[/i] on Linux.
 
 ---
 
