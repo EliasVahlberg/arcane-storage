@@ -359,8 +359,9 @@ public class ArcaneStorage {
          ));
       }
 
-      // Hand-craftable, unlike the station it tunes to. It is the part a player places once per outbuilding, and
-      // walking back to a Fallen workstation to make one more would be a tax on building out rather than a cost.
+      // Made at a plain Workstation rather than at the tier's own, unlike the station it tunes to. It is the part a
+      // player places once per outbuilding, and sending them back to a Fallen workstation to make one more would tax
+      // building out rather than cost anything meaningful.
       Recipes.registerModRecipe(new Recipe(
          arcanestorage.object.ArcaneAccessPointObject.STRING_ID, CostTable.count("recipe.accesspoint"),
          RecipeTechRegistry.WORKSTATION, CostTable.materials("recipe.accesspoint")
@@ -379,16 +380,21 @@ public class ArcaneStorage {
             tier.ingredients(below == null ? null : below.stationId())
          ));
       }
+      // Made at a Workstation, like everything else here. These were hand recipes in 1.0.0 on the reasoning that a
+      // player lays dozens of conduits and a walk back to a bench would tax building out -- but a hand recipe is not
+      // a discount, it is an absent station, and it put the three most-used parts of the mod in the one crafting
+      // menu that has no category and no search. Every workstation tier is cumulative (a Fallen Workstation reports
+      // FALLEN, ADVANCED, DEMONIC and WORKSTATION), so no tier loses access by this being the base rung.
       Recipes.registerModRecipe(
-         new Recipe(CONDUIT_STRING_ID, CostTable.count("recipe.conduit"), RecipeTechRegistry.NONE,
+         new Recipe(CONDUIT_STRING_ID, CostTable.count("recipe.conduit"), RecipeTechRegistry.WORKSTATION,
             CostTable.materials("recipe.conduit"))
       );
       Recipes.registerModRecipe(
-         new Recipe(IMPORT_BUS_STRING_ID, CostTable.count("recipe.importbus"), RecipeTechRegistry.NONE,
+         new Recipe(IMPORT_BUS_STRING_ID, CostTable.count("recipe.importbus"), RecipeTechRegistry.WORKSTATION,
             CostTable.materials("recipe.importbus"))
       );
       Recipes.registerModRecipe(
-         new Recipe(EXPORT_BUS_STRING_ID, CostTable.count("recipe.exportbus"), RecipeTechRegistry.NONE,
+         new Recipe(EXPORT_BUS_STRING_ID, CostTable.count("recipe.exportbus"), RecipeTechRegistry.WORKSTATION,
             CostTable.materials("recipe.exportbus"))
       );
 

@@ -34,8 +34,7 @@ A unit next to the terminal is connected. A unit further away needs conduits, wh
 
 <img src="images/arcanestorageconduit.png" width="96" alt="Arcane Conduit">
 
-**Arcane Conduits** carry the network across the floor. Four of them cost one Iron Bar and no crafting
-station, so you can make them in your inventory.
+**Arcane Conduits** carry the network across the floor. Four of them cost one Iron Bar at a Workstation.
 
 ![A conduit run from the terminal to a storage unit some distance away](screenshots/storage_conduit_simple_example.png)
 

@@ -256,4 +256,39 @@ public class ConventionsTest {
             + " file size.",
          projected < STEAM_PREVIEW_LIMIT);
    }
+
+   @Test
+   public void nothingIsCraftedWithoutAStation() throws IOException {
+      // A policy rather than a bug, and it is here because breaking it is silent. The conduit and the two buses were
+      // registered with RecipeTechRegistry.NONE in 1.0.0, which put the three most-used items in the mod into the
+      // player's inventory crafting menu -- the one list with no category and no search. Meanwhile the wiki had said
+      // "at a Workstation" for the buses all along. Neither side warned, because nothing compared them.
+      //
+      // Scanning the source rather than the registry because the registry needs a running game. That is weaker, but
+      // it catches the thing that actually happened, and the alternative caught nothing at all.
+      String source = Files.readString(SOURCE.resolve("arcanestorage/ArcaneStorage.java"), StandardCharsets.UTF_8);
+      assertTrue(
+         "A recipe is registered with RecipeTechRegistry.NONE. Hand recipes are not a discount, they are an absent"
+            + " station, and they bypass the crafting categories players search in. If this is deliberate, say so"
+            + " here and in the wiki entry, which currently names a station for every recipe.",
+         !source.contains("RecipeTechRegistry.NONE"));
+
+      // The other half of the same drift. A guide sentence claiming no station is needed outlives the code that made
+      // it true, and a player reading it goes looking in a menu that will never hold the item.
+      Path items = Path.of("docs/wiki/items.md");
+      Assume.assumeTrue(Files.isRegularFile(items));
+      String guide = Files.readString(items, StandardCharsets.UTF_8).toLowerCase();
+
+      // Phrased tightly on purpose. A first attempt matched the bare words "in your inventory" and flagged the line
+      // explaining that the mod's items share a category there, which has nothing to do with crafting. A guard that
+      // cries wolf gets deleted by the next person who trips it.
+      for (String claim : new String[] {
+            "no crafting station", "without a crafting station",
+            "make them in your inventory", "make it in your inventory", "craft them in your inventory"}) {
+         assertTrue(
+            "The wiki still tells players they can make something without a station (\"" + claim + "\"), but every"
+               + " recipe is registered against one.",
+            !guide.contains(claim));
+      }
+   }
 }

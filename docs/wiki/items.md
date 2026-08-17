@@ -52,7 +52,7 @@ of conduit reaches is on the same network.
 
 ![A conduit run from a terminal to a distant storage unit](screenshots/storage_conduit_simple_example.png)
 
-Four for one Iron Bar, and no crafting station needed, so you can make it in your inventory.
+Four for one Iron Bar at a Workstation.
 
 ## Logistics
 
