@@ -110,8 +110,8 @@ arcanestorage_transceiver_range=Reaches <range> tiles, this level only
 arcanestorage_transceiver_samelevel=Reaches anywhere on this level
 arcanestorage_transceiver_anylevel=Reaches any level
 
-# The frequency band. A band is named by a number the player reads off the station and types into an access point,
-# so every message that mentions one shows that number rather than describing the station's position.
+// The frequency band. A band is named by a number the player reads off the station and types into an access point,
+// so every message that mentions one shows that number rather than describing the station's position.
 arcanestorage_basestationtip=Carries distant storage onto this network
 arcanestorage_accesspointtip=Joins nearby storage to a band
 arcanestorage_band_notransceiver=Needs a Wireless Transceiver on this network
@@ -155,7 +155,7 @@ arcanestorage_theme_slate=Arcane Slate
 arcanestorage_theme_dark=Arcane Dark
 arcanestorage_theme_vanilla=Game default
 
-# The settings tab. The game's own settings menu cannot be extended by a mod, so these live in the terminal.
+// The settings tab. The game's own settings menu cannot be extended by a mod, so these live in the terminal.
 arcanestorage_settings_presentation=Appearance
 arcanestorage_settings_themelabel=Interface style for this mod's windows
 arcanestorage_settings_reopen=Panels change at once. Text and buttons follow when a window is reopened.

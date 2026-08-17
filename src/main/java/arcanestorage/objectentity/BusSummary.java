@@ -1,8 +1,6 @@
 package arcanestorage.objectentity;
 
 import necesse.engine.localization.Localization;
-import necesse.gfx.forms.components.FormLabel;
-import necesse.gfx.gameFont.FontOptions;
 import necesse.engine.network.PacketReader;
 import necesse.engine.network.PacketWriter;
 
@@ -98,33 +96,6 @@ public final class BusSummary {
    /** Where it is, for a player who has to go and look at it. */
    public String where() {
       return this.tileX + "," + this.tileY;
-   }
-
-   /**
-    * How tall the longest reason this class can produce would be, wrapped to a given width.
-    *
-    * <p>Here rather than in either panel because this is where a reason is worded, so this is what knows how
-    * long one can get. Both surfaces reserve a fixed block for it -- fixed because a label's height is a
-    * property of the text it currently holds, and reserving space by measuring an empty label reserves
-    * nothing, which is a fault this project has already shipped once.
-    *
-    * <p>The substitutions are the worst realistic case: the longest item name in the game, a player-chosen
-    * device name at its length limit, and five-digit negative coordinates.
-    */
-   public static int worstCaseReasonHeight(int font, int wrapWidth) {
-      String widestName = new String(new char[BusObjectEntity.MAX_NAME_LENGTH]).replace('\0', 'W');
-      int worst = 0;
-      for (DeviceState state : DeviceState.values()) {
-         if (state.isActive()) {
-            continue;
-         }
-
-         worst = Math.max(worst, new FormLabel(Localization.translate("ui", state.localeKey,
-               "item", "Pearlescent Diamond Broadsword", "other", widestName,
-               "x", "-12345", "y", "-12345"), new FontOptions(font), -1, 0, 0, wrapWidth).getHeight());
-      }
-
-      return worst;
    }
 
    /** Why this bus has stopped, or empty when it has not. */

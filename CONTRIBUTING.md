@@ -180,6 +180,36 @@ bash tools/publish-wiki.sh --dry-run    # show what would change
 bash tools/publish-wiki.sh              # publish
 ```
 
+## Translations
+
+Translations are welcome and need no Java. Every player-facing string already goes through the game's
+localization system, so a translation is one file and no code.
+
+```bash
+tools/translations.py template de     # start src/main/resources/locale/de.lang
+tools/translations.py glossary de     # the game's own wording for terms these strings borrow
+tools/translations.py check           # validate before opening a pull request
+```
+
+Use the language codes the game itself uses, which are the file names in `<install>/locale/`. They are not
+all ISO codes: Swedish is `se`, not `sv`. A file named for anything else is either ignored or, worse, loaded
+as the wrong language, because the loader matches by file name suffix and `broken.lang` ends with `en.lang`.
+
+Three things matter more than the wording:
+
+- **Keep every `<placeholder>` exactly as written.** They are substituted at runtime, so dropping `<count>`
+  does not read awkwardly, it silently removes the number the sentence was reporting. This is enforced by a
+  test rather than left to review.
+- **Do not add or rename keys.** A key that is not in `en.lang` is read by nothing.
+- **Partial is fine.** The game falls back to English per key, so an incomplete file works and can be
+  merged. `check` reports coverage rather than failing on it.
+
+Run the glossary before translating. These strings deliberately reuse Necesse's own vocabulary, and the game
+ships official translations of all of it, so taking the wording from there means a player reads the same term
+in this mod as on the bench they are standing at. The glossary prints one of our sentences alongside each
+term, because a game term does not always carry our sense of it -- the game's "Content" is a settler's mood,
+not a container's contents.
+
 ## Commits
 
 Conventional commits: `type(scope): summary`, under 72 characters, present tense. Small and
