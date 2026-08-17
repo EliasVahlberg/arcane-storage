@@ -72,11 +72,16 @@ Bugs and crash reports are welcome in the discussion board on this page. Two fil
 
 ---
 
-## Change notes
+## Change notes — there is no box for these
 
-Steam's change note box is BBCode too, and it is a separate field from the description: updating one does not
-touch the other. The wording comes from `CHANGELOG.md`, which is the source for this and for the GitHub release
-notes, so the three cannot drift.
+`[verified — source, Aug 2026]` **The game writes the Steam change note itself and the dialog offers no field for
+it.** `submitItemUpdate` is called with a hardcoded second argument, `"Mod version " + version + " for game
+version " + gameVersion` (`SteamDevModProvider:522-525`), so every update's note on Steam reads "Mod version 1.0.1
+for game version 1.3.2" no matter what is typed anywhere.
+
+So a readable summary of what changed has to reach players another way: in the description, or as a pinned
+announcement or discussion on the item. The text below is kept for that purpose rather than for a change note box,
+and it comes from `CHANGELOG.md` so the two cannot drift.
 
 ---
 
@@ -87,6 +92,29 @@ notes, so the three cannot drift.
 [b]Arcane Conduits and the two buses are now made at a Workstation.[/b] They were craftable straight from the inventory, which sounds like a convenience and was not: it put the three most-placed items in the mod into the one crafting list with no categories and no search, so they read as missing. They cost the same as before, and every workstation tier can make them, so an upgraded bench loses nothing.
 
 ---
+
+## Reading the result of an upload
+
+`[verified — source + a confused upload, Aug 2026]` **Nothing about the outcome reaches the log.**
+`onSubmitItemUpdate` (`SteamDevModProvider:172-202`) raises an on-screen `NoticeForm` on every path and writes no
+line at all, so a log ending at "Updating item with call handle" is neither success nor failure. That is genuinely
+confusing in the moment, because every earlier step does log.
+
+What the notices say:
+
+| Notice | Locale key | Meaning |
+|---|---|---|
+| Updating file... | `moduploadupdating` | still in flight |
+| Successfully created/updated mod | `moduploadsuccess` | done; continuing opens the item page in the overlay |
+| You have not accepted the Steam Workshop terms of service. Try again. | `moduploadnotaccepted` | the EULA gate, and the upload did not happen |
+| Could not create file: <message> | `moduploadcreatefailed` | failed, with the Steam result code |
+
+Two further things that look like symptoms and are not. The "upload to workshop" button is the generic entry point
+rather than a status, so it reads the same before and after. And whether the description was sent cannot be told
+from the log either, because `setItemDescription` (`:508`) has no `println` — only the store page shows that.
+
+Also worth knowing: a log line reading **Started item update** rather than **Created item** confirms the existing
+item was resolved and is being updated, since that path only runs with a `PublishedFileID` in hand.
 
 ## Notes for the upload itself
 
