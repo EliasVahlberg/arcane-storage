@@ -1,6 +1,6 @@
 # Steam Workshop release roadmap — v1.0.0
 
-> **Uploaded 16 August 2026.** Workshop item `3784511362`, published from a dev-loaded session, held
+> **Uploaded 16 August 2026.** Workshop item `3784515578`, published from a dev-loaded session, held
 > initially in Steam's automated content check as any new item with an external link is. Everything
 > below is kept as the record of what was done and why, not as outstanding work. What is genuinely
 > still open is in [Deferred](#deferred-and-not-blocking-100), plus the two post-release items under

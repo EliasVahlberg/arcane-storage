@@ -45,7 +45,7 @@ reusing a layout they already know beats inventing a new one.
 
 ## Installing
 
-Most players want the [Steam Workshop item](https://steamcommunity.com/sharedfiles/filedetails/?id=3784511362),
+Most players want the [Steam Workshop item](https://steamcommunity.com/sharedfiles/filedetails/?id=3784515578),
 which keeps itself updated.
 
 **Dedicated servers need the jar instead.** The mod is not clientside, so a server has to load it too, and a
