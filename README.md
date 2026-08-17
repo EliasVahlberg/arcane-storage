@@ -43,6 +43,23 @@ The interface deliberately follows the conventions of Terraria's
 [Magic Storage](https://github.com/blushiemagic/MagicStorage). Many Necesse players come from Terraria, and
 reusing a layout they already know beats inventing a new one.
 
+## Installing
+
+Most players want the [Steam Workshop item](https://steamcommunity.com/sharedfiles/filedetails/?id=3784511362),
+which keeps itself updated.
+
+**Dedicated servers need the jar instead.** The mod is not clientside, so a server has to load it too, and a
+headless box usually has no Steam client to subscribe with. Take the jar from
+[Releases](https://github.com/EliasVahlberg/arcane-storage/releases) and drop it in the server's mods folder:
+
+| Platform | Folder |
+|---|---|
+| Linux | `~/.config/Necesse/mods` |
+| Windows | `%APPDATA%\Necesse\mods` |
+
+Create the folder if it is not there. Every client connecting must run the same version, since a mismatch is a
+mod-version disagreement rather than something either side can paper over.
+
 ## Building
 
 Requires JDK 17 and a local Necesse installation. The build reads both from `gradle.properties`, which is
@@ -64,7 +81,7 @@ hang; run it in preference to `./gradlew` directly.
 ## Tests
 
 ```bash
-make test           # 58 JUnit tests: network traversal, and the release conventions
+make test           # 59 JUnit tests: network traversal, and the release conventions
 make pytest         # 275 scenarios against a real headless dedicated server
 ```
 
