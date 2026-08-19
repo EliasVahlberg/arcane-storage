@@ -1,0 +1,187 @@
+// Arcane Storage -- ja.lang
+//
+// Translate the text after each '='. Two rules that matter more than the wording:
+//
+//   1. Keep every <placeholder> exactly as written. They are substituted at runtime, so a
+//      dropped one silently loses the number or name it was standing in for.
+//   2. Do not rename or add keys. A key not in en.lang is read by nothing.
+//
+// Lines left in English are harmless: the game falls back to English per key anyway. Run
+// `tools/locale.py check` to see what is still untranslated.
+
+[object]
+arcanestorageterminal=ストレージターミナル
+arcanestorageunit=ストレージユニット
+arcanestorageunitdemonic=魔石のストレージユニット
+arcanestorageunittungsten=タングステンのストレージユニット
+arcanestorageunitfallen=深淵のストレージユニット
+arcanestoragestationunit=ステーションユニット
+arcanestoragestationunitdemonic=魔石のステーションユニット
+arcanestoragestationunittungsten=タングステンのステーションユニット
+arcanestoragestationunitfallen=深淵のステーションユニット
+arcanestorageconduit=ストレージ導管
+arcanestorageimportbus=アルケインインポートバス
+arcanestorageexportbus=アルケインエクスポートバス
+arcanestoragewirelesstransceiver=魔石のワイヤレストランシーバー
+arcanestoragewirelesstransceivertungsten=タングステンのワイヤレストランシーバー
+arcanestoragewirelesstransceiverfallen=深淵のワイヤレストランシーバー
+arcanestoragebasestation=魔石のアルケインベースステーション
+arcanestoragebasestationtungsten=タングステンのアルケインベースステーション
+arcanestoragebasestationfallen=深淵のアルケインベースステーション
+arcanestorageaccesspoint=アルケインアクセスポイント
+
+[item]
+arcanestoragewirelessterminal=魔石のワイヤレスターミナル
+arcanestoragewirelessterminaltungsten=タングステンのワイヤレスターミナル
+arcanestoragewirelessterminalfallen=深淵のワイヤレスターミナル
+
+[ui]
+arcanestorage_unittip=ストレージターミナルからアクセス
+arcanestorage_stationunittip=ストレージターミナルから作業台を設置
+arcanestorage_conduittip=ストレージネットワークを延長する
+arcanestorage_importbustip=隣のコンテナからネットワークに取り込む
+arcanestorage_exportbustip=ネットワークから隣のコンテナに送り出す
+arcanestorage_bus_nocontainer=このバスの隣にコンテナがありません。
+arcanestorage_bus_nonetwork=ストレージネットワークに接続されていません。
+arcanestorage_problems=<count>件停止中 - ロジスティクスを確認
+arcanestorage_tab_logistics=ロジスティクス
+arcanestorage_tab_settings=設定
+arcanestorage_no_issues=全デバイス正常稼働中。
+arcanestorage_stopped_count=<count>件停止中。ホバーで理由を表示。
+arcanestorage_copy_issues=コピー
+arcanestorage_copy_issues_tip=停止理由をすべてコピー
+arcanestorage_pick_device=デバイスを選択してルールを編集。
+arcanestorage_fetching_rules=ルール読み込み中...
+arcanestorage_apply=適用
+arcanestorage_rules_gone=そのバスはネットワークから離脱しました。
+arcanestorage_unapplied=未適用の変更あり
+arcanestorage_refused=適用不可: <x>,<y>のバスが既にこの場所で<item>を処理中。
+arcanestorage_state_churn=停止: <item>が安定しない - 外部で取り消されています。
+arcanestorage_state_conflict=停止: <x>,<y>の<other>がこのコンテナを共有し、<item>を取り消しています。
+arcanestorage_importbusname=インポートバス #<n>
+arcanestorage_exportbusname=エクスポートバス #<n>
+arcanestorage_importbuslimit=ネットワーク目標数（アイテムごと）
+arcanestorage_exportbuslimit=ネットワーク保持数（アイテムごと）
+arcanestorage_buslimithint=制限なし
+arcanestorage_importbusrule=チェックしたアイテムをネットワークがこの数量に達するまで取り込みます。
+arcanestorage_exportbusrule=チェックしたアイテムをネットワークにこの数量を残して送り出します。
+arcanestorage_unitstatus=<used>/<total>スロット使用中
+arcanestorage_upgrade=アップグレード
+arcanestorage_upgradecost=費用
+arcanestorage_attoptier=最高ティアに到達済み
+arcanestorage_emptyunit=ネットワークに排出
+arcanestorage_emptyunittip=このユニットの中身をネットワークの他の部分に移動し、回収可能にする
+arcanestorage_emptied=<moved>個のアイテムをネットワークに移動しました
+arcanestorage_emptiedpartial=<moved>個を移動。<left>個は入りきらず、ユニットに残っています
+arcanestorage_emptynoroom=ネットワークの残りが満杯のため、移動できませんでした
+arcanestorage_emptynoothers=ネットワーク上にこのユニットしかないため、移動先がありません
+arcanestorage_stations_none=ネットワークにステーションユニットを設置して作業台を追加してください。
+arcanestorage_capacity=<used> / <total> スロット
+arcanestorage_capacity_tip=ネットワーク全体の使用スロット数
+arcanestorage_summary=<kinds>種類、<items>個のアイテム
+arcanestorage_summary_filtered=<available>種類中<kinds>種類、<items>個のアイテム
+arcanestorage_no_recipes=レシピがありません。作業台を設置してください。
+arcanestorage_no_recipes_shown=一致なし。検索をクリアするか、<filter>のチェックを外してください。
+arcanestorage_depositall=すべて預ける
+arcanestorage_depositalltip=ロックされたスロット以外のすべてを預ける
+arcanestorage_quickstacktip=ネットワークに補充する
+arcanestorage_restocktip=ネットワークから補充する
+arcanestorage_category_all=すべてのアイテム
+arcanestorage_category_everything=すべての<category>
+arcanestorage_sorttip=<mode>で並べ替え
+arcanestorage_sort_group=カテゴリ
+arcanestorage_sort_name=名前
+arcanestorage_sort_amount=数量
+arcanestorage_stacktip=表示: <mode>
+arcanestorage_stack_all=すべて
+arcanestorage_stack_stackable=スタック可能のみ
+arcanestorage_stack_single=スタック不可のみ
+arcanestorage_tab_storage=ストレージ
+arcanestorage_tab_crafting=作成
+arcanestorage_tab_stations=作業台
+arcanestorage_group_by_category=カテゴリで分類
+arcanestorage_wireless_unpaired=未ペアリング。ワイヤレストランシーバーに使用してください。
+arcanestorage_wireless_paired=<x>,<y>にペアリング済み
+arcanestorage_wireless_pairedto=<x>,<y>のトランシーバーにペアリング済み
+arcanestorage_wireless_alreadypaired=このトランシーバーに既にペアリング済みです。
+arcanestorage_wireless_gone=そのトランシーバーは存在しません。
+arcanestorage_wireless_pairtotransceiver=ワイヤレストランシーバーにペアリング。
+arcanestorage_wireless_toofar=トランシーバーが遠すぎます（<distance> > <limit>）
+arcanestorage_wireless_wronglevel=この階層からトランシーバーにアクセスできません。
+arcanestorage_wireless_upgrade=アクセスするには<what>をアップグレードしてください。
+arcanestorage_wireless_upgradeboth=両端
+arcanestorage_wireless_terminalname=ワイヤレスターミナル
+arcanestorage_wireless_transceivername=ワイヤレストランシーバー
+arcanestorage_wireless_tiermismatch=<tier>でペアリング済み - 低い方のティアが適用されます。
+arcanestorage_tier_demonic=魔石
+arcanestorage_tier_tungsten=タングステン
+arcanestorage_tier_fallen=深淵
+arcanestorage_transceivertip=ワイヤレスターミナルをペアリングする
+arcanestorage_transceiver_range=到達距離<range>タイル（この階層のみ）
+arcanestorage_transceiver_samelevel=この階層内ならどこでも到達
+arcanestorage_transceiver_anylevel=すべての階層に到達
+
+// 周波数バンド。バンドはプレイヤーがベースステーションから読み取り、アクセスポイントに入力する番号で識別されるため、
+// バンドに言及するメッセージではステーションの位置ではなくその番号を表示します。
+arcanestorage_basestationtip=遠距離のストレージをこのネットワークに接続する
+arcanestorage_accesspointtip=近くのストレージをバンドに参加させる
+arcanestorage_band_notransceiver=このネットワークにワイヤレストランシーバーが必要です
+arcanestorage_band_conflict=このネットワークに別のベースステーションがあります
+arcanestorage_band_notuned=バンド未選択
+arcanestorage_band_gone=バンド<band>は消失しました
+arcanestorage_band_down=バンド送信停止中
+arcanestorage_band_lostchannel=チャンネル消失
+arcanestorage_band_outofrange=バンド圏外
+arcanestorage_band_outofrangeshort=(圏外)
+arcanestorage_band_noband=該当バンドなし
+arcanestorage_band_nochannel=該当チャンネルなし
+arcanestorage_band_taken=チャンネル使用中
+arcanestorage_band_toofar=ベースステーションから遠すぎます
+arcanestorage_band_apname=バンド<band> ch<channel>
+arcanestorage_band_channels=<n>チャンネル
+arcanestorage_band_channelsused=<used>/<total>チャンネル使用中
+arcanestorage_band_rangetip=到達距離<range>タイル
+arcanestorage_band_title=バンド<band>
+arcanestorage_band_short=バンド<band>
+arcanestorage_band_stationhint=アクセスポイントをチャンネルに合わせてストレージを接続
+arcanestorage_band_transmitting=送信中
+arcanestorage_band_channel=チャンネル<n>
+arcanestorage_band_channelrow=チャンネル
+arcanestorage_band_band=バンド
+arcanestorage_band_available=空き
+arcanestorage_band_option=バンド<band>、<x>,<y> -- <distance>タイル
+arcanestorage_band_none=なし
+arcanestorage_band_inuse=(使用中)
+arcanestorage_band_tune=チューニング
+arcanestorage_band_disconnect=切断
+arcanestorage_band_connected=バンド<band>、チャンネル<channel>
+arcanestorage_devicename=名前
+arcanestorage_band_upgrade=ベースステーションをアップグレード
+arcanestorage_band_row=<n>. <name>
+arcanestorage_band_rowfree=<n>. 空き
+arcanestorage_band_pickchannel=チャンネルを選択して内容を確認
+arcanestorage_band_freehint=アクセスポイントをバンド<band>、チャンネル<n>に合わせる
+arcanestorage_band_where=<x>,<y> -- <distance>タイル先
+arcanestorage_theme_slate=アルケインスレート
+arcanestorage_theme_dark=アルケインダーク
+arcanestorage_theme_vanilla=デフォルト
+
+// 設定タブ。ゲーム本体の設定メニューはMODから拡張できないため、これらの設定はターミナル内にあります。
+arcanestorage_settings_presentation=外観
+arcanestorage_settings_themelabel=このMODのウィンドウの表示形式
+arcanestorage_settings_reopen=パネルは即座に変更されます。テキストとボタンはウィンドウを開き直すと反映されます。
+arcanestorage_settings_craftinghint=作成リストの分類オプションは作成タブのリスト横にあります。
+arcanestorage_settings_worldtitle=ワールドルール
+arcanestorage_settings_worldnote=これらは自分の設定ファイルから読み込まれた値で、閲覧のみです。シングルプレイではこれが有効値です。サーバーではサーバー側の設定が有効で、ここと異なる場合があります。
+arcanestorage_settings_reachdemonic=魔石のワイヤレス到達距離
+arcanestorage_settings_reachtungsten=タングステンのワイヤレス到達距離
+arcanestorage_settings_reachfallen=深淵のワイヤレス到達距離
+arcanestorage_settings_bandrange=アクセスポイント範囲
+arcanestorage_settings_channels=ティアごとのチャンネル数
+arcanestorage_settings_tiles=<n>タイル
+arcanestorage_settings_unlimited=この階層内、距離無制限
+arcanestorage_settings_anylevel=全階層、距離無制限
+arcanestorage_settings_filehint=設定ファイル: ゲーム設定フォルダ内の mods/elias.arcanestorage.cfg
+
+[itemcategory]
+arcanestorage=アルケインストレージ

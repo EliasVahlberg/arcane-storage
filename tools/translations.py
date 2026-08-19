@@ -118,18 +118,26 @@ def cmd_template(args) -> int:
         "",
     ]
 
+    # Carries en.lang's own '//' comments through too, not just its [category] headers and keys.
+    # This file has two of them documenting the frequency-band vocabulary and the settings tab,
+    # and every one of nine translation runs so far dropped them because this loop used to keep
+    # only what CATEGORY_LINE or KEY_LINE matched -- a blank-line-separated comment matches neither.
     category = None
     for raw in english.read_text(encoding="utf-8").splitlines():
         line = raw.rstrip()
-        cat = CATEGORY_LINE.match(line.strip())
+        stripped = line.strip()
+        cat = CATEGORY_LINE.match(stripped)
         if cat:
             if category is not None:
                 lines.append("")
             category = cat.group(1)
-            lines.append(line.strip())
+            lines.append(stripped)
             continue
-        if KEY_LINE.match(line.strip()):
-            lines.append(line.strip())
+        if KEY_LINE.match(stripped) or stripped.startswith("//"):
+            lines.append(stripped)
+        elif not stripped and lines and lines[-1].startswith("//"):
+            # A blank line ending a comment block, so the block does not run into the next key.
+            lines.append("")
 
     target.write_text("\n".join(lines) + "\n", encoding="utf-8")
     keys = len(parse(target))

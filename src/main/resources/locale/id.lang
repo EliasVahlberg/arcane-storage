@@ -1,0 +1,187 @@
+// Arcane Storage -- id.lang
+//
+// Translate the text after each '='. Two rules that matter more than the wording:
+//
+//   1. Keep every <placeholder> exactly as written. They are substituted at runtime, so a
+//      dropped one silently loses the number or name it was standing in for.
+//   2. Do not rename or add keys. A key not in en.lang is read by nothing.
+//
+// Lines left in English are harmless: the game falls back to English per key anyway. Run
+// `tools/locale.py check` to see what is still untranslated.
+
+[object]
+arcanestorageterminal=Terminal Penyimpanan
+arcanestorageunit=Unit Penyimpanan
+arcanestorageunitdemonic=Unit Penyimpanan Demonic
+arcanestorageunittungsten=Unit Penyimpanan Tungsten
+arcanestorageunitfallen=Unit Penyimpanan Jatuh
+arcanestoragestationunit=Unit Stasiun
+arcanestoragestationunitdemonic=Unit Stasiun Demonic
+arcanestoragestationunittungsten=Unit Stasiun Tungsten
+arcanestoragestationunitfallen=Unit Stasiun Jatuh
+arcanestorageconduit=Saluran Penyimpanan
+arcanestorageimportbus=Bus Impor Arcane
+arcanestorageexportbus=Bus Ekspor Arcane
+arcanestoragewirelesstransceiver=Transceiver Nirkabel Demonic
+arcanestoragewirelesstransceivertungsten=Transceiver Nirkabel Tungsten
+arcanestoragewirelesstransceiverfallen=Transceiver Nirkabel Jatuh
+arcanestoragebasestation=Stasiun Basis Arcane Demonic
+arcanestoragebasestationtungsten=Stasiun Basis Arcane Tungsten
+arcanestoragebasestationfallen=Stasiun Basis Arcane Jatuh
+arcanestorageaccesspoint=Titik Akses Arcane
+
+[item]
+arcanestoragewirelessterminal=Terminal Nirkabel Demonic
+arcanestoragewirelessterminaltungsten=Terminal Nirkabel Tungsten
+arcanestoragewirelessterminalfallen=Terminal Nirkabel Jatuh
+
+[ui]
+arcanestorage_unittip=Akses dengan Terminal Penyimpanan
+arcanestorage_stationunittip=Pasang stasiun dengan Terminal Penyimpanan
+arcanestorage_conduittip=Memperluas jaringan penyimpanan
+arcanestorage_importbustip=Mengisi jaringan dari kontainer di sampingnya
+arcanestorage_exportbustip=Mengosongkan jaringan ke kontainer di sampingnya
+arcanestorage_bus_nocontainer=Tidak ada kontainer di samping bus ini.
+arcanestorage_bus_nonetwork=Tidak terhubung ke jaringan penyimpanan.
+arcanestorage_problems=<count> berhenti - lihat Logistik
+arcanestorage_tab_logistics=Logistik
+arcanestorage_tab_settings=Pengaturan
+arcanestorage_no_issues=Semua perangkat berfungsi.
+arcanestorage_stopped_count=<count> berhenti. Arahkan kursor untuk alasannya.
+arcanestorage_copy_issues=Salin
+arcanestorage_copy_issues_tip=Salin semua alasan berhenti
+arcanestorage_pick_device=Pilih perangkat untuk mengatur aturannya.
+arcanestorage_fetching_rules=Membaca aturan...
+arcanestorage_apply=Terapkan
+arcanestorage_rules_gone=Bus tersebut sudah meninggalkan jaringan.
+arcanestorage_unapplied=Perubahan belum diterapkan
+arcanestorage_refused=Tidak diterapkan: bus di <x>,<y> sudah menangani <item> di sini.
+arcanestorage_state_churn=Berhenti: <item> tidak pernah stabil - sesuatu di luar membatalkannya.
+arcanestorage_state_conflict=Berhenti: <other> di <x>,<y> berbagi kontainer ini dan membatalkan <item>.
+arcanestorage_importbusname=Bus Impor #<n>
+arcanestorage_exportbusname=Bus Ekspor #<n>
+arcanestorage_importbuslimit=Isi jaringan hingga, per item
+arcanestorage_exportbuslimit=Simpan di jaringan, per item
+arcanestorage_buslimithint=Jumlah berapa pun
+arcanestorage_importbusrule=Menarik item yang dicentang sampai jaringan memiliki jumlah ini.
+arcanestorage_exportbusrule=Mendorong item yang dicentang keluar, menyimpan jumlah ini di jaringan.
+arcanestorage_unitstatus=<used>/<total> slot digunakan
+arcanestorage_upgrade=Tingkatkan
+arcanestorage_upgradecost=Biaya
+arcanestorage_attoptier=Sudah di tingkat tertinggi
+arcanestorage_emptyunit=Kosongkan ke jaringan
+arcanestorage_emptyunittip=Pindahkan semua isi unit ini ke jaringan lainnya, agar bisa diambil
+arcanestorage_emptied=Memindahkan <moved> item ke jaringan
+arcanestorage_emptiedpartial=Memindahkan <moved> item; <left> tidak muat dan masih ada di unit
+arcanestorage_emptynoroom=Jaringan lainnya penuh, tidak ada yang dipindahkan
+arcanestorage_emptynoothers=Ini satu-satunya unit penyimpanan di jaringan, tidak ada tempat untuk memindahkan isinya
+arcanestorage_stations_none=Letakkan Unit Stasiun di jaringan untuk menambahkan stasiun kerajinan.
+arcanestorage_capacity=<used> / <total> slot
+arcanestorage_capacity_tip=Slot yang digunakan di seluruh jaringan
+arcanestorage_summary=<kinds> jenis, <items> item
+arcanestorage_summary_filtered=<kinds> dari <available> jenis, <items> item
+arcanestorage_no_recipes=Tidak ada resep. Pasang stasiun kerajinan.
+arcanestorage_no_recipes_shown=Tidak ada yang cocok. Hapus pencarian, atau hilangkan centang <filter>.
+arcanestorage_depositall=Simpan semua
+arcanestorage_depositalltip=Simpan semuanya kecuali slot terkunci
+arcanestorage_quickstacktip=Tumpuk cepat ke jaringan
+arcanestorage_restocktip=Isi ulang dari jaringan
+arcanestorage_category_all=Semua item
+arcanestorage_category_everything=Semua <category>
+arcanestorage_sorttip=Urutkan berdasarkan <mode>
+arcanestorage_sort_group=grup
+arcanestorage_sort_name=nama
+arcanestorage_sort_amount=jumlah
+arcanestorage_stacktip=Menampilkan <mode>
+arcanestorage_stack_all=semuanya
+arcanestorage_stack_stackable=hanya item yang bisa ditumpuk
+arcanestorage_stack_single=hanya item yang tidak bisa ditumpuk
+arcanestorage_tab_storage=Penyimpanan
+arcanestorage_tab_crafting=Kerajinan
+arcanestorage_tab_stations=Stasiun
+arcanestorage_group_by_category=Kelompokkan berdasarkan kategori
+arcanestorage_wireless_unpaired=Belum dipasangkan. Gunakan pada Transceiver Nirkabel.
+arcanestorage_wireless_paired=Dipasangkan ke <x>,<y>
+arcanestorage_wireless_pairedto=Dipasangkan ke transceiver di <x>,<y>
+arcanestorage_wireless_alreadypaired=Sudah dipasangkan ke transceiver ini.
+arcanestorage_wireless_gone=Transceiver tersebut sudah tidak ada.
+arcanestorage_wireless_pairtotransceiver=Pasangkan ke Transceiver Nirkabel.
+arcanestorage_wireless_toofar=Transceiver terlalu jauh (<distance> > <limit>)
+arcanestorage_wireless_wronglevel=Transceiver tidak dapat diakses dari level ini.
+arcanestorage_wireless_upgrade=Tingkatkan <what> untuk mengakses.
+arcanestorage_wireless_upgradeboth=kedua sisi
+arcanestorage_wireless_terminalname=Terminal Nirkabel
+arcanestorage_wireless_transceivername=Transceiver Nirkabel
+arcanestorage_wireless_tiermismatch=Dipasangkan di tingkat <tier> - sisi terendah yang menentukan.
+arcanestorage_tier_demonic=Demonic
+arcanestorage_tier_tungsten=Tungsten
+arcanestorage_tier_fallen=Jatuh
+arcanestorage_transceivertip=Pasangkan Terminal Nirkabel ke sini
+arcanestorage_transceiver_range=Menjangkau <range> ubin, hanya level ini
+arcanestorage_transceiver_samelevel=Menjangkau mana saja di level ini
+arcanestorage_transceiver_anylevel=Menjangkau level mana pun
+
+// Band frekuensi. Band diberi nama dengan nomor yang dibaca pemain dari stasiun dan diketik ke titik akses,
+// jadi setiap pesan yang menyebut band menampilkan nomor itu alih-alih mendeskripsikan posisi stasiun.
+arcanestorage_basestationtip=Membawa penyimpanan jarak jauh ke jaringan ini
+arcanestorage_accesspointtip=Menghubungkan penyimpanan terdekat ke sebuah band
+arcanestorage_band_notransceiver=Butuh Transceiver Nirkabel di jaringan ini
+arcanestorage_band_conflict=Sudah ada Stasiun Basis lain di jaringan ini
+arcanestorage_band_notuned=Belum ada band yang dipilih
+arcanestorage_band_gone=Band <band> sudah tidak ada
+arcanestorage_band_down=Band tidak memancar
+arcanestorage_band_lostchannel=Kanal hilang
+arcanestorage_band_outofrange=Di luar jangkauan band
+arcanestorage_band_outofrangeshort=(di luar jangkauan)
+arcanestorage_band_noband=Band tidak ditemukan
+arcanestorage_band_nochannel=Kanal tidak ditemukan
+arcanestorage_band_taken=Kanal sudah dipakai
+arcanestorage_band_toofar=Terlalu jauh dari Stasiun Basis
+arcanestorage_band_apname=Band <band> kn <channel>
+arcanestorage_band_channels=<n> kanal
+arcanestorage_band_channelsused=<used>/<total> kanal digunakan
+arcanestorage_band_rangetip=Menjangkau <range> ubin
+arcanestorage_band_title=Band <band>
+arcanestorage_band_short=Band <band>
+arcanestorage_band_stationhint=Setel Titik Akses ke kanal untuk menghubungkan penyimpanannya
+arcanestorage_band_transmitting=Memancar
+arcanestorage_band_channel=Kanal <n>
+arcanestorage_band_channelrow=Kanal
+arcanestorage_band_band=Band
+arcanestorage_band_available=Tersedia
+arcanestorage_band_option=Band <band> di <x>,<y> -- <distance> ubin
+arcanestorage_band_none=Tidak ada
+arcanestorage_band_inuse=(sedang dipakai)
+arcanestorage_band_tune=Setel
+arcanestorage_band_disconnect=Putuskan
+arcanestorage_band_connected=Di band <band>, kanal <channel>
+arcanestorage_devicename=Nama
+arcanestorage_band_upgrade=Tingkatkan Stasiun Basis
+arcanestorage_band_row=<n>. <name>
+arcanestorage_band_rowfree=<n>. Tersedia
+arcanestorage_band_pickchannel=Pilih kanal untuk melihat isinya
+arcanestorage_band_freehint=Setel Titik Akses ke band <band>, kanal <n>
+arcanestorage_band_where=<x>,<y> -- <distance> ubin
+arcanestorage_theme_slate=Arcane Slate
+arcanestorage_theme_dark=Arcane Dark
+arcanestorage_theme_vanilla=Bawaan game
+
+// Tab pengaturan. Menu pengaturan game tidak bisa diperluas oleh mod, jadi ini disimpan di terminal.
+arcanestorage_settings_presentation=Tampilan
+arcanestorage_settings_themelabel=Gaya antarmuka untuk jendela mod ini
+arcanestorage_settings_reopen=Panel langsung berubah. Teks dan tombol menyesuaikan saat jendela dibuka kembali.
+arcanestorage_settings_craftinghint=Opsi pengelompokan daftar kerajinan ada di tab Kerajinan, di samping daftar.
+arcanestorage_settings_worldtitle=Aturan dunia
+arcanestorage_settings_worldnote=Ini dibaca dari file konfigurasi Anda sendiri, jadi ditampilkan bukan diedit. Di singleplayer ini adalah nilai yang berlaku. Di server, nilai yang berlaku adalah milik server tersebut, dan mungkin berbeda.
+arcanestorage_settings_reachdemonic=Jangkauan nirkabel Demonic
+arcanestorage_settings_reachtungsten=Jangkauan nirkabel Tungsten
+arcanestorage_settings_reachfallen=Jangkauan nirkabel Jatuh
+arcanestorage_settings_bandrange=Jangkauan Titik Akses
+arcanestorage_settings_channels=Kanal per tingkat
+arcanestorage_settings_tiles=<n> ubin
+arcanestorage_settings_unlimited=Level ini, jarak berapa pun
+arcanestorage_settings_anylevel=Level mana pun, jarak berapa pun
+arcanestorage_settings_filehint=File konfigurasi: mods/elias.arcanestorage.cfg di folder pengaturan game.
+
+[itemcategory]
+arcanestorage=Arcane Storage

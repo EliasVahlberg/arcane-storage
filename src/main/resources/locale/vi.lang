@@ -1,0 +1,188 @@
+// Arcane Storage -- vi.lang
+//
+// Translate the text after each '='. Two rules that matter more than the wording:
+//
+//   1. Keep every <placeholder> exactly as written. They are substituted at runtime, so a
+//      dropped one silently loses the number or name it was standing in for.
+//   2. Do not rename or add keys. A key not in en.lang is read by nothing.
+//
+// Lines left in English are harmless: the game falls back to English per key anyway. Run
+// `tools/locale.py check` to see what is still untranslated.
+
+[object]
+arcanestorageterminal=Bàn Kho Huyền Bí
+arcanestorageunit=Kho Huyền Bí
+arcanestorageunitdemonic=Kho Huyền Bí Ma Quỷ
+arcanestorageunittungsten=Kho Huyền Bí Vonfram
+arcanestorageunitfallen=Kho Huyền Bí Sa Ngã
+arcanestoragestationunit=Kho Bàn Chế Tạo
+arcanestoragestationunitdemonic=Kho Bàn Chế Tạo Ma Quỷ
+arcanestoragestationunittungsten=Kho Bàn Chế Tạo Vonfram
+arcanestoragestationunitfallen=Kho Bàn Chế Tạo Sa Ngã
+arcanestorageconduit=Ống Dẫn Kho
+arcanestorageimportbus=Kênh Nhập Huyền Bí
+arcanestorageexportbus=Kênh Xuất Huyền Bí
+arcanestoragewirelesstransceiver=Bộ Thu Phát Không Dây Ma Quỷ
+arcanestoragewirelesstransceivertungsten=Bộ Thu Phát Không Dây Vonfram
+arcanestoragewirelesstransceiverfallen=Bộ Thu Phát Không Dây Sa Ngã
+arcanestoragebasestation=Trạm Phát Huyền Bí Ma Quỷ
+arcanestoragebasestationtungsten=Trạm Phát Huyền Bí Vonfram
+arcanestoragebasestationfallen=Trạm Phát Huyền Bí Sa Ngã
+arcanestorageaccesspoint=Điểm Truy Cập Huyền Bí
+
+[item]
+arcanestoragewirelessterminal=Bàn Không Dây Ma Quỷ
+arcanestoragewirelessterminaltungsten=Bàn Không Dây Vonfram
+arcanestoragewirelessterminalfallen=Bàn Không Dây Sa Ngã
+
+[ui]
+arcanestorage_unittip=Truy cập bằng Bàn Kho Huyền Bí
+arcanestorage_stationunittip=Lắp bàn chế tạo bằng Bàn Kho Huyền Bí
+arcanestorage_conduittip=Mở rộng mạng lưu trữ
+arcanestorage_importbustip=Nạp vào mạng từ kho lân cận
+arcanestorage_exportbustip=Đẩy ra khỏi mạng vào kho lân cận
+arcanestorage_bus_nocontainer=Không có kho nào bên cạnh.
+arcanestorage_bus_nonetwork=Không kết nối mạng lưu trữ.
+arcanestorage_problems=<count> bị dừng - xem Vận Hành
+arcanestorage_tab_logistics=Vận Hành
+arcanestorage_tab_settings=Cài đặt
+arcanestorage_no_issues=Tất cả thiết bị hoạt động bình thường.
+arcanestorage_stopped_count=<count> bị dừng. Di chuột để xem lý do.
+arcanestorage_copy_issues=Sao chép
+arcanestorage_copy_issues_tip=Sao chép tất cả lý do dừng
+arcanestorage_pick_device=Chọn thiết bị để chỉnh luật.
+arcanestorage_fetching_rules=Đang đọc luật...
+arcanestorage_apply=Áp dụng
+arcanestorage_rules_gone=Kênh đó đã rời khỏi mạng.
+arcanestorage_unapplied=Chưa áp dụng thay đổi
+arcanestorage_refused=Không áp dụng: kênh tại <x>,<y> đã xử lý <item> ở đây.
+arcanestorage_state_churn=Dừng: <item> không ổn định - bên ngoài hoàn tác.
+arcanestorage_state_conflict=Dừng: <other> tại <x>,<y> dùng chung kho và hoàn tác <item>.
+arcanestorage_importbusname=Kênh Nhập #<n>
+arcanestorage_exportbusname=Kênh Xuất #<n>
+arcanestorage_importbuslimit=Nạp mạng đến, mỗi vật phẩm
+arcanestorage_exportbuslimit=Giữ trong mạng, mỗi vật phẩm
+arcanestorage_buslimithint=Không giới hạn
+arcanestorage_importbusrule=Kéo vật phẩm đã chọn vào cho đến khi mạng đạt số lượng này.
+arcanestorage_exportbusrule=Đẩy vật phẩm đã chọn ra, giữ lại số lượng này trong mạng.
+arcanestorage_unitstatus=<used>/<total> ô đã dùng
+arcanestorage_upgrade=Nâng cấp
+arcanestorage_upgradecost=Chi phí
+arcanestorage_attoptier=Đã ở bậc cao nhất
+arcanestorage_emptyunit=Chuyển hết vào mạng
+arcanestorage_emptyunittip=Chuyển toàn bộ trong kho này sang phần còn lại của mạng để có thể nhặt lại
+arcanestorage_emptied=Đã chuyển <moved> vật phẩm vào mạng
+arcanestorage_emptiedpartial=Đã chuyển <moved> vật phẩm; <left> không vừa và vẫn nằm trong kho
+arcanestorage_emptynoroom=Phần còn lại của mạng đã đầy, không chuyển được gì
+arcanestorage_emptynoothers=Đây là kho duy nhất trên mạng, không có chỗ để chuyển
+arcanestorage_stations_none=Đặt một Kho Bàn Chế Tạo trên mạng để thêm bàn chế tạo.
+arcanestorage_capacity=<used> / <total> ô
+arcanestorage_capacity_tip=Ô đã dùng trên toàn mạng
+arcanestorage_summary=<kinds> loại, <items> vật phẩm
+arcanestorage_summary_filtered=<kinds> trong <available> loại, <items> vật phẩm
+arcanestorage_no_recipes=Không có công thức. Hãy lắp một bàn chế tạo.
+arcanestorage_no_recipes_shown=Không khớp. Xóa ô tìm kiếm, hoặc bỏ chọn <filter>.
+arcanestorage_depositall=Gửi hết
+arcanestorage_depositalltip=Gửi tất cả trừ ô đã khóa
+arcanestorage_quickstacktip=Xếp chồng nhanh vào mạng
+arcanestorage_restocktip=Bổ sung từ mạng
+arcanestorage_category_all=Tất cả vật phẩm
+arcanestorage_category_everything=Tất cả <category>
+arcanestorage_sorttip=Sắp xếp theo <mode>
+arcanestorage_sort_group=nhóm
+arcanestorage_sort_name=tên
+arcanestorage_sort_amount=số lượng
+arcanestorage_stacktip=Đang hiển thị <mode>
+arcanestorage_stack_all=tất cả
+arcanestorage_stack_stackable=chỉ vật phẩm xếp chồng được
+arcanestorage_stack_single=chỉ vật phẩm không xếp chồng
+arcanestorage_tab_storage=Kho
+arcanestorage_tab_crafting=Chế Tạo
+arcanestorage_tab_stations=Bàn Chế Tạo
+arcanestorage_group_by_category=Nhóm theo danh mục
+arcanestorage_wireless_unpaired=Chưa ghép nối. Dùng lên Bộ Thu Phát Không Dây.
+arcanestorage_wireless_paired=Ghép nối tại <x>,<y>
+arcanestorage_wireless_pairedto=Đã ghép nối với bộ thu phát tại <x>,<y>
+arcanestorage_wireless_alreadypaired=Đã ghép nối với bộ thu phát này rồi.
+arcanestorage_wireless_gone=Bộ thu phát đó đã biến mất.
+arcanestorage_wireless_pairtotransceiver=Ghép nối với một Bộ Thu Phát Không Dây.
+arcanestorage_wireless_toofar=Bộ thu phát quá xa (<distance> > <limit>)
+arcanestorage_wireless_wronglevel=Không thể truy cập bộ thu phát từ tầng này.
+arcanestorage_wireless_upgrade=Nâng cấp <what> để truy cập.
+arcanestorage_wireless_upgradeboth=cả hai đầu
+arcanestorage_wireless_terminalname=Bàn Không Dây
+arcanestorage_wireless_transceivername=Bộ Thu Phát Không Dây
+arcanestorage_wireless_tiermismatch=Ghép nối ở bậc <tier> - đầu thấp hơn quyết định.
+arcanestorage_tier_demonic=Ma Quỷ
+arcanestorage_tier_tungsten=Vonfram
+arcanestorage_tier_fallen=Sa Ngã
+arcanestorage_transceivertip=Ghép nối Bàn Không Dây với nó
+arcanestorage_transceiver_range=Tầm <range> ô, chỉ tầng này
+arcanestorage_transceiver_samelevel=Tầm bất kỳ trên tầng này
+arcanestorage_transceiver_anylevel=Tầm bất kỳ tầng nào
+
+// Băng tần. Băng tần được đặt tên bằng số mà người chơi đọc từ trạm phát và nhập vào điểm truy cập,
+// nên mọi thông báo liên quan đều hiển thị số đó thay vì mô tả vị trí của trạm.
+arcanestorage_basestationtip=Đưa kho ở xa vào mạng này
+arcanestorage_accesspointtip=Kết nối kho lân cận vào một băng tần
+arcanestorage_band_notransceiver=Cần một Bộ Thu Phát Không Dây trên mạng này
+arcanestorage_band_conflict=Đã có Trạm Phát khác trên mạng này
+arcanestorage_band_notuned=Chưa chọn băng tần
+arcanestorage_band_gone=Băng tần <band> đã mất
+arcanestorage_band_down=Băng tần không phát
+arcanestorage_band_lostchannel=Mất kênh
+arcanestorage_band_outofrange=Ngoài tầm băng tần
+arcanestorage_band_outofrangeshort=(ngoài tầm)
+arcanestorage_band_noband=Không có băng tần đó
+arcanestorage_band_nochannel=Không có kênh đó
+arcanestorage_band_taken=Kênh đã dùng
+arcanestorage_band_toofar=Quá xa Trạm Phát
+arcanestorage_band_apname=Băng <band> kênh <channel>
+arcanestorage_band_channels=<n> kênh
+arcanestorage_band_channelsused=<used>/<total> kênh đã dùng
+arcanestorage_band_rangetip=Tầm <range> ô
+arcanestorage_band_title=Băng tần <band>
+arcanestorage_band_short=Băng <band>
+arcanestorage_band_stationhint=Chỉnh một Điểm Truy Cập vào kênh để kết nối kho của nó
+arcanestorage_band_transmitting=Đang phát
+arcanestorage_band_channel=Kênh <n>
+arcanestorage_band_channelrow=Kênh
+arcanestorage_band_band=Băng tần
+arcanestorage_band_available=Khả dụng
+arcanestorage_band_option=Băng <band> tại <x>,<y> -- <distance> ô
+arcanestorage_band_none=Không có
+arcanestorage_band_inuse=(đang dùng)
+arcanestorage_band_tune=Chỉnh
+arcanestorage_band_disconnect=Ngắt kết nối
+arcanestorage_band_connected=Trên băng <band>, kênh <channel>
+arcanestorage_devicename=Tên
+arcanestorage_band_upgrade=Nâng cấp Trạm Phát
+arcanestorage_band_row=<n>. <name>
+arcanestorage_band_rowfree=<n>. Khả dụng
+arcanestorage_band_pickchannel=Chọn kênh để xem có gì trên đó
+arcanestorage_band_freehint=Chỉnh Điểm Truy Cập vào băng <band>, kênh <n>
+arcanestorage_band_where=<x>,<y> -- <distance> ô
+
+arcanestorage_theme_slate=Phiến Đá Huyền Bí
+arcanestorage_theme_dark=Huyền Bí Tối
+arcanestorage_theme_vanilla=Mặc định
+
+// Tab cài đặt. Menu cài đặt của game không thể mở rộng bởi mod, nên các tùy chọn này nằm trong bàn kho.
+arcanestorage_settings_presentation=Giao diện
+arcanestorage_settings_themelabel=Phong cách giao diện cho cửa sổ của mod này
+arcanestorage_settings_reopen=Bảng thay đổi ngay. Chữ và nút sẽ cập nhật khi mở lại cửa sổ.
+arcanestorage_settings_craftinghint=Tùy chọn nhóm danh sách chế tạo nằm trên tab Chế Tạo, bên cạnh danh sách.
+arcanestorage_settings_worldtitle=Quy tắc thế giới
+arcanestorage_settings_worldnote=Các giá trị này được đọc từ tệp cấu hình của bạn, nên chỉ hiển thị chứ không chỉnh sửa được. Trong chế độ một người, đây là giá trị đang áp dụng. Trên máy chủ, giá trị áp dụng là của máy chủ đó và có thể khác.
+arcanestorage_settings_reachdemonic=Tầm không dây Ma Quỷ
+arcanestorage_settings_reachtungsten=Tầm không dây Vonfram
+arcanestorage_settings_reachfallen=Tầm không dây Sa Ngã
+arcanestorage_settings_bandrange=Tầm Điểm Truy Cập
+arcanestorage_settings_channels=Kênh mỗi bậc
+arcanestorage_settings_tiles=<n> ô
+arcanestorage_settings_unlimited=Tầng này, bất kỳ khoảng cách
+arcanestorage_settings_anylevel=Bất kỳ tầng, bất kỳ khoảng cách
+arcanestorage_settings_filehint=Tệp cấu hình: mods/elias.arcanestorage.cfg trong thư mục cài đặt game.
+
+[itemcategory]
+arcanestorage=Kho Huyền Bí

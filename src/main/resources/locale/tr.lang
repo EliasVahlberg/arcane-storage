@@ -1,0 +1,187 @@
+// Arcane Storage -- tr.lang
+//
+// Translate the text after each '='. Two rules that matter more than the wording:
+//
+//   1. Keep every <placeholder> exactly as written. They are substituted at runtime, so a
+//      dropped one silently loses the number or name it was standing in for.
+//   2. Do not rename or add keys. A key not in en.lang is read by nothing.
+//
+// Lines left in English are harmless: the game falls back to English per key anyway. Run
+// `tools/locale.py check` to see what is still untranslated.
+
+[object]
+arcanestorageterminal=Depolama Terminali
+arcanestorageunit=Depolama Birimi
+arcanestorageunitdemonic=Şeytani Depolama Birimi
+arcanestorageunittungsten=Tungsten Depolama Birimi
+arcanestorageunitfallen=Günahkar Depolama Birimi
+arcanestoragestationunit=Tezgah Birimi
+arcanestoragestationunitdemonic=Şeytani Tezgah Birimi
+arcanestoragestationunittungsten=Tungsten Tezgah Birimi
+arcanestoragestationunitfallen=Günahkar Tezgah Birimi
+arcanestorageconduit=Depolama Kanalı
+arcanestorageimportbus=Gizemli İçe Aktarma Hattı
+arcanestorageexportbus=Gizemli Dışa Aktarma Hattı
+arcanestoragewirelesstransceiver=Şeytani Kablosuz Alıcı-Verici
+arcanestoragewirelesstransceivertungsten=Tungsten Kablosuz Alıcı-Verici
+arcanestoragewirelesstransceiverfallen=Günahkar Kablosuz Alıcı-Verici
+arcanestoragebasestation=Şeytani Gizemli Baz İstasyonu
+arcanestoragebasestationtungsten=Tungsten Gizemli Baz İstasyonu
+arcanestoragebasestationfallen=Günahkar Gizemli Baz İstasyonu
+arcanestorageaccesspoint=Gizemli Erişim Noktası
+
+[item]
+arcanestoragewirelessterminal=Şeytani Kablosuz Terminal
+arcanestoragewirelessterminaltungsten=Tungsten Kablosuz Terminal
+arcanestoragewirelessterminalfallen=Günahkar Kablosuz Terminal
+
+[ui]
+arcanestorage_unittip=Depolama Terminali ile erişilir
+arcanestorage_stationunittip=Depolama Terminali ile tezgah eklenir
+arcanestorage_conduittip=Depolama ağını genişletir
+arcanestorage_importbustip=Yanındaki sandıktan ağı doldurur
+arcanestorage_exportbustip=Ağı yanındaki sandığa boşaltır
+arcanestorage_bus_nocontainer=Bu hattın yanında sandık yok.
+arcanestorage_bus_nonetwork=Bir depolama ağına bağlı değil.
+arcanestorage_problems=<count> durdu - Lojistik'e bakın
+arcanestorage_tab_logistics=Lojistik
+arcanestorage_tab_settings=Ayarlar
+arcanestorage_no_issues=Tüm cihazlar çalışıyor.
+arcanestorage_stopped_count=<count> durdu. Sebebi görmek için üzerine gelin.
+arcanestorage_copy_issues=Kopyala
+arcanestorage_copy_issues_tip=Tüm durma nedenlerini kopyala
+arcanestorage_pick_device=Kurallarını düzenlemek için bir cihaz seçin.
+arcanestorage_fetching_rules=Kurallar okunuyor...
+arcanestorage_apply=Uygula
+arcanestorage_rules_gone=Bu hat artık ağda değil.
+arcanestorage_unapplied=Uygulanmamış değişiklikler
+arcanestorage_refused=Uygulanmadı: <x>,<y> konumundaki hat zaten burada <item> işliyor.
+arcanestorage_state_churn=Durdu: <item> hiç sabitlenmiyor - dışarıdan bir şey geri alıyor.
+arcanestorage_state_conflict=Durdu: <x>,<y> konumundaki <other> aynı sandığı paylaşıyor ve <item> işlemini geri alıyor.
+arcanestorage_importbusname=İçe Aktarma Hattı #<n>
+arcanestorage_exportbusname=Dışa Aktarma Hattı #<n>
+arcanestorage_importbuslimit=Eşya başına ağda tutulacak miktar
+arcanestorage_exportbuslimit=Eşya başına ağda kalacak miktar
+arcanestorage_buslimithint=Sınırsız
+arcanestorage_importbusrule=İşaretli eşyaları ağda bu miktara ulaşana dek çeker.
+arcanestorage_exportbusrule=İşaretli eşyaları dışarı iter, bu miktarı ağda tutar.
+arcanestorage_unitstatus=<used>/<total> yuva kullanılıyor
+arcanestorage_upgrade=Yükselt
+arcanestorage_upgradecost=Maliyet
+arcanestorage_attoptier=Zaten en yüksek seviyede
+arcanestorage_emptyunit=Ağa boşalt
+arcanestorage_emptyunittip=Bu birimdeki her şeyi ağın geri kalanına taşır, böylece birim alınabilir
+arcanestorage_emptied=<moved> eşya ağa taşındı
+arcanestorage_emptiedpartial=<moved> eşya taşındı; <left> sığmadığı için birimde kaldı
+arcanestorage_emptynoroom=Ağın geri kalanı dolu, hiçbir şey taşınamadı
+arcanestorage_emptynoothers=Ağda tek depolama birimi bu, içindekilerin taşınacağı bir yer yok
+arcanestorage_stations_none=Üretim tezgahı eklemek için ağa bir Tezgah Birimi yerleştirin.
+arcanestorage_capacity=<used> / <total> yuva
+arcanestorage_capacity_tip=Ağ genelinde kullanılan yuvalar
+arcanestorage_summary=<kinds> çeşit, <items> eşya
+arcanestorage_summary_filtered=<available> çeşitten <kinds> tanesi, <items> eşya
+arcanestorage_no_recipes=Tarif yok. Bir üretim tezgahı kurun.
+arcanestorage_no_recipes_shown=Eşleşen yok. Aramayı temizleyin veya <filter> işaretini kaldırın.
+arcanestorage_depositall=Tümünü depola
+arcanestorage_depositalltip=Kilitli yuvalar hariç her şeyi depola
+arcanestorage_quickstacktip=Ağa hızlı stokla
+arcanestorage_restocktip=Ağdan stokla
+arcanestorage_category_all=Tüm eşyalar
+arcanestorage_category_everything=Tüm <category>
+arcanestorage_sorttip=Sıralama: <mode>
+arcanestorage_sort_group=grup
+arcanestorage_sort_name=ad
+arcanestorage_sort_amount=miktar
+arcanestorage_stacktip=Gösterilen: <mode>
+arcanestorage_stack_all=her şey
+arcanestorage_stack_stackable=yalnızca yığılabilenler
+arcanestorage_stack_single=yalnızca yığılamayanlar
+arcanestorage_tab_storage=Depolama
+arcanestorage_tab_crafting=Üretim
+arcanestorage_tab_stations=Tezgahlar
+arcanestorage_group_by_category=Kategoriye göre grupla
+arcanestorage_wireless_unpaired=Eşleştirilmedi. Bir Kablosuz Alıcı-Verici üzerinde kullanın.
+arcanestorage_wireless_paired=<x>,<y> ile eşleşti
+arcanestorage_wireless_pairedto=<x>,<y> konumundaki alıcı-verici ile eşleşti
+arcanestorage_wireless_alreadypaired=Bu alıcı-verici ile zaten eşleşmiş.
+arcanestorage_wireless_gone=O alıcı-verici artık yok.
+arcanestorage_wireless_pairtotransceiver=Bir Kablosuz Alıcı-Verici ile eşleştirin.
+arcanestorage_wireless_toofar=Alıcı-verici çok uzakta (<distance> > <limit>)
+arcanestorage_wireless_wronglevel=Alıcı-vericiye bu seviyeden erişilemiyor.
+arcanestorage_wireless_upgrade=Erişim için <what> yükseltin.
+arcanestorage_wireless_upgradeboth=her iki ucu da
+arcanestorage_wireless_terminalname=Kablosuz Terminal
+arcanestorage_wireless_transceivername=Kablosuz Alıcı-Verici
+arcanestorage_wireless_tiermismatch=<tier> seviyesinde eşleşti - düşük uç belirler.
+arcanestorage_tier_demonic=Şeytani
+arcanestorage_tier_tungsten=Tungsten
+arcanestorage_tier_fallen=Günahkar
+arcanestorage_transceivertip=Bir Kablosuz Terminal ile eşleştirin
+arcanestorage_transceiver_range=<range> karo menzil, yalnızca bu seviye
+arcanestorage_transceiver_samelevel=Bu seviyede her yere ulaşır
+arcanestorage_transceiver_anylevel=Her seviyeye ulaşır
+
+// Frekans bandı. Band, oyuncunun istasyondan okuduğu ve erişim noktasına girdiği bir numarayla tanımlanır,
+// dolayısıyla banddan bahseden her mesaj istasyonun konumunu değil bu numarayı gösterir.
+arcanestorage_basestationtip=Uzak depolamayı bu ağa taşır
+arcanestorage_accesspointtip=Yakındaki depolamayı bir banda bağlar
+arcanestorage_band_notransceiver=Bu ağda bir Kablosuz Alıcı-Verici gerekli
+arcanestorage_band_conflict=Bu ağda başka bir Baz İstasyonu var
+arcanestorage_band_notuned=Band seçilmedi
+arcanestorage_band_gone=Band <band> kayboldu
+arcanestorage_band_down=Band yayın yapmıyor
+arcanestorage_band_lostchannel=Kanal bağlantısı kesildi
+arcanestorage_band_outofrange=Band menzili dışında
+arcanestorage_band_outofrangeshort=(menzil dışı)
+arcanestorage_band_noband=Böyle bir band yok
+arcanestorage_band_nochannel=Böyle bir kanal yok
+arcanestorage_band_taken=Kanal dolu
+arcanestorage_band_toofar=Baz İstasyonuna çok uzak
+arcanestorage_band_apname=Band <band> kn <channel>
+arcanestorage_band_channels=<n> kanal
+arcanestorage_band_channelsused=<used>/<total> kanal kullanılıyor
+arcanestorage_band_rangetip=<range> karo menzil
+arcanestorage_band_title=Band <band>
+arcanestorage_band_short=Band <band>
+arcanestorage_band_stationhint=Depolamayı bağlamak için bir Erişim Noktasını kanala ayarlayın
+arcanestorage_band_transmitting=Yayında
+arcanestorage_band_channel=Kanal <n>
+arcanestorage_band_channelrow=Kanal
+arcanestorage_band_band=Band
+arcanestorage_band_available=Uygun
+arcanestorage_band_option=Band <band>, <x>,<y> -- <distance> karo
+arcanestorage_band_none=Hiçbiri
+arcanestorage_band_inuse=(kullanılıyor)
+arcanestorage_band_tune=Ayarla
+arcanestorage_band_disconnect=Bağlantıyı kes
+arcanestorage_band_connected=Band <band>, kanal <channel>
+arcanestorage_devicename=Ad
+arcanestorage_band_upgrade=Baz İstasyonunu yükseltin
+arcanestorage_band_row=<n>. <name>
+arcanestorage_band_rowfree=<n>. Uygun
+arcanestorage_band_pickchannel=Üzerinde ne olduğunu görmek için bir kanal seçin
+arcanestorage_band_freehint=Bir Erişim Noktasını band <band>, kanal <n> olarak ayarlayın
+arcanestorage_band_where=<x>,<y> -- <distance> karo uzaklıkta
+arcanestorage_theme_slate=Gizemli Arduvaz
+arcanestorage_theme_dark=Gizemli Koyu
+arcanestorage_theme_vanilla=Oyun varsayılanı
+
+// Ayarlar sekmesi. Oyunun kendi ayarlar menüsü modlar tarafından genişletilemez, bu yüzden bunlar terminalde yer alır.
+arcanestorage_settings_presentation=Görünüm
+arcanestorage_settings_themelabel=Bu modun pencereleri için arayüz tasarımı
+arcanestorage_settings_reopen=Paneller anında değişir. Metin ve düğmeler pencere yeniden açıldığında güncellenir.
+arcanestorage_settings_craftinghint=Üretim listesinin gruplama seçeneği Üretim sekmesinde, listenin yanındadır.
+arcanestorage_settings_worldtitle=Dünya kuralları
+arcanestorage_settings_worldnote=Bunlar kendi ayar dosyanızdan okunur, bu yüzden düzenlenmek yerine gösterilir. Tek oyuncuda geçerli değerlerdir. Sunucuda geçerli değerler o sunucununkidir ve bunlardan farklı olabilir.
+arcanestorage_settings_reachdemonic=Şeytani kablosuz menzil
+arcanestorage_settings_reachtungsten=Tungsten kablosuz menzil
+arcanestorage_settings_reachfallen=Günahkar kablosuz menzil
+arcanestorage_settings_bandrange=Erişim Noktası menzili
+arcanestorage_settings_channels=Seviye başına kanal sayısı
+arcanestorage_settings_tiles=<n> karo
+arcanestorage_settings_unlimited=Bu seviye, sınırsız mesafe
+arcanestorage_settings_anylevel=Her seviye, sınırsız mesafe
+arcanestorage_settings_filehint=Ayar dosyası: oyunun ayarlar klasöründe mods/elias.arcanestorage.cfg.
+
+[itemcategory]
+arcanestorage=Gizemli Depolama
