@@ -85,6 +85,10 @@ and it comes from `CHANGELOG.md` so the two cannot drift.
 
 ---
 
+[h3]1.0.2[/h3]
+
+[b]Two crashes are fixed.[/b] Opening the Access Point's channel dropdown before picking a band could crash the game outright — any dropdown with nothing in it could, this was just the one a player hit first. And the storage terminal's crafting tab, grouped by category, could crash if another installed mod shipped a craftable recipe for an item it never gave a crafting category — the terminal now falls back to a general category instead of crashing.
+
 [h3]1.0.1[/h3]
 
 [b]The Settings tab no longer understates Fallen wireless reach.[/b] The Fallen row read "Whole level", exactly as the Tungsten row did, so the upgrade looked as though it bought nothing. Fallen also reaches other levels, which no tile count can express. The reach itself was always correct, only the row describing it was wrong. The two rows now read "This level, any distance" and "Any level, any distance".

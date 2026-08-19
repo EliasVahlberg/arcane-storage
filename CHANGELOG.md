@@ -5,6 +5,14 @@ the GitHub release notes are both taken from here, so they cannot disagree.
 
 Dates are release dates. Anything still unreleased sits under Unreleased until it ships.
 
+## 1.0.2
+
+**Two crashes are fixed.** Opening the Access Point's channel dropdown before picking a band could crash the
+game outright — any dropdown with nothing in it could, this was just the one a player hit first. And the
+storage terminal's crafting tab, grouped by category, could crash if another installed mod shipped a craftable
+recipe for an item it never gave a crafting category — the terminal now falls back to a general category
+instead of crashing.
+
 ## 1.0.1
 
 **The Settings tab no longer understates Fallen wireless reach.** The Fallen row read "Whole level", exactly as
