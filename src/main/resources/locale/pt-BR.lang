@@ -1,0 +1,187 @@
+// Arcane Storage -- pt-BR.lang
+//
+// Translate the text after each '='. Two rules that matter more than the wording:
+//
+//   1. Keep every <placeholder> exactly as written. They are substituted at runtime, so a
+//      dropped one silently loses the number or name it was standing in for.
+//   2. Do not rename or add keys. A key not in en.lang is read by nothing.
+//
+// Lines left in English are harmless: the game falls back to English per key anyway. Run
+// `tools/locale.py check` to see what is still untranslated.
+
+[object]
+arcanestorageterminal=Terminal de Armazenamento
+arcanestorageunit=Unidade de Armazenamento
+arcanestorageunitdemonic=Unidade de Armazenamento Demoníaca
+arcanestorageunittungsten=Unidade de Armazenamento de Tungstênio
+arcanestorageunitfallen=Unidade de Armazenamento Caída
+arcanestoragestationunit=Unidade de Estação
+arcanestoragestationunitdemonic=Unidade de Estação Demoníaca
+arcanestoragestationunittungsten=Unidade de Estação de Tungstênio
+arcanestoragestationunitfallen=Unidade de Estação Caída
+arcanestorageconduit=Conduíte de Armazenamento
+arcanestorageimportbus=Barramento de Importação Arcano
+arcanestorageexportbus=Barramento de Exportação Arcano
+arcanestoragewirelesstransceiver=Transceptor Sem Fio Demoníaco
+arcanestoragewirelesstransceivertungsten=Transceptor Sem Fio de Tungstênio
+arcanestoragewirelesstransceiverfallen=Transceptor Sem Fio Caído
+arcanestoragebasestation=Estação Base Arcana Demoníaca
+arcanestoragebasestationtungsten=Estação Base Arcana de Tungstênio
+arcanestoragebasestationfallen=Estação Base Arcana Caída
+arcanestorageaccesspoint=Ponto de Acesso Arcano
+
+[item]
+arcanestoragewirelessterminal=Terminal Sem Fio Demoníaco
+arcanestoragewirelessterminaltungsten=Terminal Sem Fio de Tungstênio
+arcanestoragewirelessterminalfallen=Terminal Sem Fio Caído
+
+[ui]
+arcanestorage_unittip=Acesse com um Terminal de Armazenamento
+arcanestorage_stationunittip=Instale estações com um Terminal de Armazenamento
+arcanestorage_conduittip=Estende uma rede de armazenamento
+arcanestorage_importbustip=Preenche a rede a partir do contêiner ao lado
+arcanestorage_exportbustip=Esvazia a rede para o contêiner ao lado
+arcanestorage_bus_nocontainer=Nenhum contêiner ao lado deste barramento.
+arcanestorage_bus_nonetwork=Não está conectado a uma rede de armazenamento.
+arcanestorage_problems=<count> parados - veja Logística
+arcanestorage_tab_logistics=Logística
+arcanestorage_tab_settings=Configurações
+arcanestorage_no_issues=Todos os dispositivos funcionando.
+arcanestorage_stopped_count=<count> parados. Passe o mouse para ver o motivo.
+arcanestorage_copy_issues=Copiar
+arcanestorage_copy_issues_tip=Copiar todos os motivos de parada
+arcanestorage_pick_device=Escolha um dispositivo para editar suas regras.
+arcanestorage_fetching_rules=Lendo regras...
+arcanestorage_apply=Aplicar
+arcanestorage_rules_gone=Esse barramento saiu da rede.
+arcanestorage_unapplied=Alterações não aplicadas
+arcanestorage_refused=Não aplicado: o barramento em <x>,<y> já lida com <item> aqui.
+arcanestorage_state_churn=Parado: <item> nunca estabiliza - algo externo desfaz a operação.
+arcanestorage_state_conflict=Parado: <other> em <x>,<y> compartilha este contêiner e desfaz <item>.
+arcanestorage_importbusname=Barramento de Importação #<n>
+arcanestorage_exportbusname=Barramento de Exportação #<n>
+arcanestorage_importbuslimit=Preencher a rede até, por item
+arcanestorage_exportbuslimit=Manter na rede, por item
+arcanestorage_buslimithint=Qualquer quantidade
+arcanestorage_importbusrule=Puxa itens marcados até a rede atingir esta quantidade.
+arcanestorage_exportbusrule=Envia itens marcados, mantendo esta quantidade na rede.
+arcanestorage_unitstatus=<used>/<total> espaços usados
+arcanestorage_upgrade=Aprimorar
+arcanestorage_upgradecost=Custo
+arcanestorage_attoptier=Já está no nível mais alto
+arcanestorage_emptyunit=Esvaziar para a rede
+arcanestorage_emptyunittip=Mover tudo desta unidade para o resto da rede, para poder retirá-la
+arcanestorage_emptied=<moved> itens movidos para a rede
+arcanestorage_emptiedpartial=<moved> itens movidos; <left> não couberam e permanecem na unidade
+arcanestorage_emptynoroom=O resto da rede está cheio, nada foi movido
+arcanestorage_emptynoothers=Esta é a única unidade de armazenamento na rede, não há para onde mover o conteúdo
+arcanestorage_stations_none=Coloque uma Unidade de Estação na rede para adicionar estações de fabricação.
+arcanestorage_capacity=<used> / <total> espaços
+arcanestorage_capacity_tip=Espaços usados em toda a rede
+arcanestorage_summary=<kinds> tipos, <items> itens
+arcanestorage_summary_filtered=<kinds> de <available> tipos, <items> itens
+arcanestorage_no_recipes=Nenhuma receita. Instale uma estação de fabricação.
+arcanestorage_no_recipes_shown=Nada encontrado. Limpe a busca ou desmarque <filter>.
+arcanestorage_depositall=Depositar tudo
+arcanestorage_depositalltip=Depositar tudo exceto espaços travados
+arcanestorage_quickstacktip=Enviar itens semelhantes para a rede
+arcanestorage_restocktip=Pegar itens semelhantes da rede
+arcanestorage_category_all=Todos os itens
+arcanestorage_category_everything=Todos: <category>
+arcanestorage_sorttip=Ordenar por <mode>
+arcanestorage_sort_group=grupo
+arcanestorage_sort_name=nome
+arcanestorage_sort_amount=quantidade
+arcanestorage_stacktip=Mostrando <mode>
+arcanestorage_stack_all=tudo
+arcanestorage_stack_stackable=apenas itens empilháveis
+arcanestorage_stack_single=apenas itens não empilháveis
+arcanestorage_tab_storage=Armazenamento
+arcanestorage_tab_crafting=Fabricação
+arcanestorage_tab_stations=Estações
+arcanestorage_group_by_category=Agrupar por categoria
+arcanestorage_wireless_unpaired=Não pareado. Use num Transceptor Sem Fio.
+arcanestorage_wireless_paired=Pareado com <x>,<y>
+arcanestorage_wireless_pairedto=Pareado com o transceptor em <x>,<y>
+arcanestorage_wireless_alreadypaired=Já pareado com este transceptor.
+arcanestorage_wireless_gone=Esse transceptor não existe mais.
+arcanestorage_wireless_pairtotransceiver=Pareie com um Transceptor Sem Fio.
+arcanestorage_wireless_toofar=Transceptor muito longe (<distance> > <limit>)
+arcanestorage_wireless_wronglevel=Transceptor não acessível deste nível.
+arcanestorage_wireless_upgrade=Aprimore <what> para acessar.
+arcanestorage_wireless_upgradeboth=ambos os lados
+arcanestorage_wireless_terminalname=Terminal Sem Fio
+arcanestorage_wireless_transceivername=Transceptor Sem Fio
+arcanestorage_wireless_tiermismatch=Pareado em nível <tier> - o lado mais baixo decide.
+arcanestorage_tier_demonic=Demoníaco
+arcanestorage_tier_tungsten=Tungstênio
+arcanestorage_tier_fallen=Caído
+arcanestorage_transceivertip=Pareie um Terminal Sem Fio a ele
+arcanestorage_transceiver_range=Alcança <range> blocos, apenas neste nível
+arcanestorage_transceiver_samelevel=Alcança qualquer lugar neste nível
+arcanestorage_transceiver_anylevel=Alcança qualquer nível
+
+// A banda de frequência. Uma banda é identificada por um número que o jogador lê da estação e digita num ponto de acesso,
+// então toda mensagem que menciona uma banda mostra esse número em vez de descrever a posição da estação.
+arcanestorage_basestationtip=Traz armazenamento distante para esta rede
+arcanestorage_accesspointtip=Conecta armazenamento próximo a uma banda
+arcanestorage_band_notransceiver=Precisa de um Transceptor Sem Fio nesta rede
+arcanestorage_band_conflict=Outra Estação Base nesta rede
+arcanestorage_band_notuned=Nenhuma banda selecionada
+arcanestorage_band_gone=Banda <band> não existe mais
+arcanestorage_band_down=Banda não está transmitindo
+arcanestorage_band_lostchannel=Canal perdido
+arcanestorage_band_outofrange=Fora do alcance da banda
+arcanestorage_band_outofrangeshort=(fora do alcance)
+arcanestorage_band_noband=Banda inexistente
+arcanestorage_band_nochannel=Canal inexistente
+arcanestorage_band_taken=Canal ocupado
+arcanestorage_band_toofar=Muito longe da Estação Base
+arcanestorage_band_apname=Banda <band> canal <channel>
+arcanestorage_band_channels=<n> canais
+arcanestorage_band_channelsused=<used>/<total> canais usados
+arcanestorage_band_rangetip=Alcança <range> blocos
+arcanestorage_band_title=Banda <band>
+arcanestorage_band_short=Banda <band>
+arcanestorage_band_stationhint=Sintonize um Ponto de Acesso num canal para conectar seu armazenamento
+arcanestorage_band_transmitting=Transmitindo
+arcanestorage_band_channel=Canal <n>
+arcanestorage_band_channelrow=Canal
+arcanestorage_band_band=Banda
+arcanestorage_band_available=Disponível
+arcanestorage_band_option=Banda <band> em <x>,<y> -- <distance> blocos
+arcanestorage_band_none=Nenhum
+arcanestorage_band_inuse=(em uso)
+arcanestorage_band_tune=Sintonizar
+arcanestorage_band_disconnect=Desconectar
+arcanestorage_band_connected=Na banda <band>, canal <channel>
+arcanestorage_devicename=Nome
+arcanestorage_band_upgrade=Aprimore a Estação Base
+arcanestorage_band_row=<n>. <name>
+arcanestorage_band_rowfree=<n>. Disponível
+arcanestorage_band_pickchannel=Escolha um canal para ver o que está nele
+arcanestorage_band_freehint=Sintonize um Ponto de Acesso na banda <band>, canal <n>
+arcanestorage_band_where=<x>,<y> -- <distance> blocos de distância
+arcanestorage_theme_slate=Arcano Ardósia
+arcanestorage_theme_dark=Arcano Escuro
+arcanestorage_theme_vanilla=Padrão do jogo
+
+// A aba de configurações. O menu de configurações do jogo não pode ser estendido por um mod, então estas ficam no terminal.
+arcanestorage_settings_presentation=Aparência
+arcanestorage_settings_themelabel=Estilo da interface para as janelas deste mod
+arcanestorage_settings_reopen=Painéis mudam na hora. Texto e botões atualizam ao reabrir a janela.
+arcanestorage_settings_craftinghint=A opção de agrupamento da lista de fabricação fica na aba Fabricação, ao lado da lista.
+arcanestorage_settings_worldtitle=Regras do mundo
+arcanestorage_settings_worldnote=Estes valores são lidos do seu arquivo de configuração, portanto são exibidos, não editados. No modo singleplayer são os valores em vigor. Num servidor, os valores em vigor são os do servidor, e podem diferir dos seus.
+arcanestorage_settings_reachdemonic=Alcance sem fio Demoníaco
+arcanestorage_settings_reachtungsten=Alcance sem fio de Tungstênio
+arcanestorage_settings_reachfallen=Alcance sem fio Caído
+arcanestorage_settings_bandrange=Alcance do Ponto de Acesso
+arcanestorage_settings_channels=Canais por nível
+arcanestorage_settings_tiles=<n> blocos
+arcanestorage_settings_unlimited=Este nível, qualquer distância
+arcanestorage_settings_anylevel=Qualquer nível, qualquer distância
+arcanestorage_settings_filehint=Arquivo de configuração: mods/elias.arcanestorage.cfg na pasta de configurações do jogo.
+
+[itemcategory]
+arcanestorage=Armazenamento Arcano

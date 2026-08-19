@@ -1,0 +1,187 @@
+// Arcane Storage -- ru.lang
+//
+// Translate the text after each '='. Two rules that matter more than the wording:
+//
+//   1. Keep every <placeholder> exactly as written. They are substituted at runtime, so a
+//      dropped one silently loses the number or name it was standing in for.
+//   2. Do not rename or add keys. A key not in en.lang is read by nothing.
+//
+// Lines left in English are harmless: the game falls back to English per key anyway. Run
+// `tools/locale.py check` to see what is still untranslated.
+
+[object]
+arcanestorageterminal=Терминал хранилища
+arcanestorageunit=Блок хранения
+arcanestorageunitdemonic=Демонический блок хранения
+arcanestorageunittungsten=Вольфрамовый блок хранения
+arcanestorageunitfallen=Блок хранения Падших
+arcanestoragestationunit=Блок станций
+arcanestoragestationunitdemonic=Демонический блок станций
+arcanestoragestationunittungsten=Вольфрамовый блок станций
+arcanestoragestationunitfallen=Блок станций Падших
+arcanestorageconduit=Арканический канал
+arcanestorageimportbus=Арканическая шина импорта
+arcanestorageexportbus=Арканическая шина экспорта
+arcanestoragewirelesstransceiver=Демонический беспроводной приёмопередатчик
+arcanestoragewirelesstransceivertungsten=Вольфрамовый беспроводной приёмопередатчик
+arcanestoragewirelesstransceiverfallen=Беспроводной приёмопередатчик Падших
+arcanestoragebasestation=Демоническая арканическая базовая станция
+arcanestoragebasestationtungsten=Вольфрамовая арканическая базовая станция
+arcanestoragebasestationfallen=Арканическая базовая станция Падших
+arcanestorageaccesspoint=Арканическая точка доступа
+
+[item]
+arcanestoragewirelessterminal=Демонический беспроводной терминал
+arcanestoragewirelessterminaltungsten=Вольфрамовый беспроводной терминал
+arcanestoragewirelessterminalfallen=Беспроводной терминал Падших
+
+[ui]
+arcanestorage_unittip=Доступ через Терминал хранилища
+arcanestorage_stationunittip=Устанавливайте станции через Терминал хранилища
+arcanestorage_conduittip=Расширяет сеть хранения
+arcanestorage_importbustip=Наполняет сеть из контейнера рядом
+arcanestorage_exportbustip=Выгружает из сети в контейнер рядом
+arcanestorage_bus_nocontainer=Нет контейнера рядом с этой шиной.
+arcanestorage_bus_nonetwork=Не подключена к сети хранения.
+arcanestorage_problems=<count> остановлено — см. Логистика
+arcanestorage_tab_logistics=Логистика
+arcanestorage_tab_settings=Настройки
+arcanestorage_no_issues=Все устройства работают.
+arcanestorage_stopped_count=<count> остановлено. Наведите, чтобы узнать причину.
+arcanestorage_copy_issues=Копировать
+arcanestorage_copy_issues_tip=Копировать все причины остановки
+arcanestorage_pick_device=Выберите устройство для настройки правил.
+arcanestorage_fetching_rules=Чтение правил...
+arcanestorage_apply=Применить
+arcanestorage_rules_gone=Эта шина покинула сеть.
+arcanestorage_unapplied=Несохранённые изменения
+arcanestorage_refused=Не применено: шина на <x>,<y> уже обрабатывает <item> здесь.
+arcanestorage_state_churn=Остановлено: <item> не удерживается — что-то извне отменяет действие.
+arcanestorage_state_conflict=Остановлено: <other> на <x>,<y> использует тот же контейнер и отменяет <item>.
+arcanestorage_importbusname=Шина импорта #<n>
+arcanestorage_exportbusname=Шина экспорта #<n>
+arcanestorage_importbuslimit=Наполнять сеть до (на предмет)
+arcanestorage_exportbuslimit=Оставлять в сети (на предмет)
+arcanestorage_buslimithint=Любое количество
+arcanestorage_importbusrule=Загружает отмеченные предметы, пока в сети не будет указанное количество.
+arcanestorage_exportbusrule=Выгружает отмеченные предметы, оставляя указанное количество в сети.
+arcanestorage_unitstatus=<used>/<total> ячеек занято
+arcanestorage_upgrade=Улучшить
+arcanestorage_upgradecost=Стоимость
+arcanestorage_attoptier=Уже на высшем уровне
+arcanestorage_emptyunit=Опустошить в сеть
+arcanestorage_emptyunittip=Переместить всё из этого блока в остальную сеть, чтобы его можно было забрать
+arcanestorage_emptied=Перемещено <moved> предметов в сеть
+arcanestorage_emptiedpartial=Перемещено <moved> предметов; <left> не поместилось и осталось в блоке
+arcanestorage_emptynoroom=Остальная сеть заполнена, ничего не перемещено
+arcanestorage_emptynoothers=Это единственный блок хранения в сети, перемещать некуда
+arcanestorage_stations_none=Разместите Блок станций в сети, чтобы добавить приборы для создания.
+arcanestorage_capacity=<used> / <total> ячеек
+arcanestorage_capacity_tip=Ячейки, занятые по всей сети
+arcanestorage_summary=<kinds> видов, <items> предметов
+arcanestorage_summary_filtered=<kinds> из <available> видов, <items> предметов
+arcanestorage_no_recipes=Нет рецептов. Установите прибор для создания.
+arcanestorage_no_recipes_shown=Ничего не найдено. Очистите поиск или снимите отметку <filter>.
+arcanestorage_depositall=Сложить всё
+arcanestorage_depositalltip=Сложить всё, кроме заблокированных слотов
+arcanestorage_quickstacktip=Сложить в сеть
+arcanestorage_restocktip=Пополнить из сети
+arcanestorage_category_all=Все предметы
+arcanestorage_category_everything=Все <category>
+arcanestorage_sorttip=Сортировать по: <mode>
+arcanestorage_sort_group=категории
+arcanestorage_sort_name=имени
+arcanestorage_sort_amount=количеству
+arcanestorage_stacktip=Показаны: <mode>
+arcanestorage_stack_all=все предметы
+arcanestorage_stack_stackable=только складываемые
+arcanestorage_stack_single=только нескладываемые
+arcanestorage_tab_storage=Хранилище
+arcanestorage_tab_crafting=Создание
+arcanestorage_tab_stations=Станции
+arcanestorage_group_by_category=Группировать по категории
+arcanestorage_wireless_unpaired=Не привязан. Используйте на приёмопередатчике.
+arcanestorage_wireless_paired=Привязан к <x>,<y>
+arcanestorage_wireless_pairedto=Привязан к приёмопередатчику на <x>,<y>
+arcanestorage_wireless_alreadypaired=Уже привязан к этому приёмопередатчику.
+arcanestorage_wireless_gone=Этот приёмопередатчик удалён.
+arcanestorage_wireless_pairtotransceiver=Привяжите к приёмопередатчику.
+arcanestorage_wireless_toofar=Приёмопередатчик слишком далеко (<distance> > <limit>)
+arcanestorage_wireless_wronglevel=Приёмопередатчик недоступен с этого уровня.
+arcanestorage_wireless_upgrade=Улучшите <what> для доступа.
+arcanestorage_wireless_upgradeboth=обе стороны
+arcanestorage_wireless_terminalname=Беспроводной терминал
+arcanestorage_wireless_transceivername=Приёмопередатчик
+arcanestorage_wireless_tiermismatch=Привязка на уровне <tier> — решает младшая сторона.
+arcanestorage_tier_demonic=Демонический
+arcanestorage_tier_tungsten=Вольфрамовый
+arcanestorage_tier_fallen=Падших
+arcanestorage_transceivertip=Привяжите к нему беспроводной терминал
+arcanestorage_transceiver_range=Дальность <range> плиток, только этот уровень
+arcanestorage_transceiver_samelevel=Действует в любой точке этого уровня
+arcanestorage_transceiver_anylevel=Действует на любом уровне
+
+// Частотный диапазон. Диапазон обозначается номером, который игрок считывает со станции и вводит в точке доступа,
+// поэтому все сообщения показывают этот номер, а не описывают расположение станции.
+arcanestorage_basestationtip=Подключает удалённое хранилище к этой сети
+arcanestorage_accesspointtip=Присоединяет ближайшее хранилище к диапазону
+arcanestorage_band_notransceiver=Нужен приёмопередатчик в этой сети
+arcanestorage_band_conflict=В сети уже есть другая базовая станция
+arcanestorage_band_notuned=Диапазон не выбран
+arcanestorage_band_gone=Диапазон <band> удалён
+arcanestorage_band_down=Диапазон не передаёт
+arcanestorage_band_lostchannel=Канал потерян
+arcanestorage_band_outofrange=Вне зоны диапазона
+arcanestorage_band_outofrangeshort=(вне зоны)
+arcanestorage_band_noband=Нет такого диапазона
+arcanestorage_band_nochannel=Нет такого канала
+arcanestorage_band_taken=Канал занят
+arcanestorage_band_toofar=Слишком далеко от базовой станции
+arcanestorage_band_apname=Диапазон <band> кан. <channel>
+arcanestorage_band_channels=<n> каналов
+arcanestorage_band_channelsused=<used>/<total> каналов занято
+arcanestorage_band_rangetip=Дальность <range> плиток
+arcanestorage_band_title=Диапазон <band>
+arcanestorage_band_short=Диап. <band>
+arcanestorage_band_stationhint=Настройте точку доступа на канал, чтобы подключить её хранилище
+arcanestorage_band_transmitting=Передаёт
+arcanestorage_band_channel=Канал <n>
+arcanestorage_band_channelrow=Канал
+arcanestorage_band_band=Диапазон
+arcanestorage_band_available=Свободен
+arcanestorage_band_option=Диапазон <band> на <x>,<y> — <distance> плиток
+arcanestorage_band_none=Нет
+arcanestorage_band_inuse=(занят)
+arcanestorage_band_tune=Настроить
+arcanestorage_band_disconnect=Отключить
+arcanestorage_band_connected=Диапазон <band>, канал <channel>
+arcanestorage_devicename=Имя
+arcanestorage_band_upgrade=Улучшите базовую станцию
+arcanestorage_band_row=<n>. <name>
+arcanestorage_band_rowfree=<n>. Свободен
+arcanestorage_band_pickchannel=Выберите канал, чтобы увидеть подключённое
+arcanestorage_band_freehint=Настройте точку доступа на диапазон <band>, канал <n>
+arcanestorage_band_where=<x>,<y> — <distance> плиток
+arcanestorage_theme_slate=Арканический серый
+arcanestorage_theme_dark=Арканический тёмный
+arcanestorage_theme_vanilla=По умолчанию
+
+// Вкладка настроек. Игровое меню настроек не расширяется модами, поэтому эти параметры расположены в терминале.
+arcanestorage_settings_presentation=Внешний вид
+arcanestorage_settings_themelabel=Стиль интерфейса для окон этого мода
+arcanestorage_settings_reopen=Панели меняются сразу. Текст и кнопки — при повторном открытии окна.
+arcanestorage_settings_craftinghint=Группировка списка создания — на вкладке Создание, рядом со списком.
+arcanestorage_settings_worldtitle=Правила мира
+arcanestorage_settings_worldnote=Эти значения взяты из вашего конфиг-файла и показаны для справки. В одиночной игре они действуют. На сервере действуют серверные значения, которые могут отличаться.
+arcanestorage_settings_reachdemonic=Демоническая дальность
+arcanestorage_settings_reachtungsten=Вольфрамовая дальность
+arcanestorage_settings_reachfallen=Дальность Падших
+arcanestorage_settings_bandrange=Дальность точки доступа
+arcanestorage_settings_channels=Каналов на уровень
+arcanestorage_settings_tiles=<n> плиток
+arcanestorage_settings_unlimited=Этот уровень, любое расстояние
+arcanestorage_settings_anylevel=Любой уровень, любое расстояние
+arcanestorage_settings_filehint=Конфиг-файл: mods/elias.arcanestorage.cfg в папке настроек игры.
+
+[itemcategory]
+arcanestorage=Арканическое хранилище

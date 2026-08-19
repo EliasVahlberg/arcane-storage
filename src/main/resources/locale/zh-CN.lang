@@ -1,0 +1,187 @@
+// Arcane Storage -- zh-CN.lang
+//
+// Translate the text after each '='. Two rules that matter more than the wording:
+//
+//   1. Keep every <placeholder> exactly as written. They are substituted at runtime, so a
+//      dropped one silently loses the number or name it was standing in for.
+//   2. Do not rename or add keys. A key not in en.lang is read by nothing.
+//
+// Lines left in English are harmless: the game falls back to English per key anyway. Run
+// `tools/locale.py check` to see what is still untranslated.
+
+[object]
+arcanestorageterminal=存储终端
+arcanestorageunit=存储单元
+arcanestorageunitdemonic=恶魔存储单元
+arcanestorageunittungsten=钨制存储单元
+arcanestorageunitfallen=堕落存储单元
+arcanestoragestationunit=工站单元
+arcanestoragestationunitdemonic=恶魔工站单元
+arcanestoragestationunittungsten=钨制工站单元
+arcanestoragestationunitfallen=堕落工站单元
+arcanestorageconduit=存储导管
+arcanestorageimportbus=奥术输入总线
+arcanestorageexportbus=奥术输出总线
+arcanestoragewirelesstransceiver=恶魔无线收发器
+arcanestoragewirelesstransceivertungsten=钨制无线收发器
+arcanestoragewirelesstransceiverfallen=堕落无线收发器
+arcanestoragebasestation=恶魔奥术基站
+arcanestoragebasestationtungsten=钨制奥术基站
+arcanestoragebasestationfallen=堕落奥术基站
+arcanestorageaccesspoint=奥术接入点
+
+[item]
+arcanestoragewirelessterminal=恶魔无线终端
+arcanestoragewirelessterminaltungsten=钨制无线终端
+arcanestoragewirelessterminalfallen=堕落无线终端
+
+[ui]
+arcanestorage_unittip=通过存储终端访问
+arcanestorage_stationunittip=通过存储终端安装工站
+arcanestorage_conduittip=延伸存储网络
+arcanestorage_importbustip=将旁边容器中的物品导入网络
+arcanestorage_exportbustip=将网络中的物品导出到旁边容器
+arcanestorage_bus_nocontainer=旁边没有容器。
+arcanestorage_bus_nonetwork=未连接存储网络。
+arcanestorage_problems=<count> 个已停止 - 查看物流
+arcanestorage_tab_logistics=物流
+arcanestorage_tab_settings=设置
+arcanestorage_no_issues=所有设备正常运行。
+arcanestorage_stopped_count=<count> 个已停止。悬停查看原因。
+arcanestorage_copy_issues=复制
+arcanestorage_copy_issues_tip=复制所有停止原因
+arcanestorage_pick_device=选择一个设备来编辑其规则。
+arcanestorage_fetching_rules=读取规则中...
+arcanestorage_apply=应用
+arcanestorage_rules_gone=该总线已离开网络。
+arcanestorage_unapplied=未应用的更改
+arcanestorage_refused=未应用：<x>,<y> 处的总线已在此处理 <item>。
+arcanestorage_state_churn=已停止：<item> 无法稳定 - 外部操作正在撤销它。
+arcanestorage_state_conflict=已停止：<x>,<y> 处的 <other> 共享此容器并撤销 <item>。
+arcanestorage_importbusname=输入总线 #<n>
+arcanestorage_exportbusname=输出总线 #<n>
+arcanestorage_importbuslimit=网络填充至（每种物品）
+arcanestorage_exportbuslimit=网络保留（每种物品）
+arcanestorage_buslimithint=不限
+arcanestorage_importbusrule=导入勾选的物品，直到网络持有该数量。
+arcanestorage_exportbusrule=导出勾选的物品，在网络中保留该数量。
+arcanestorage_unitstatus=<used>/<total> 槽位已用
+arcanestorage_upgrade=升级
+arcanestorage_upgradecost=花费
+arcanestorage_attoptier=已达最高等级
+arcanestorage_emptyunit=清空到网络
+arcanestorage_emptyunittip=将此单元中所有物品移入网络其余部分，以便拾取
+arcanestorage_emptied=已移动 <moved> 个物品到网络
+arcanestorage_emptiedpartial=已移动 <moved> 个物品；<left> 个放不下，仍在单元中
+arcanestorage_emptynoroom=网络其余部分已满，无法移动
+arcanestorage_emptynoothers=这是网络上唯一的存储单元，没有其他位置可移入
+arcanestorage_stations_none=在网络上放置工站单元以添加制造站。
+arcanestorage_capacity=<used> / <total> 槽位
+arcanestorage_capacity_tip=网络中已使用的槽位
+arcanestorage_summary=<kinds> 种类，<items> 件物品
+arcanestorage_summary_filtered=<kinds> / <available> 种类，<items> 件物品
+arcanestorage_no_recipes=无配方。请安装制造站。
+arcanestorage_no_recipes_shown=无匹配结果。清除搜索，或取消勾选 <filter>。
+arcanestorage_depositall=全部存入
+arcanestorage_depositalltip=存入所有物品（锁定槽位除外）
+arcanestorage_quickstacktip=快速储存到网络
+arcanestorage_restocktip=从网络补充
+arcanestorage_category_all=全部物品
+arcanestorage_category_everything=全部<category>
+arcanestorage_sorttip=按<mode>排序
+arcanestorage_sort_group=分类
+arcanestorage_sort_name=名称
+arcanestorage_sort_amount=数量
+arcanestorage_stacktip=显示<mode>
+arcanestorage_stack_all=全部
+arcanestorage_stack_stackable=仅可堆叠物品
+arcanestorage_stack_single=仅不可堆叠物品
+arcanestorage_tab_storage=存储
+arcanestorage_tab_crafting=制造
+arcanestorage_tab_stations=工站
+arcanestorage_group_by_category=按分类分组
+arcanestorage_wireless_unpaired=未配对。对准无线收发器使用。
+arcanestorage_wireless_paired=已配对至 <x>,<y>
+arcanestorage_wireless_pairedto=已配对至 <x>,<y> 处的收发器
+arcanestorage_wireless_alreadypaired=已配对到此收发器。
+arcanestorage_wireless_gone=该收发器已不存在。
+arcanestorage_wireless_pairtotransceiver=配对到无线收发器。
+arcanestorage_wireless_toofar=收发器距离过远（<distance> > <limit>）
+arcanestorage_wireless_wronglevel=无法从此层访问收发器。
+arcanestorage_wireless_upgrade=升级<what>以获取访问权限。
+arcanestorage_wireless_upgradeboth=两端
+arcanestorage_wireless_terminalname=无线终端
+arcanestorage_wireless_transceivername=无线收发器
+arcanestorage_wireless_tiermismatch=配对等级为<tier> - 以较低端为准。
+arcanestorage_tier_demonic=恶魔
+arcanestorage_tier_tungsten=钨制
+arcanestorage_tier_fallen=堕落
+arcanestorage_transceivertip=将无线终端配对到此
+arcanestorage_transceiver_range=覆盖 <range> 格，仅限本层
+arcanestorage_transceiver_samelevel=覆盖本层任意位置
+arcanestorage_transceiver_anylevel=覆盖任意层
+
+// 频段。频段以玩家从基站读取并输入到接入点的数字命名，
+// 因此每条提及频段的消息都会显示该数字，而不是描述基站的位置。
+arcanestorage_basestationtip=将远处存储接入本网络
+arcanestorage_accesspointtip=将附近存储加入频段
+arcanestorage_band_notransceiver=需要网络上有无线收发器
+arcanestorage_band_conflict=本网络已有另一基站
+arcanestorage_band_notuned=未选择频段
+arcanestorage_band_gone=频段 <band> 已消失
+arcanestorage_band_down=频段未发射
+arcanestorage_band_lostchannel=频道丢失
+arcanestorage_band_outofrange=超出频段范围
+arcanestorage_band_outofrangeshort=(超出范围)
+arcanestorage_band_noband=无此频段
+arcanestorage_band_nochannel=无此频道
+arcanestorage_band_taken=频道已占用
+arcanestorage_band_toofar=距基站过远
+arcanestorage_band_apname=频段 <band> 频道 <channel>
+arcanestorage_band_channels=<n> 个频道
+arcanestorage_band_channelsused=<used>/<total> 频道已用
+arcanestorage_band_rangetip=覆盖 <range> 格
+arcanestorage_band_title=频段 <band>
+arcanestorage_band_short=频段 <band>
+arcanestorage_band_stationhint=将接入点调谐到频道以加入其存储
+arcanestorage_band_transmitting=发射中
+arcanestorage_band_channel=频道 <n>
+arcanestorage_band_channelrow=频道
+arcanestorage_band_band=频段
+arcanestorage_band_available=可用
+arcanestorage_band_option=频段 <band>，位于 <x>,<y> -- <distance> 格
+arcanestorage_band_none=无
+arcanestorage_band_inuse=(使用中)
+arcanestorage_band_tune=调谐
+arcanestorage_band_disconnect=断开连接
+arcanestorage_band_connected=频段 <band>，频道 <channel>
+arcanestorage_devicename=名称
+arcanestorage_band_upgrade=升级基站
+arcanestorage_band_row=<n>. <name>
+arcanestorage_band_rowfree=<n>. 可用
+arcanestorage_band_pickchannel=选择频道查看内容
+arcanestorage_band_freehint=将接入点调谐到频段 <band>，频道 <n>
+arcanestorage_band_where=<x>,<y> -- <distance> 格远
+arcanestorage_theme_slate=奥术石板
+arcanestorage_theme_dark=奥术暗色
+arcanestorage_theme_vanilla=游戏默认
+
+// 设置标签页。游戏自身的设置菜单无法由 mod 扩展，因此这些选项位于终端中。
+arcanestorage_settings_presentation=外观
+arcanestorage_settings_themelabel=此 mod 窗口的界面风格
+arcanestorage_settings_reopen=面板立即更改。文字和按钮在重新打开窗口后生效。
+arcanestorage_settings_craftinghint=制造列表的分组选项位于制造标签页，列表旁边。
+arcanestorage_settings_worldtitle=世界规则
+arcanestorage_settings_worldnote=这些值来自您自己的配置文件，仅供查看不可编辑。单人游戏中即为生效值。服务器上生效值为该服务器的设置，可能与此不同。
+arcanestorage_settings_reachdemonic=恶魔无线覆盖范围
+arcanestorage_settings_reachtungsten=钨制无线覆盖范围
+arcanestorage_settings_reachfallen=堕落无线覆盖范围
+arcanestorage_settings_bandrange=接入点范围
+arcanestorage_settings_channels=每等级频道数
+arcanestorage_settings_tiles=<n> 格
+arcanestorage_settings_unlimited=本层，任意距离
+arcanestorage_settings_anylevel=任意层，任意距离
+arcanestorage_settings_filehint=配置文件：游戏设置文件夹中的 mods/elias.arcanestorage.cfg。
+
+[itemcategory]
+arcanestorage=奥术存储
