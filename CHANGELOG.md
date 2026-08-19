@@ -5,6 +5,16 @@ the GitHub release notes are both taken from here, so they cannot disagree.
 
 Dates are release dates. Anything still unreleased sits under Unreleased until it ships.
 
+## 1.0.3
+
+**Nine languages, translated by AI as a first pass rather than left English-only.** German, Spanish, Brazilian
+Portuguese, Russian, Simplified Chinese, Japanese, Turkish, Indonesian and Vietnamese now ship alongside
+English. The nine were picked by checking two things: how well Necesse's own locale covers that language, and
+how much a translation actually helps players of it, using the EF English Proficiency Index as a guide. This is
+a best-effort first pass, not a claim of professional translation. Corrections and additional languages from
+native speakers remain very welcome, and the mod stays open to them. The game falls back to English for any
+string a translation happens to miss, so a partial file is always safe.
+
 ## 1.0.2
 
 **Two crashes are fixed.** Opening the Access Point's channel dropdown before picking a band could crash the

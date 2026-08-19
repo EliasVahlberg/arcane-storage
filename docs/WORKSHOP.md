@@ -85,6 +85,10 @@ and it comes from `CHANGELOG.md` so the two cannot drift.
 
 ---
 
+[h3]1.0.3[/h3]
+
+[b]Nine languages, translated by AI as a first pass rather than left English-only.[/b] German, Spanish, Brazilian Portuguese, Russian, Simplified Chinese, Japanese, Turkish, Indonesian and Vietnamese now ship alongside English. The nine were picked by checking two things: how well Necesse's own locale covers that language, and how much a translation actually helps players of it, using the EF English Proficiency Index as a guide. This is a best-effort first pass, not a claim of professional translation. Corrections and additional languages from native speakers remain very welcome, and the mod stays open to them. The game falls back to English for any string a translation happens to miss, so a partial file is always safe.
+
 [h3]1.0.2[/h3]
 
 [b]Two crashes are fixed.[/b] Opening the Access Point's channel dropdown before picking a band could crash the game outright — any dropdown with nothing in it could, this was just the one a player hit first. And the storage terminal's crafting tab, grouped by category, could crash if another installed mod shipped a craftable recipe for an item it never gave a crafting category — the terminal now falls back to a general category instead of crashing.
