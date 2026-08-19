@@ -95,8 +95,20 @@ public class ArcaneDropdown<T> extends FormDropdownSelectionButton<T> {
    /**
     * Opens the themed menu. The offsets and the controller branch are the engine's own, from the handler this
     * replaces, so the panel lands exactly where the wood one did.
+    *
+    * <p>Refuses to open on an empty {@link #choices} tree. {@code SelectionFloatMenu.init} unconditionally calls
+    * {@code this.boxes.getFirst().buttons.getFirst()} to seed controller focus, with no check of its own -- a menu
+    * built from zero {@code add} calls throws {@code NoSuchElementException} the instant it opens. This is a real
+    * engine bug, not a misuse on our side, and it reached a player: {@code AccessPointContainerForm.refreshButtons}
+    * leaves {@code channelButton.choices} empty whenever no band is selected, and clicking that dropdown in that
+    * state opened a zero-entry menu directly into the crash. Guarding here fixes it for every caller at once,
+    * rather than requiring each one to remember to check {@code choices.isEmpty()} before it can safely open.
     */
    private void openMenu(InputEvent event) {
+      if (this.choices.isEmpty()) {
+         return;
+      }
+
       this.playTickSound();
       this.openMenu = this.buildMenu(this.choices, this.width - 4);
 

@@ -975,6 +975,17 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
     * item and is walked up to the depth a crafting bench uses. Depth 1 is what
     * {@code CraftingStationObject.getCraftingCategoryDepth} returns, so the terminal's sections are
     * the same breadth a bench's are -- a deeper cut would give a section per handful of recipes.
+    *
+    * <p>Falls back to the crafting tree's own root rather than returning null. Vanilla's matching code
+    * ({@code CraftingStationContainerForm:339-341}) has the same gap and gets away with it because every
+    * vanilla item is registered in {@code ItemCategory.craftingManager} -- confirmed by reading
+    * {@code ItemCategoryManager.setItemCategory}, which every one of our own items and objects goes
+    * through via {@code ArcaneStorage.registerObject}/{@code registerItem}. A null only reaches here for
+    * another mod's recipe whose result item was never registered with a crafting category, but a
+    * terminal spans every bench at once and so is the first place in the game likely to meet one. Without
+    * this, the null entered {@code ordered.sort(null)} (natural ordering, so {@code null.compareTo(...)})
+    * and {@code category.displayName.translate()} unconditionally -- both a guaranteed
+    * {@code NullPointerException} the moment a categoryless recipe showed up.
     */
    private static ItemCategory craftingCategoryOf(ContainerRecipe recipe) {
       ItemCategory category = recipe.recipe.getCraftingCategory();
@@ -987,7 +998,7 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
          category = category.parent;
       }
 
-      return category;
+      return category == null ? ItemCategory.craftingManager.masterCategory : category;
    }
 
    /**
