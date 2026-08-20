@@ -85,6 +85,10 @@ and it comes from `CHANGELOG.md` so the two cannot drift.
 
 ---
 
+[h3]1.0.4[/h3]
+
+[b]A crash is fixed.[/b] The storage terminal's crafting tab lists every recipe in the game so bench indices never shift, which also means it can render a tooltip for a recipe it did not create. A recipe naming a global ingredient that nothing ever registered an item under, whether from another mod, a removed item, or a typo, crashed the instant its tooltip was drawn. Such a recipe could never actually be crafted anyway, so it is now left out of the terminal's list instead.
+
 [h3]1.0.3[/h3]
 
 [b]Nine languages, translated by AI as a first pass rather than left English-only.[/b] German, Spanish, Brazilian Portuguese, Russian, Simplified Chinese, Japanese, Turkish, Indonesian and Vietnamese now ship alongside English. The nine were picked by checking two things: how well Necesse's own locale covers that language, and how much a translation actually helps players of it, using the EF English Proficiency Index as a guide. This is a best-effort first pass, not a claim of professional translation. Corrections and additional languages from native speakers remain very welcome, and the mod stays open to them. The game falls back to English for any string a translation happens to miss, so a partial file is always safe.

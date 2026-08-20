@@ -5,6 +5,14 @@ the GitHub release notes are both taken from here, so they cannot disagree.
 
 Dates are release dates. Anything still unreleased sits under Unreleased until it ships.
 
+## 1.0.4
+
+**A crash is fixed.** The storage terminal's crafting tab lists every recipe in the game so bench indices never
+shift, which also means it can render a tooltip for a recipe it did not create. A recipe naming a global
+ingredient that nothing ever registered an item under, whether from another mod, a removed item, or a typo,
+crashed the instant its tooltip was drawn. Such a recipe could never actually be crafted anyway, so it is now
+left out of the terminal's list instead.
+
 ## 1.0.3
 
 **Nine languages, translated by AI as a first pass rather than left English-only.** German, Spanish, Brazilian
