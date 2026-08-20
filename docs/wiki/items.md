@@ -27,6 +27,10 @@ See [The terminal](terminal.md).
 
 Where things are actually kept. 40 slots at the base tier, doubling with each rung. Add as many as you like.
 
+Spoiling also halves with each rung: Demonic at half rate (a Lunchbox's own number), Tungsten at quarter (a
+fueled Cooling Box's), Fallen at eighth -- stronger than any single vanilla effect, since it is the top of a
+four-rung climb rather than a match for one specific object. No fuel needed, unlike a Cooling Box.
+
 40 Any Log and 10 Iron Bar at a Workstation.
 
 ![A storage unit panel, with its upgrade and empty buttons](screenshots/storage_unit_upgrade_empty_ui.png)
@@ -132,7 +136,7 @@ See [Reaching further](wireless.md).
 
 | Item | Base | Demonic | Tungsten | Fallen |
 |---|---|---|---|---|
-| Storage Unit | 40 slots | 80 | 160 | 320 |
+| Storage Unit | 40 slots, normal spoil | 80, half spoil | 160, quarter spoil | 320, eighth spoil |
 | Station Unit | 1 station | 2 | 4 | 8 |
 | Wireless Transceiver | none | 120 tiles | whole island | any island |
 | Base Station | none | 4 channels | 8 | 16 |

@@ -42,16 +42,16 @@ import necesse.inventory.recipe.Tech;
 public enum UnitTier {
 
    /** Vanilla's container ceiling, and one crafting socket. Craftable the moment a Workstation exists. */
-   BASE("", 40, 1, null),
+   BASE("", 40, 1, null, 1.0F),
 
    /** Demonic era. */
-   DEMONIC("demonic", 80, 2, "demonicbar"),
+   DEMONIC("demonic", 80, 2, "demonicbar", 0.5F),
 
    /** Tungsten era. */
-   TUNGSTEN("tungsten", 160, 4, "tungstenbar"),
+   TUNGSTEN("tungsten", 160, 4, "tungstenbar", 0.25F),
 
    /** Fallen era, the top of the ladder. */
-   FALLEN("fallen", 320, 8, "upgradeshard");
+   FALLEN("fallen", 320, 8, "upgradeshard", 0.125F);
 
    /** Appended to the base string IDs. Empty for {@link #BASE}, whose IDs must never change. */
    public final String suffix;
@@ -65,11 +65,29 @@ public enum UnitTier {
    /** The signature material of the era, for tooltips and for describing the tier. Null for {@link #BASE}. */
    public final String material;
 
-   UnitTier(String suffix, int storageSlots, int stationSockets, String material) {
+   /**
+    * Multiplier on how fast a stored item spoils, applied unconditionally to a Storage Unit of this tier --
+    * see {@link necesse.inventory.Inventory#spoilRateModifier}, the same field a vanilla Cooling Box sets while
+    * fueled. {@code 1.0F} is unchanged; lower is slower.
+    *
+    * <p>Halves every rung, the same shape {@link #storageSlots} and {@link #stationSockets} already double by,
+    * so this is one more property that rewards the climb rather than a special case: {@code 1, 0.5, 0.25,
+    * 0.125}. The two lower numbers happen to equal vanilla's own values -- {@code 0.5F} is a Lunchbox, {@code
+    * 0.25F} a fueled Cooling Box -- so the Demonic and Tungsten rungs read as familiar rates,
+    * but the ladder is not trying to stay inside vanilla's numbers past that; Fallen at {@code 0.125F} is
+    * stronger than any single-item vanilla effect, on purpose, because it is the top of a four-rung climb rather
+    * than a match for a specific vanilla object. Unlike the Cooling Box, there is no fuel item -- these are
+    * silos, not appliances, and gating a tier's own property behind an ongoing fuel cost would be a second
+    * resource sink the ladder does not otherwise have.
+    */
+   public final float spoilRateModifier;
+
+   UnitTier(String suffix, int storageSlots, int stationSockets, String material, float spoilRateModifier) {
       this.suffix = suffix;
       this.storageSlots = storageSlots;
       this.stationSockets = stationSockets;
       this.material = material;
+      this.spoilRateModifier = spoilRateModifier;
    }
 
    /** The Storage Unit string ID at this tier. */

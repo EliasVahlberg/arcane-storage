@@ -49,7 +49,7 @@ public class StorageUnitObject extends StorageBoxInventoryObject implements Netw
 
    @Override
    public ObjectEntity getNewObjectEntity(Level level, int x, int y) {
-      return new StorageUnitObjectEntity(level, x, y, this.slots);
+      return new StorageUnitObjectEntity(level, x, y, this.slots, this.tier.spoilRateModifier);
    }
 
    /**

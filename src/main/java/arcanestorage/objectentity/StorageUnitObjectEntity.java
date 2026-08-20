@@ -22,13 +22,44 @@ public class StorageUnitObjectEntity extends InventoryObjectEntity implements Ne
    /** Must never change between versions. */
    public static final String TYPE = "arcanestorageunit";
 
-   public StorageUnitObjectEntity(Level level, int x, int y, int slots) {
+   /**
+    * How fast an item spoils in this unit, from {@link arcanestorage.object.UnitTier#spoilRateModifier}. Held
+    * here rather than read from the tier each tick because a unit's own tier cannot change after placement, and
+    * this avoids a lookup back through the object for something that never varies for the entity's lifetime.
+    */
+   private final float spoilRateModifier;
+
+   public StorageUnitObjectEntity(Level level, int x, int y, int slots, float spoilRateModifier) {
       super(level, x, y, slots);
       this.type = TYPE;
+      this.spoilRateModifier = spoilRateModifier;
 
       // A unit appearing changes what networks exist, and this catches the paths the object's placement hook
       // does not: a world loading, and a test placing one directly.
       NetworkIndexes.topologyChanged();
+   }
+
+   /**
+    * Reasserts this unit's spoil rate every tick, ahead of {@code super}'s call into
+    * {@code inventory.tickItems}, which is what actually applies it.
+    *
+    * <p>{@link InventoryObjectEntity} itself writes {@code spoilRateModifier} in several places -- a "not yet
+    * loaded" pause on a freshly placed object, and an unconditional reset to {@code 1.0F} once the object is
+    * considered interacted-with -- none of which know this is a Storage Unit with its own tiered rate. Chasing
+    * every such site individually would mean re-checking this class against a future engine update that adds
+    * another one; reasserting once per tick, right before the tick that reads the field, is correct regardless
+    * of how many such sites exist or will exist.
+    */
+   @Override
+   public void serverTick() {
+      this.inventory.spoilRateModifier = this.spoilRateModifier;
+      super.serverTick();
+   }
+
+   @Override
+   public void clientTick() {
+      this.inventory.spoilRateModifier = this.spoilRateModifier;
+      super.clientTick();
    }
 
    /** Number of occupied slots, for the interact readout. */
