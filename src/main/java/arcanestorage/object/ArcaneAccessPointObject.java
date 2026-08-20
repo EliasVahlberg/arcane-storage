@@ -26,8 +26,16 @@ public class ArcaneAccessPointObject extends BandDeviceObject {
 
    public static final String STRING_ID = "arcanestorageaccesspoint";
 
+   /** Frame count in the shipped art. The sheet has exactly this many, indices 0..7. */
+   private static final int FRAME_COUNT = 8;
+
    public ArcaneAccessPointObject() {
       super(STRING_ID, new Color(126, 88, 176));
+   }
+
+   @Override
+   protected int animatedFrameCount() {
+      return FRAME_COUNT;
    }
 
    @Override

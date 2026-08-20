@@ -38,14 +38,25 @@ import necesse.level.maps.light.GameLight;
  *
  * <p>Extends {@link FurnitureObject} rather than an inventory object so that neither device can be opened as a chest.
  * Neither holds anything: a band carries a network, it does not store one.
+ *
+ * <p>{@link #hasAnimatedActiveTexture} switches on the cycling status light both devices now have; a device
+ * without one -- there is none left, but the hook stays optional rather than mandatory -- would just keep the
+ * plain {@link #texture}. Everything else about drawing, including the inactive state, stays here so the two
+ * devices cannot drift apart on anything but their frame art and count.</p>
  */
 public abstract class BandDeviceObject extends FurnitureObject implements NetworkConductor {
+
+   /** How many ticks each animation frame holds before advancing -- 2, a fast blink rather than a slow pulse. */
+   private static final int TICKS_PER_FRAME = 2;
 
    /** Drawn by hand: {@code FurnitureObject} loads no texture of its own. Same as the buses and the conduit. */
    public GameTexture texture;
 
    /** The same sprite, dark, for when the device is not working. Shipped art rather than a colour multiplier. */
    public GameTexture inactiveTexture;
+
+   /** The active-state animation, one entry per frame, or {@code null} for a device with no animated art. */
+   private GameTexture[] activeFrames;
 
    private final String textureName;
 
@@ -71,11 +82,49 @@ public abstract class BandDeviceObject extends FurnitureObject implements Networ
       return null;
    }
 
+   /**
+    * How many status-light frames to load, named {@code <stringID>_anim0} through {@code _anim<n-1>}, or 0 for a
+    * device with a single static active sprite. Both current devices override this; the default is 0 so a future
+    * one need not opt in until it has the art for it.
+    */
+   protected int animatedFrameCount() {
+      return 0;
+   }
+
    @Override
    public void loadTextures() {
       super.loadTextures();
       this.texture = GameTexture.fromFile("objects/" + this.textureName);
       this.inactiveTexture = GameTexture.fromFile("objects/" + this.textureName + "_inactive");
+
+      int frameCount = this.animatedFrameCount();
+      if (frameCount > 0) {
+         this.activeFrames = new GameTexture[frameCount];
+         for (int i = 0; i < frameCount; i++) {
+            this.activeFrames[i] = GameTexture.fromFile("objects/" + this.textureName + "_anim" + i);
+         }
+      }
+   }
+
+   /**
+    * The sprite to draw while active, for this tile on this tick.
+    *
+    * <p>Cycles {@link #activeFrames} when {@link #animatedFrameCount} opted in, matching a real transceiver's
+    * TX/RX light rather than a static "on" sprite; falls back to the plain {@link #texture} otherwise.
+    *
+    * <p>The frame is a pure function of {@code tickManager.getTotalTicks()}, not of anything server-decided, so it
+    * needs no sync of its own and two clients looking at the same device see the same frame for free -- the same
+    * reason the active/inactive swap already worked this way. There is no meaning attached to any one frame; the
+    * art was drawn as an unordered set of small variations on the same idle light, so any starting offset and any
+    * playback order looks the same to a player.
+    */
+   private GameTexture activeTexture(TickManager tickManager) {
+      if (this.activeFrames == null) {
+         return this.texture;
+      }
+
+      int frame = (int)(tickManager.getTotalTicks() / TICKS_PER_FRAME % this.activeFrames.length);
+      return this.activeFrames[frame];
    }
 
    @Override
@@ -86,9 +135,10 @@ public abstract class BandDeviceObject extends FurnitureObject implements Networ
       GameLight light = level.getLightLevel(tileX, tileY);
       int drawX = camera.getTileDrawX(tileX);
       int drawY = camera.getTileDrawY(tileY);
-      GameTexture sprite = !this.stateAt(level, tileX, tileY).isActive() && this.inactiveTexture != null
+      boolean active = this.stateAt(level, tileX, tileY).isActive();
+      GameTexture sprite = !active && this.inactiveTexture != null
          ? this.inactiveTexture
-         : this.texture;
+         : active ? this.activeTexture(tickManager) : this.texture;
       final TextureDrawOptions options = sprite
          .initDraw()
          .addObjectDamageOverlay(this, level, tileX, tileY)

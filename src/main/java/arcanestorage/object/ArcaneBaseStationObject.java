@@ -30,11 +30,19 @@ import necesse.level.maps.Level;
  */
 public class ArcaneBaseStationObject extends BandDeviceObject {
 
+   /** Frame count in the shipped art. Every tier's sheet has exactly this many, indices 0..7. */
+   private static final int FRAME_COUNT = 8;
+
    public final UnitTier tier;
 
    public ArcaneBaseStationObject(UnitTier tier) {
       super(tier.baseStationId(), new Color(126, 88, 176));
       this.tier = tier;
+   }
+
+   @Override
+   protected int animatedFrameCount() {
+      return FRAME_COUNT;
    }
 
    @Override
