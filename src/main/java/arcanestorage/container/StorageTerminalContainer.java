@@ -10,6 +10,7 @@ import arcanestorage.network.NetworkIndexes;
 import arcanestorage.objectentity.BusSummary;
 import arcanestorage.objectentity.StorageTerminalObjectEntity;
 import arcanestorage.network.NetworkStorage;
+import necesse.engine.GameLog;
 import necesse.engine.localization.Localization;
 import necesse.engine.network.NetworkClient;
 import necesse.engine.network.Packet;
@@ -26,6 +27,8 @@ import necesse.inventory.Inventory;
 import necesse.inventory.InventoryItem;
 import necesse.inventory.item.ItemCategory;
 import necesse.inventory.itemFilter.ItemCategoriesFilter;
+import necesse.inventory.recipe.GlobalIngredient;
+import necesse.inventory.recipe.Ingredient;
 import necesse.inventory.recipe.Recipe;
 import necesse.inventory.recipe.Recipes;
 import necesse.inventory.recipe.Tech;
@@ -305,7 +308,21 @@ public class StorageTerminalContainer extends Container {
       // With the list fixed for the container's lifetime, installing a bench cannot desync
       // anything: what changes is which recipes the tab *shows*, and the server refuses the rest in
       // applyCraftingAction below. The list is never shown in full, so its size is not a UI concern.
-      Recipes.streamRecipes().filter(recipe -> !recipe.matchTech(RecipeTechRegistry.NONE)).forEach(this::addRecipe);
+      //
+      // This also makes the terminal the one piece of UI in the game that renders every recipe's
+      // tooltip to every player, regardless of which station (if any) they own -- a normal crafting
+      // station only ever shows recipes tagged for its own tech, so a broken recipe there is only
+      // reachable by a player who owns the matching bench. hasUnbrokenGlobalIngredients below exists
+      // because of that exposure: Ingredient.getDisplayItem divides by a GlobalIngredient's registered
+      // item count with no zero check, and a recipe (ours, another mod's, or a future vanilla one)
+      // that references a global ingredient nothing has registered an item under crashes the moment
+      // its tooltip is drawn. Skipping such a recipe here costs nothing a player could use anyway --
+      // it has no obtainable ingredient to fetch -- and does not touch vanilla's own method, which
+      // every other mod calling it still gets unpatched.
+      Recipes.streamRecipes()
+         .filter(recipe -> !recipe.matchTech(RecipeTechRegistry.NONE))
+         .filter(StorageTerminalContainer::hasUnbrokenGlobalIngredients)
+         .forEach(this::addRecipe);
 
       // Excludes the terminal's own inventory, so an installed bench is not an ingredient. Several
       // upgrade recipes take the base station as a material, and without this, crafting a Demonic
@@ -341,6 +358,57 @@ public class StorageTerminalContainer extends Container {
          this.onEvent(SlotMirrorEvent.class, this::applyMirror);
          this.requestMirroring();
       }
+   }
+
+   /**
+    * True unless drawing this recipe's tooltip would divide by zero.
+    *
+    * <p>{@code Ingredient.getDisplayItem} picks a display item from a global ingredient's registered item IDs by
+    * taking {@code size()} as a modulus, with no check that the list is non-empty first. A {@code GlobalIngredient}
+    * starts out empty and is only ever populated by {@code Item.addGlobalIngredient} calls at registration time, so
+    * a recipe naming a global ingredient string ID that nothing registered an item under -- a typo, a removed item,
+    * or a reference to another mod's global ingredient when that mod is not installed -- leaves it empty forever.
+    * {@code getGlobalIngredient()} can also return {@code null} outright, if the string ID was never registered as
+    * a global ingredient at all, which the same call chain would NPE on instead.
+    *
+    * <p>Every recipe in the game reaches this filter, from {@link #addRecipe} above, not just this mod's own three
+    * uses of vanilla's own well-populated {@code anylog}. A broken recipe like this is unreachable in an ordinary
+    * crafting station, which only ever shows recipes tagged for its own tech -- a player needs the exact matching
+    * bench installed to render its tooltip. This terminal shows every recipe to every player unconditionally, which
+    * is what turns a latent bug in one other mod's or vanilla's own recipe data into a guaranteed crash here. Fixed
+    * on this end rather than by patching {@code Ingredient.getDisplayItem} itself, so every other caller of that
+    * vanilla method -- including a normal crafting station showing the same broken recipe to a player who does
+    * have the matching bench -- is untouched by this mod either way.
+    *
+    * <p>Costs a player nothing: a recipe with no obtainable item behind one of its global ingredients could never
+    * actually be crafted, so hiding it from the list removes a crash, not a capability.
+    */
+   private static boolean hasUnbrokenGlobalIngredients(Recipe recipe) {
+      for (Ingredient ingredient : recipe.ingredients) {
+         if (!ingredient.isGlobalIngredient()) {
+            continue;
+         }
+
+         GlobalIngredient globalIngredient = ingredient.getGlobalIngredient();
+         if (globalIngredient == null) {
+            GameLog.warn.println(
+               "Arcane Storage: recipe for " + recipe.resultStringID + " names an unregistered global "
+                  + "ingredient (" + ingredient.ingredientStringID + "). Hidden from the terminal's crafting list."
+            );
+            return false;
+         }
+
+         if (globalIngredient.getObtainableRegisteredItemIDs().isEmpty() && globalIngredient.getRegisteredItemIDs().isEmpty()) {
+            GameLog.warn.println(
+               "Arcane Storage: recipe for " + recipe.resultStringID + " names global ingredient "
+                  + ingredient.ingredientStringID + ", which has no item registered under it. Hidden from the "
+                  + "terminal's crafting list."
+            );
+            return false;
+         }
+      }
+
+      return true;
    }
 
    /**
