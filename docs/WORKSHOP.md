@@ -85,6 +85,10 @@ and it comes from `CHANGELOG.md` so the two cannot drift.
 
 ---
 
+[h3]1.0.6[/h3]
+
+[b]Storage Units now slow spoiling, more so per tier.[/b] Base is unaffected; Demonic halves the rate, Tungsten quarters it, Fallen cuts it to an eighth — stronger than a vanilla Cooling Box, since it is the top of a four-rung climb rather than a match for one specific vanilla object. No fuel needed; it is a property of the unit itself.
+
 [h3]1.0.5[/h3]
 
 [b]Arcane Conduits no longer block movement.[/b] They now walk over like a torch or a flower patch, requested by players laying out a base, since a solid conduit fought the layout it exists to make possible.

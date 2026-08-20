@@ -5,6 +5,13 @@ the GitHub release notes are both taken from here, so they cannot disagree.
 
 Dates are release dates. Anything still unreleased sits under Unreleased until it ships.
 
+## 1.0.6
+
+**Storage Units now slow spoiling, more so per tier.** Base is unaffected; Demonic halves the rate, Tungsten
+quarters it, Fallen cuts it to an eighth — stronger than a vanilla Cooling Box, since it is the top of a
+four-rung climb rather than a match for one specific vanilla object. No fuel needed; it is a property of the
+unit itself.
+
 ## 1.0.5
 
 **Arcane Conduits no longer block movement.** They now walk over like a torch or a flower patch, requested by
