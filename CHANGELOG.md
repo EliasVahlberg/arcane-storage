@@ -5,6 +5,15 @@ the GitHub release notes are both taken from here, so they cannot disagree.
 
 Dates are release dates. Anything still unreleased sits under Unreleased until it ships.
 
+## 1.0.5
+
+**Arcane Conduits no longer block movement.** They now walk over like a torch or a flower patch, requested by
+players laying out a base, since a solid conduit fought the layout it exists to make possible.
+
+**The Arcane Base Station and Arcane Access Point now have an animated status light**, cycling through frames like
+a transceiver's TX/RX LED, instead of a single static "on" sprite. Purely cosmetic: it plays only while the device
+is active and carries no meaning of its own.
+
 ## 1.0.4
 
 **A crash is fixed.** The storage terminal's crafting tab lists every recipe in the game so bench indices never

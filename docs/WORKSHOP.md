@@ -85,6 +85,12 @@ and it comes from `CHANGELOG.md` so the two cannot drift.
 
 ---
 
+[h3]1.0.5[/h3]
+
+[b]Arcane Conduits no longer block movement.[/b] They now walk over like a torch or a flower patch, requested by players laying out a base, since a solid conduit fought the layout it exists to make possible.
+
+[b]The Arcane Base Station and Arcane Access Point now have an animated status light[/b], cycling through frames like a transceiver's TX/RX LED, instead of a single static "on" sprite. Purely cosmetic: it plays only while the device is active and carries no meaning of its own.
+
 [h3]1.0.4[/h3]
 
 [b]A crash is fixed.[/b] The storage terminal's crafting tab lists every recipe in the game so bench indices never shift, which also means it can render a tooltip for a recipe it did not create. A recipe naming a global ingredient that nothing ever registered an item under, whether from another mod, a removed item, or a typo, crashed the instant its tooltip was drawn. Such a recipe could never actually be crafted anyway, so it is now left out of the terminal's list instead.
