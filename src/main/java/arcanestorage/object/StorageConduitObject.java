@@ -39,6 +39,12 @@ import necesse.level.maps.light.GameLight;
  * traversal recognises it by object ID at a tile rather than by an entity, and there is
  * nothing to persist, break cleanly, or keep in sync.
  *
+ * <p>No collision box, matching a torch or a flower patch rather than a chest: a player walks
+ * over it. Requested by players laying out a base, since a solid conduit fights the very
+ * layout it exists to make possible. Collision lives on the registered object instance, not in
+ * a save file, so this took effect for every conduit already placed by an earlier version the
+ * moment the updated mod loaded -- nothing needed migrating.
+ *
  * <p>Extends {@link FurnitureObject} rather than anything in the container hierarchy: an
  * inventory object would give it a container the player could open, which is exactly what a
  * conduit must not have.
@@ -106,7 +112,7 @@ public class StorageConduitObject extends FurnitureObject implements NetworkCond
    public GameTexture texture;
 
    public StorageConduitObject() {
-      super(new Rectangle(32, 32));
+      super(new Rectangle());
       this.textureName = ArcaneStorage.CONDUIT_STRING_ID;
       this.toolType = ToolType.ALL;
       this.mapColor = new Color(96, 74, 140);
