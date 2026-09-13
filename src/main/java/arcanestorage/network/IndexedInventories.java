@@ -76,6 +76,35 @@ public final class IndexedInventories {
    private static final Map<Inventory, Item[]> WATCHED_SHADOW = new ConcurrentHashMap<>();
 
    /** Called from the patch, for every inventory in the game. Must stay cheap. */
+   /**
+    * Reports a failure that escaped {@link #slotChanged}, rate-limited hard.
+    *
+    * <p>Public because ByteBuddy inlines the calling advice into {@code Inventory} itself, so anything it
+    * touches must be reachable from there -- a private member fails at runtime with {@code IllegalAccessError}
+    * rather than at compile time.
+    *
+    * <p>Only the first few are printed. The call site is every inventory mutation in the game, so a fault
+    * that repeats would otherwise fill the log faster than anything else in it and bury the first occurrence,
+    * which is the one worth reading. The running total is kept so the scale is still visible.
+    */
+   public static void slotChangeFailed(Throwable cause) {
+      long seen = ++slotChangeFailures;
+      if (seen <= 3L) {
+         GameLog.warn.println("Arcane Storage: an inventory change could not be recorded (" + cause
+               + "). The change itself went through -- this hook only observes -- but a network index may now"
+               + " be stale until its drift check corrects it."
+               + (seen == 3L ? " Further occurrences will not be logged." : ""));
+         cause.printStackTrace();
+      }
+   }
+
+   /** How many notifications have failed, counted even once logging stops. */
+   public static long slotChangeFailures() {
+      return slotChangeFailures;
+   }
+
+   private static volatile long slotChangeFailures;
+
    public static void slotChanged(Inventory inventory, int slot) {
       notifications++;
 

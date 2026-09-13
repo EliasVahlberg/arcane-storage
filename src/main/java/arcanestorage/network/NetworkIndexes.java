@@ -5,7 +5,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
-
 import necesse.entity.objectEntity.ObjectEntity;
 import necesse.level.maps.Level;
 
@@ -203,6 +202,18 @@ public final class NetworkIndexes {
       }
 
       long tick = tickOf(level);
+
+      // Deliberately not wrapped in a try/catch, and the reasoning is worth keeping because the opposite was
+      // tried. Guarding here would stop a foreign item's patched method from killing the level tick, which
+      // sounds strictly good, but it can only catch *after* a transfer has begun -- and since a move adds to
+      // the destination before removing from the source, an interrupted one duplicates an item. Trading a
+      // duplication window for a crash nobody has ever observed is the wrong trade for a storage mod, where
+      // silent quantity changes are the least forgivable failure there is. An exception raised here is also
+      // far more likely to be ours than a foreign item's, and ours should be loud.
+      //
+      // If evidence of a real foreign fault in this path ever turns up, the fix is not a wider catch: it is a
+      // transfer that computes its whole plan before mutating anything, so an interruption has nothing torn to
+      // leave behind.
       index.scheduler().tick(level, tick);
       index.reconcile(tick);
    }
