@@ -96,9 +96,13 @@ public class StorageItemCell extends FormComponent implements FormPositionContai
       HoverStateTextures slotVariants = this.getInterfaceStyle().inventoryslot_small;
       GameTexture slotTexture = hovering ? slotVariants.highlighted : slotVariants.active;
       slotTexture.initDraw().color(color).draw(this.getX(), this.getY());
-      this.item.draw(perspective, this.getX(), this.getY());
 
-      if (hovering) {
+      // The slot frame is drawn before this and unconditionally, so a stack whose icon fails still leaves a
+      // cell the player can see and click -- withdrawing goes through handleInputEvent and never touches a
+      // texture, so a missing icon costs appearance only, not access to the item.
+      boolean drawn = ItemDrawGuard.drawStack(this.item, perspective, this.getX(), this.getY());
+
+      if (hovering && drawn) {
          GameTooltipManager.addTooltip(this.item.getTooltip(perspective, new GameBlackboard()),
                GameBackground.getItemTooltipBackground(), TooltipLocation.FORM_FOCUS);
       }

@@ -12,6 +12,7 @@ import arcanestorage.ui.ArcaneDropdown;
 import arcanestorage.ui.ArcaneText;
 import arcanestorage.ui.CategoryGrouping;
 import arcanestorage.ui.CategoryTreeForm;
+import arcanestorage.ui.ItemDrawGuard;
 import arcanestorage.ui.StorageItemCell;
 import necesse.engine.gameLoop.tickManager.TickManager;
 import necesse.engine.input.Control;
@@ -68,6 +69,7 @@ import necesse.gfx.gameFont.FontOptions;
 import necesse.inventory.InventoryItem;
 import necesse.inventory.container.Container;
 import necesse.inventory.container.ContainerAction;
+import necesse.inventory.item.Item;
 import necesse.inventory.item.ItemCategory;
 import necesse.inventory.item.ItemSearchTester;
 import java.util.function.Supplier;
@@ -977,6 +979,31 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
    }
 
    /**
+    * Whether this recipe's result has already failed to draw once.
+    *
+    * <p>Shares {@link ItemDrawGuard}'s registry with the storage grid deliberately: an item that cannot
+    * draw as a stored stack cannot draw as a recipe result either, so learning it in one place spares the
+    * other. Both are keyed by string ID because the failure belongs to the game's load order, not to a
+    * component that gets rebuilt on every search keystroke.
+    */
+   private static boolean isUndrawable(ContainerRecipe recipe) {
+      return ItemDrawGuard.isBroken(resultItemOf(recipe));
+   }
+
+   private static void warnUndrawableRecipe(ContainerRecipe recipe, Throwable cause) {
+      ItemDrawGuard.report(ItemDrawGuard.idOf(resultItemOf(recipe)), "a recipe result", cause);
+   }
+
+   /** Reaches the result item without trusting the chain, since both callers are failure paths. */
+   private static Item resultItemOf(ContainerRecipe recipe) {
+      try {
+         return recipe.recipe.resultItem.item;
+      } catch (Throwable ignored) {
+         return null;
+      }
+   }
+
+   /**
     * What to call a crafting source in the tickbox strip.
     *
     * <p>The station's own item name, not the tech's display name, because the tech names have gaps:
@@ -1317,6 +1344,50 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
                               @Override
                               public CanCraft getCanCraft() {
                                  return cr.canCraft;
+                              }
+
+                              /**
+                               * Draws defensively, because this tab is the only place in the game that
+                               * renders every registered recipe.
+                               *
+                               * <p>A vanilla crafting station draws recipes for its own techs, and an
+                               * inventory draws items the player holds. This list streams
+                               * {@link RecipeTechRegistry#ALL}, so it draws every item every installed
+                               * mod registers a recipe for -- including items nothing else would ever
+                               * ask to render. That makes one broken asset anywhere in the load order
+                               * our crash.
+                               *
+                               * <p>The reported case: {@code Item.getItemSprite} is
+                               * {@code new GameSprite(this.itemTexture)}, and that constructor
+                               * dereferences its argument, so an item whose texture never loaded takes
+                               * the client down with an NPE inside {@code GameSprite.<init>}. A missing
+                               * PNG cannot cause it -- {@code GameTexture.fromFile} falls back to the
+                               * pink placeholder -- but {@code GameResources.loadTextures} iterates
+                               * items with no per-item guard, so one item throwing there leaves every
+                               * item after it in registry order with a null texture.
+                               *
+                               * <p>So: a cell that cannot draw is skipped rather than fatal, and the
+                               * item is named once in the log. Crafting is untouched -- a recipe with no
+                               * icon still works -- and one unnamed offender no longer costs the whole
+                               * window.
+                               */
+                              @Override
+                              public void draw(TickManager tickManager, PlayerMob perspective, Rectangle renderBox) {
+                                 // Known-bad cells are skipped outright rather than re-attempted. Two
+                                 // reasons: super.draw registers the hover tooltip with
+                                 // GameTooltipManager, which renders it AFTER this method returns and
+                                 // therefore outside this catch -- a tooltip embedding a result item
+                                 // that cannot draw would crash where nothing can guard it. And a cell
+                                 // that threw once will throw every frame, so retrying it is pure cost.
+                                 if (isUndrawable(cr.recipe)) {
+                                    return;
+                                 }
+
+                                 try {
+                                    super.draw(tickManager, perspective, renderBox);
+                                 } catch (Throwable t) {
+                                    warnUndrawableRecipe(cr.recipe, t);
+                                 }
                               }
                            };
                            this.recipeComponents.add(comp);
