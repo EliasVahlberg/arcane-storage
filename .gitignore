@@ -68,6 +68,12 @@ steam_appid.txt
 latest-crash.log
 latest-log.txt
 
+# Files that OTHER installed mods generate at runtime. `make run` launches the game with this
+# directory as the working directory, so a mod writing its config relative to the process's cwd
+# drops it here instead of in the game's own folder. Neither ours to publish nor useful to.
+torvians-qol.cfg
+torvians-qol-motd.txt
+
 # === EDITORS / OS ==========================================================
 .idea/
 *.iml
