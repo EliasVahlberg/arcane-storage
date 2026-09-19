@@ -918,10 +918,7 @@ public class StorageTerminalContainer extends Container {
       for (NetworkStations unit : this.stationUnits) {
          Inventory sockets = unit.getInventory();
          for (int slot = 0; slot < sockets.getSize(); slot++) {
-            CraftingStationObject station = StorageTerminalObjectEntity.getCraftingStation(sockets.getItem(slot));
-            if (station != null) {
-               techs.addAll(java.util.Arrays.asList(station.getCraftingTechs()));
-            }
+            arcanestorage.objectentity.StationTechHelper.addStationTechs(sockets.getItem(slot), techs);
          }
       }
 
