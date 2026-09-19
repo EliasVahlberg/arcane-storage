@@ -281,7 +281,10 @@ public class RemoteTerminalContainer extends StorageTerminalContainer {
     */
    @Override
    protected boolean depositable(InventoryItem item) {
-      return item == null || !(item.item instanceof WirelessTerminalItem)
+      if (!super.depositable(item)) {
+         return false;
+      }
+      return !(item.item instanceof WirelessTerminalItem)
             || !this.binding.equals(RemoteBinding.read(item));
    }
 

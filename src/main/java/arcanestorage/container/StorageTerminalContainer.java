@@ -68,6 +68,14 @@ public class StorageTerminalContainer extends Container {
    /** Purpose string passed to the engine's item comparisons, for its debug logging. */
    public static final String AGGREGATE_PURPOSE = "arcanestorageaggregate";
 
+   /**
+    * Purpose used when combining a normal withdrawn stack onto the cursor.
+    *
+    * <p>Kept as {@code lootall} for ordinary items. Nested-inventory bags (lunchbox, shadow bag,
+    * coin pouch, …) bypass {@code combineSlots} entirely — see {@link #isNestedInventoryItem}.
+    */
+   public static final String WITHDRAW_COMBINE_PURPOSE = "lootall";
+
    /** First container index belonging to a linked unit, or -1 when nothing is linked. */
    /**
     * First and last slot holding an installed crafting station, or -1 when the network has no Station
@@ -865,17 +873,28 @@ public class StorageTerminalContainer extends Container {
    }
 
    /**
-    * Whether deposit-all may take an item. Everything, here; a wireless terminal overrides it.
+    * Whether deposit-all may take an item.
     *
-    * <p>The case it exists for: deposit-all through a wireless terminal used to file <b>the terminal itself</b>
-    * away, and the container closes the moment the player stops holding it -- so one click stored the only way back
-    * to the network, in the network, on a level the player was not on. A test caught it, but only because the test
-    * happened to deposit before withdrawing.
+    * <p>Bags, pouches and coin pouches are refused: their internal inventories do not survive a round
+    * trip through the network cleanly, and withdraw used to leave them stuck when combine rejected
+    * {@link #AGGREGATE_PURPOSE}. Dragging one in on purpose is still allowed — only deposit-all is
+    * gated here (same split as the wireless-terminal safeguard below in the remote subclass).
     *
-    * <p>Deliberately not applied to a deliberate drag into a slot. Losing a key by clicking "deposit all" is an
-    * accident worth preventing; dragging it in is a decision, and refusing decisions silently is its own confusion.
+    * <p>The case the wireless override exists for: deposit-all through a wireless terminal used to file
+    * <b>the terminal itself</b> away, and the container closes the moment the player stops holding it —
+    * so one click stored the only way back to the network, in the network, on a level the player was
+    * not on.
     */
    protected boolean depositable(InventoryItem item) {
+      if (item == null || item.item == null) {
+         return false;
+      }
+      if (item.item instanceof necesse.inventory.item.miscItem.InternalInventoryItemInterface) {
+         return false;
+      }
+      if (item.item instanceof necesse.inventory.item.miscItem.CoinPouch) {
+         return false;
+      }
       return true;
    }
 
@@ -939,6 +958,123 @@ public class StorageTerminalContainer extends Container {
       }
 
       return NetworkContents.aggregate(this.level(), this.linkedUnits, AGGREGATE_PURPOSE);
+   }
+
+   /**
+    * Items that carry another inventory (or coin totals) inside their GND.
+    *
+    * <p>Void pouches are <i>not</i> this — they open cloud storage and are ordinary items as far as
+    * withdraw is concerned. Nested bags get a direct slot→cursor move instead of {@code combineSlots}.
+    */
+   static boolean isNestedInventoryItem(InventoryItem item) {
+      if (item == null || item.item == null) {
+         return false;
+      }
+      if (item.item instanceof necesse.inventory.item.miscItem.CoinPouch) {
+         return true;
+      }
+      return item.item instanceof necesse.inventory.item.miscItem.InternalInventoryItemInterface;
+   }
+
+   /**
+    * Whether a network slot is the stack the player clicked in the aggregate grid.
+    *
+    * <p>Nested bags cannot rely on {@code InventoryItem.equals} alone: {@code Item.isSameGNDData}
+    * ignores pouch contents, and {@code CoinPouch.isSameGNDData} only checks that a {@code coins}
+    * key exists. The client sends a compact content fingerprint and we match that against the real
+    * network stack.
+    */
+   static boolean matchesWithdrawTarget(Level level, InventoryItem held, InventoryItem wanted,
+         long nestedFingerprint) {
+      if (held == null || wanted == null || held.item == null || wanted.item == null) {
+         return false;
+      }
+      if (isNestedInventoryItem(wanted) || isNestedInventoryItem(held)) {
+         return held.item.getID() == wanted.item.getID()
+               && nestedFingerprint(held) == nestedFingerprint;
+      }
+      return held.equals(level, wanted, true, false, AGGREGATE_PURPOSE);
+   }
+
+   /**
+    * Stable identity for a pouch / coin pouch without shipping its full GND on the wire.
+    *
+    * <p>Nested slot fingerprints hash each contained stack's id, amount, and canonical GND content
+    * packet — map size alone would collide two enchanted items that happen to have the same number of
+    * GND keys.
+    */
+   static long nestedFingerprint(InventoryItem item) {
+      if (item == null || item.item == null) {
+         return 0L;
+      }
+
+      long fp = item.item.getID();
+      if (item.item instanceof necesse.inventory.item.miscItem.CoinPouch) {
+         return fp * 31L
+               + Integer.toUnsignedLong(necesse.inventory.item.miscItem.CoinPouch.getCurrentCoins(item));
+      }
+
+      if (!(item.item instanceof necesse.inventory.item.miscItem.InternalInventoryItemInterface)) {
+         return fp;
+      }
+
+      necesse.inventory.item.miscItem.InternalInventoryItemInterface pouch =
+            (necesse.inventory.item.miscItem.InternalInventoryItemInterface) item.item;
+      Inventory inv = pouch.getInternalInventory(item);
+      fp = fp * 31L + inv.getSize();
+      for (int i = 0; i < inv.getSize(); i++) {
+         InventoryItem slot = inv.getItem(i);
+         if (slot == null || slot.item == null) {
+            fp = fp * 31L;
+            continue;
+         }
+         fp = fp * 31L + slot.item.getID();
+         fp = fp * 31L + Integer.toUnsignedLong(slot.getAmount());
+         fp = fp * 31L + gndStamp(slot);
+      }
+      return fp;
+   }
+
+   /** Hash of an item's GND payload so fingerprints track metadata, not only map size. */
+   private static long gndStamp(InventoryItem item) {
+      byte[] data = item.getGndData().getContentPacket().getPacketData();
+      long h = data.length;
+      for (int i = 0; i < data.length; i++) {
+         h = h * 31L + (data[i] & 0xff);
+      }
+      return h;
+   }
+
+   /**
+    * Moves a nested bag out of a network slot onto the cursor, into the player inventory, or onto
+    * the ground — never leaves it stranded because {@code combineSlots} refused the pouch.
+    */
+   private boolean liftNestedItem(ContainerSlot slot, ContainerSlot cursor, boolean toCursor) {
+      InventoryItem moving = slot == null ? null : slot.getItem();
+      if (moving == null) {
+         return false;
+      }
+
+      PlayerMob player = this.client.playerMob;
+      if (toCursor && cursor != null && cursor.isClear()) {
+         slot.setItem(null);
+         cursor.setItem(moving);
+         slot.markDirty();
+         cursor.markDirty();
+         return true;
+      }
+
+      slot.setItem(null);
+      slot.markDirty();
+      if (player == null || player.getInv() == null) {
+         return true;
+      }
+
+      player.getInv().addItemsDropRemaining(moving, "arcanestoragewithdraw", player, !toCursor, false);
+      if (cursor != null) {
+         cursor.markDirty();
+      }
+      return true;
    }
 
    @Override
@@ -1304,9 +1440,17 @@ public class StorageTerminalContainer extends Container {
       public void runAndSend(InventoryItem item, int amount, boolean toCursor) {
          Packet content = new Packet();
          PacketWriter writer = new PacketWriter(content);
-         item.addPacketContent(writer);
-         writer.putNextInt(amount);
+         long fingerprint = 0L;
+         InventoryItem toSend = item;
+         if (isNestedInventoryItem(item) && item.item != null) {
+            // Fingerprint the real bag, then ship a GND-free stub so the packet stays small.
+            fingerprint = nestedFingerprint(item);
+            toSend = new InventoryItem(item.item, Math.max(1, item.getAmount()));
+         }
+         toSend.addPacketContent(writer);
+         writer.putNextInt(Math.max(1, amount));
          writer.putNextBoolean(toCursor);
+         writer.putNextLong(fingerprint);
          this.runAndSendAction(content);
       }
 
@@ -1315,12 +1459,16 @@ public class StorageTerminalContainer extends Container {
          InventoryItem wanted = InventoryItem.fromContentPacket(reader);
          int requested = reader.getNextInt();
          boolean toCursor = reader.getNextBoolean();
+         long nestedFingerprint = reader.getNextLong();
          if (wanted == null || StorageTerminalContainer.this.isNetworkEmpty()) {
             return;
          }
 
          // Never trust the requested amount: one click yields at most one stack.
          int remaining = Math.min(Math.max(requested, 0), wanted.item.getStackSize());
+         if (isNestedInventoryItem(wanted) && remaining <= 0) {
+            remaining = 1;
+         }
          Level level = StorageTerminalContainer.this.level();
          ContainerSlot cursor = StorageTerminalContainer.this.getClientDraggingSlot();
 
@@ -1329,8 +1477,16 @@ public class StorageTerminalContainer extends Container {
               index++) {
             ContainerSlot slot = StorageTerminalContainer.this.getSlot(index);
             InventoryItem held = slot == null ? null : slot.getItem();
-            if (held == null || !held.equals(level, wanted, true, false, AGGREGATE_PURPOSE)) {
+            if (held == null || !matchesWithdrawTarget(level, held, wanted, nestedFingerprint)) {
                continue;
+            }
+
+            if (isNestedInventoryItem(held)) {
+               // Take the whole bag in one shot — these never partial-stack.
+               if (StorageTerminalContainer.this.liftNestedItem(slot, cursor, toCursor)) {
+                  remaining = 0;
+               }
+               break;
             }
 
             if (toCursor) {
@@ -1338,7 +1494,7 @@ public class StorageTerminalContainer extends Container {
                // fails without moving anything if the cursor holds something else — so a
                // click with an unrelated item held is a no-op rather than a swap.
                int before = cursor.getItemAmount();
-               if (!cursor.combineSlots(level, StorageTerminalContainer.this.client.playerMob, slot, remaining, true, false, AGGREGATE_PURPOSE)
+               if (!cursor.combineSlots(level, StorageTerminalContainer.this.client.playerMob, slot, remaining, true, false, WITHDRAW_COMBINE_PURPOSE)
                   .success) {
                   break;
                }

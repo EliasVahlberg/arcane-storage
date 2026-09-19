@@ -8,6 +8,8 @@ import java.util.Map;
 import arcanestorage.network.NetworkStorage;
 import necesse.inventory.Inventory;
 import necesse.inventory.InventoryItem;
+import necesse.inventory.item.miscItem.CoinPouch;
+import necesse.inventory.item.miscItem.InternalInventoryItemInterface;
 import necesse.level.maps.Level;
 
 /**
@@ -65,6 +67,12 @@ public final class NetworkContents {
             boolean merged = false;
 
             for (InventoryItem existing : candidates) {
+               // Bags/pouches keep separate aggregate rows: their GND is the contents, and
+               // Item.isSameGNDData ignores that, so equals would otherwise merge every lunchbox
+               // into one stack and withdraw could not tell them apart.
+               if (isNestedInventoryItem(existing) || isNestedInventoryItem(item)) {
+                  continue;
+               }
                if (existing.equals(level, item, true, false, purpose)) {
                   existing.setAmount(existing.getAmount() + item.getAmount());
                   merged = true;
@@ -154,5 +162,16 @@ public final class NetworkContents {
       }
 
       return total;
+   }
+
+   /** Same rule as the terminal withdraw path: pouches and coin pouches are never stack-merged. */
+   private static boolean isNestedInventoryItem(InventoryItem item) {
+      if (item == null || item.item == null) {
+         return false;
+      }
+      if (item.item instanceof CoinPouch) {
+         return true;
+      }
+      return item.item instanceof InternalInventoryItemInterface;
    }
 }
