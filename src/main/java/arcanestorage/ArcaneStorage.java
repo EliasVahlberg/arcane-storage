@@ -330,6 +330,10 @@ public class ArcaneStorage {
             CostTable.materials("recipe.terminal"))
       );
 
+      // Next-tier crafting-station upgrades as Crafting-tab recipes (Crafting Stations → Station Upgrades).
+      // Vanilla only upgrades a placed world tile; inside the terminal the bench is an item.
+      arcanestorage.recipe.StationUpgradeRecipes.register();
+
       // The wireless ladder. Made at the era's workstation rather than by hand, unlike the earlier single-tier
       // version: a tiered recipe belongs where the other recipes of its tier are, and the station is where a player
       // goes when they have just mined the gemstone these ask for. Each upper rung consumes the one below, so a

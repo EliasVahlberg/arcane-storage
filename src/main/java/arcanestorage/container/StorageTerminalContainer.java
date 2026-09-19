@@ -309,6 +309,10 @@ public class StorageTerminalContainer extends Container {
       // anything: what changes is which recipes the tab *shows*, and the server refuses the rest in
       // applyCraftingAction below. The list is never shown in full, so its size is not a UI concern.
       //
+      // Hand recipes (tech NONE) stay out — except Arcane Storage's synthetic station-upgrade
+      // recipes, which reuse NONE so they are not gated on an installed tech (the base station is
+      // the ingredient). Those must be in the list or the Station Upgrades subgroup is empty.
+      //
       // This also makes the terminal the one piece of UI in the game that renders every recipe's
       // tooltip to every player, regardless of which station (if any) they own -- a normal crafting
       // station only ever shows recipes tagged for its own tech, so a broken recipe there is only
@@ -320,18 +324,17 @@ public class StorageTerminalContainer extends Container {
       // it has no obtainable ingredient to fetch -- and does not touch vanilla's own method, which
       // every other mod calling it still gets unpatched.
       Recipes.streamRecipes()
-         .filter(recipe -> !recipe.matchTech(RecipeTechRegistry.NONE))
+         .filter(recipe -> !recipe.matchTech(RecipeTechRegistry.NONE)
+               || arcanestorage.recipe.StationUpgradeRecipes.isUpgradeRecipe(recipe))
          .filter(StorageTerminalContainer::hasUnbrokenGlobalIngredients)
          .forEach(this::addRecipe);
 
-      // Excludes the terminal's own inventory, so an installed bench is not an ingredient. Several
-      // upgrade recipes take the base station as a material, and without this, crafting a Demonic
-      // Workstation would quietly eat the Workstation installed in the terminal. Computed once:
-      // getCraftInventories is called per recipe per craftability check, so it must not allocate.
+      // craftPool is every inventory addSlot attached: player bags, network units, and station
+      // sockets (terminal + station units). Vanilla has no recipe that takes a crafting station as a
+      // material — station upgrades are in-world tile swaps — so Arcane Storage's synthetic Station
+      // Upgrades recipes are the only crafts that spend a socketed bench. Keeping sockets in the pool
+      // is what lets those recipes consume an installed station, one in storage, or one in the bag.
       this.craftPool = new LinkedHashSet<>(this.craftInventories);
-      if (terminal != null) {
-         this.craftPool.remove(terminal.inventory);
-      }
 
       this.withdrawAction = this.registerAction(new StorageTerminalContainer.WithdrawAction());
       this.depositAllAction = this.registerAction(new StorageTerminalContainer.DepositAllAction());
@@ -705,11 +708,11 @@ public class StorageTerminalContainer extends Container {
    }
 
    /**
-    * The network and the player, never the station slots.
+    * The network, the player, and station sockets.
     *
-    * <p>{@code Container.addSlot} adds every slot's inventory to the crafting pool, which is how the
-    * network became a crafting source for free -- but it would also make an installed bench an
-    * ingredient.
+    * <p>{@code Container.addSlot} adds every slot's inventory to the crafting pool. Station sockets
+    * stay in that pool so {@linkplain arcanestorage.recipe.StationUpgradeRecipes station upgrade}
+    * recipes can spend an installed bench; no vanilla recipe uses a crafting station as a material.
     */
    @Override
    public Collection<Inventory> getCraftInventories() {
@@ -738,9 +741,11 @@ public class StorageTerminalContainer extends Container {
     * Whether the terminal can currently build this recipe's kind at all -- a question about
     * stations, not about materials.
     *
-    * <p>Hand recipes always qualify: a recipe needing no station needs no permission, and letting
-    * them through is also what keeps the crafting tab from being empty before the first bench is
-    * installed.
+    * <p>Hand recipes and {@linkplain arcanestorage.recipe.StationUpgradeRecipes station upgrades}
+    * both use {@link RecipeTechRegistry#NONE}, so they always qualify here: a recipe needing no
+    * station needs no permission, and upgrade recipes treat the base station as an ingredient
+    * (craftability is having that item in a socket, the network, or the bag). Letting NONE through
+    * is also what keeps the crafting tab from being empty before the first bench is installed.
     */
    public boolean isRecipeAvailable(Recipe recipe) {
       if (recipe.matchTech(RecipeTechRegistry.NONE)) {
