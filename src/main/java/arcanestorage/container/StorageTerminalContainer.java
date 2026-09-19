@@ -152,6 +152,12 @@ public class StorageTerminalContainer extends Container {
    /** What the client was last told each mirrored slot holds, indexed by container slot. Server-side only. */
    private final InventoryItem[] mirrored;
 
+   /** Cached network aggregate; rebuilt only when {@link #aggregatedFingerprint} changes. */
+   private List<InventoryItem> aggregatedCache;
+
+   /** Cheap content stamp so {@link #getAggregatedItems()} is not O(network) equals-work every frame. */
+   private long aggregatedFingerprint = Long.MIN_VALUE;
+
    /**
     * How many slots this container registered.
     *
@@ -935,10 +941,55 @@ public class StorageTerminalContainer extends Container {
 
    public List<InventoryItem> getAggregatedItems() {
       if (this.isNetworkEmpty()) {
+         this.aggregatedCache = null;
+         this.aggregatedFingerprint = Long.MIN_VALUE;
          return new ArrayList<>();
       }
 
-      return NetworkContents.aggregate(this.level(), this.linkedUnits, AGGREGATE_PURPOSE);
+      long fingerprint = this.networkFingerprint();
+      if (this.aggregatedCache != null && fingerprint == this.aggregatedFingerprint) {
+         return this.aggregatedCache;
+      }
+
+      this.aggregatedCache = NetworkContents.aggregate(this.level(), this.linkedUnits, AGGREGATE_PURPOSE);
+      this.aggregatedFingerprint = fingerprint;
+      return this.aggregatedCache;
+   }
+
+   /**
+    * O(slots) stamp of what the network holds. Includes item id, amount, and a hash of each stack's
+    * GND content packet — the same identity {@link NetworkContents#aggregate} uses with
+    * {@code ignoreGNDData = false}. Cheaper than rebuilding the deduped list every UI frame (was
+    * dropping FPS into single digits on larger networks), but still invalidates when mutable GND
+    * changes (wireless bindings, pouch contents, etc.).
+    */
+   private long networkFingerprint() {
+      long fp = 1L;
+      for (NetworkStorage unit : this.linkedUnits) {
+         Inventory inventory = unit.getInventory();
+         fp = fp * 31L + inventory.getSize();
+         for (int slot = 0; slot < inventory.getSize(); slot++) {
+            InventoryItem item = inventory.getItem(slot);
+            if (item == null) {
+               fp = fp * 31L;
+               continue;
+            }
+            fp = fp * 31L + item.item.getID();
+            fp = fp * 31L + item.getAmount();
+            fp = fp * 31L + gndStamp(item);
+         }
+      }
+      return fp;
+   }
+
+   /** Hash of an item's GND payload so fingerprint tracks metadata, not only id/amount. */
+   private static long gndStamp(InventoryItem item) {
+      byte[] data = item.getGndData().getContentPacket().getPacketData();
+      long h = data.length;
+      for (int i = 0; i < data.length; i++) {
+         h = h * 31L + (data[i] & 0xff);
+      }
+      return h;
    }
 
    @Override
