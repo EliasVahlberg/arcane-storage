@@ -65,11 +65,14 @@ import necesse.gfx.ui.ButtonColor;
 import necesse.gfx.ui.ButtonTexture;
 import necesse.gfx.gameFont.FontManager;
 import necesse.gfx.gameFont.FontOptions;
+import necesse.inventory.Inventory;
 import necesse.inventory.InventoryItem;
 import necesse.inventory.container.Container;
 import necesse.inventory.container.ContainerAction;
 import necesse.inventory.item.ItemCategory;
 import necesse.inventory.item.ItemSearchTester;
+import necesse.level.gameObject.container.CraftingStationObject;
+import arcanestorage.objectentity.StorageTerminalObjectEntity;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -979,21 +982,50 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
    /**
     * What to call a crafting source in the tickbox strip.
     *
-    * <p>The station's own item name, not the tech's display name, because the tech names have gaps:
-    * the game's locale has 26 `tech` entries and no `tech/transmutation`, so a Transmutation Station
-    * logged "Translation of tech.transmutation is not found" and would have shown the raw key. That
-    * is a vanilla omission, not something to work around with a private label -- and a tech's
-    * {@code itemStringID} points at the station that provides it, whose name is in the `object`
-    * locale and complete. It is also the name the player recognises, since it is what the item in
-    * their inventory is called.
+    * <p>Prefer the <i>installed station item's</i> name when a socket provides this tech. Tech
+    * {@code itemStringID}s and {@code tech.*} locale keys have gaps — vanilla omits
+    * {@code tech.transmutation}, and mods can register a tech whose item id is not a real item
+    * (Summoner Expansion's {@code summonbookcraft} → {@code summonbookcraftitem}) while the object
+    * the player actually installed ({@code summoningbookshelf}) is fully localised. Matching the
+    * installed item is what the player recognises in their inventory.
     *
-    * <p>Falls back to the tech name for sources with no item behind them, which is how hand recipes
-    * come out as "Inventory": their tech's itemStringID is "inventory", which is not a real item.
+    * <p>Falls back to the tech's linked item name, then to the tech display name (how hand recipes
+    * become "Inventory": their itemStringID is "inventory", which is not a real item).
     */
-   private static String sourceLabel(Tech tech) {
-      return ItemRegistry.getItemID(tech.itemStringID) == -1
-            ? tech.displayName.translate()
-            : ItemRegistry.getLocalization(tech.itemStringID).translate();
+   private String sourceLabel(Tech tech) {
+      InventoryItem station = this.stationProviding(tech);
+      if (station != null && station.item != null) {
+         return ItemRegistry.getLocalization(station.item.getStringID()).translate();
+      }
+      if (ItemRegistry.getItemID(tech.itemStringID) != -1) {
+         return ItemRegistry.getLocalization(tech.itemStringID).translate();
+      }
+      return tech.displayName.translate();
+   }
+
+   /**
+    * The first installed station item that unlocks {@code tech}, or null.
+    */
+   private InventoryItem stationProviding(Tech tech) {
+      if (tech == null) {
+         return null;
+      }
+      for (arcanestorage.network.NetworkStations unit : this.container.stationUnits) {
+         Inventory sockets = unit.getInventory();
+         for (int slot = 0; slot < sockets.getSize(); slot++) {
+            InventoryItem item = sockets.getItem(slot);
+            CraftingStationObject station = StorageTerminalObjectEntity.getCraftingStation(item);
+            if (station == null) {
+               continue;
+            }
+            for (Tech unlockedTech : station.getCraftingTechs()) {
+               if (unlockedTech != null && unlockedTech.getID() == tech.getID()) {
+                  return item;
+               }
+            }
+         }
+      }
+      return null;
    }
 
    /**
