@@ -1169,6 +1169,7 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
       ArcaneCheckDropdown sourcesButton = form.addComponent(
             new ArcaneCheckDropdown(new LocalMessage("ui", "arcanestorage_sourcesbutton"), PADDING + 150,
                   controlsY, 140, FormInputSize.SIZE_20, ButtonColor.BASE));
+      sourcesButton.setTooltip(new LocalMessage("ui", "arcanestorage_sourcestip").translate());
 
       // Filled here as well as from draw, because input is handled earlier in the frame than any
       // draw: a strip built lazily would be unclickable on the frame it appeared.

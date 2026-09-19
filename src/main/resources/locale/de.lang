@@ -99,6 +99,7 @@ arcanestorage_grouping_none=Keine Gruppierung
 arcanestorage_grouping_coarse=Grobe Gruppierung
 arcanestorage_grouping_fine=Feine Gruppierung
 arcanestorage_sourcesbutton=Quellen
+arcanestorage_sourcestip=Rechtsklick auf eine Quelle, um nur diese anzuzeigen; erneut rechtsklicken, um alle anzuzeigen
 arcanestorage_tab_storage=Lager
 arcanestorage_tab_crafting=Handwerk
 arcanestorage_tab_stations=Stationen

@@ -99,6 +99,7 @@ arcanestorage_grouping_none=Không phân nhóm
 arcanestorage_grouping_coarse=Phân nhóm thô
 arcanestorage_grouping_fine=Phân nhóm chi tiết
 arcanestorage_sourcesbutton=Nguồn
+arcanestorage_sourcestip=Chuột phải một nguồn để chỉ hiện nguồn đó; chuột phải lại để hiện tất cả
 arcanestorage_tab_storage=Kho
 arcanestorage_tab_crafting=Chế Tạo
 arcanestorage_tab_stations=Bàn Chế Tạo

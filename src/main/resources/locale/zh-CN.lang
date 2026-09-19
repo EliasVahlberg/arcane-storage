@@ -99,6 +99,7 @@ arcanestorage_grouping_none=不分组
 arcanestorage_grouping_coarse=粗分组
 arcanestorage_grouping_fine=细分组
 arcanestorage_sourcesbutton=来源
+arcanestorage_sourcestip=右键点击来源以仅显示该项；再次右键显示全部
 arcanestorage_tab_storage=存储
 arcanestorage_tab_crafting=制造
 arcanestorage_tab_stations=工站

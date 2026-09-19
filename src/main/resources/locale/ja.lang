@@ -99,6 +99,7 @@ arcanestorage_grouping_none=グループ化なし
 arcanestorage_grouping_coarse=粗いグループ化
 arcanestorage_grouping_fine=細かいグループ化
 arcanestorage_sourcesbutton=ソース
+arcanestorage_sourcestip=ソースを右クリックすると、それだけを表示します。もう一度右クリックですべて表示
 arcanestorage_tab_storage=ストレージ
 arcanestorage_tab_crafting=作成
 arcanestorage_tab_stations=作業台

@@ -99,6 +99,7 @@ arcanestorage_grouping_none=Tanpa pengelompokan
 arcanestorage_grouping_coarse=Pengelompokan kasar
 arcanestorage_grouping_fine=Pengelompokan halus
 arcanestorage_sourcesbutton=Sumber
+arcanestorage_sourcestip=Klik kanan sumber untuk hanya menampilkan itu; klik kanan lagi untuk menampilkan semua
 arcanestorage_tab_storage=Penyimpanan
 arcanestorage_tab_crafting=Kerajinan
 arcanestorage_tab_stations=Stasiun

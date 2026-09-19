@@ -88,6 +88,7 @@ arcanestorage_grouping_none=No grouping
 arcanestorage_grouping_coarse=Coarse grouping
 arcanestorage_grouping_fine=Fine grouping
 arcanestorage_sourcesbutton=Sources
+arcanestorage_sourcestip=Right-click a source to show only that one; right-click again to show all
 arcanestorage_tab_storage=Storage
 arcanestorage_tab_crafting=Crafting
 arcanestorage_tab_stations=Stations

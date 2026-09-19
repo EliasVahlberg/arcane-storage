@@ -99,6 +99,7 @@ arcanestorage_grouping_none=Без группировки
 arcanestorage_grouping_coarse=Грубая группировка
 arcanestorage_grouping_fine=Точная группировка
 arcanestorage_sourcesbutton=Источники
+arcanestorage_sourcestip=ПКМ по источнику — показать только его; ещё раз ПКМ — показать все
 arcanestorage_tab_storage=Хранилище
 arcanestorage_tab_crafting=Создание
 arcanestorage_tab_stations=Станции

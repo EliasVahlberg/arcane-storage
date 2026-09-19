@@ -99,6 +99,7 @@ arcanestorage_grouping_none=Sin agrupación
 arcanestorage_grouping_coarse=Agrupación gruesa
 arcanestorage_grouping_fine=Agrupación fina
 arcanestorage_sourcesbutton=Fuentes
+arcanestorage_sourcestip=Clic derecho en una fuente para mostrar solo esa; clic derecho otra vez para mostrar todas
 arcanestorage_tab_storage=Almacenamiento
 arcanestorage_tab_crafting=Fabricación
 arcanestorage_tab_stations=Estaciones

@@ -99,6 +99,7 @@ arcanestorage_grouping_none=Gruplama yok
 arcanestorage_grouping_coarse=Kaba gruplama
 arcanestorage_grouping_fine=İnce gruplama
 arcanestorage_sourcesbutton=Kaynaklar
+arcanestorage_sourcestip=Yalnızca onu göstermek için bir kaynağa sağ tıklayın; hepsini göstermek için tekrar sağ tıklayın
 arcanestorage_tab_storage=Depolama
 arcanestorage_tab_crafting=Üretim
 arcanestorage_tab_stations=Tezgahlar
