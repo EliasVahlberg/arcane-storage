@@ -88,36 +88,90 @@ def test_hand_recipes_need_no_station(terminal):
     assert terminal.harness.held("woodboat") == 1
 
 
-@pytest.mark.parametrize("fueled", ["forge", "cookingstation"])
-def test_fueled_stations_cannot_be_installed(terminal, fueled):
-    """A hole in the first version of this feature, closed the same day.
-
-    Fuel is enforced by `FueledCraftingStationContainer.applyCraftingAction`, which refuses when the
-    station is cold -- behaviour of the container, not of the object. The terminal inherits a station's
-    techs and none of its container, so an installed Forge would smelt for free. It is refused until
-    fuel, crafting time and a request queue are built properly.
-    """
-    terminal.open()
-
-    reply = terminal.harness.call("install", fueled)
-
-    assert reply.ok is False, f"{fueled} burns fuel, which the terminal cannot honour yet"
-
-
-def test_a_fueled_station_grants_no_recipes(terminal):
-    """The consequence stated as a test: no Forge means no smelting, however the Forge got there."""
+def test_forge_installs_as_instant_recipes(terminal):
+    """Installing a Forge unlocks FORGE techs: smelt from network ores with no fuel / auto-smelt."""
     terminal.harness.fill(1, 0, "ironore", 10)
     terminal.open()
 
-    reply = terminal.harness.call("craft", "ironbar")
+    terminal.harness.do("install", "forge")
+    terminal.harness.do("craft", "ironbar")
 
-    assert reply.ok is False
+    assert terminal.harness.held("ironbar") == 1
+    assert terminal.count("ironore") == 9
+
+
+def test_forge_does_not_auto_smelt_stored_ore(terminal):
+    """Ore sitting in storage stays ore until the player crafts — install alone must not process it."""
+    terminal.harness.fill(1, 0, "ironore", 10)
+    terminal.open()
+
+    terminal.harness.do("install", "forge")
+    # Processing forge would smelt over world ticks; settle so a regression cannot hide behind "no time passed".
+    terminal.harness.settle(40)
     assert terminal.count("ironore") == 10
+    assert terminal.count("ironbar") == 0
+
+
+# station, ingredient, amount consumed per craft, result item
+FOOD_STATION_RECIPES = [
+    # Cooking station unlocks cooking + pot + roasting techs.
+    ("cookingstation", "rawpork", 1, "roastedpork"),
+    ("cookingpot", "flour", 2, "bread"),
+    ("roastingstation", "rawpork", 1, "roastedpork"),
+]
+
+
+@pytest.mark.parametrize("station,ingredient,consumed,result", FOOD_STATION_RECIPES)
+def test_food_stations_install_as_instant_recipes(terminal, station, ingredient, consumed, result):
+    """Cooking / pot / roasting unlock food techs: craft without fuel OE or auto-cook."""
+    terminal.harness.fill(1, 0, ingredient, 10)
+    terminal.open()
+
+    terminal.harness.do("install", station)
+    terminal.harness.do("craft", result)
+
+    assert terminal.harness.held(result) == 1
+    assert terminal.count(ingredient) == 10 - consumed
+
+
+@pytest.mark.parametrize("station,ingredient,_,result", FOOD_STATION_RECIPES)
+def test_food_stations_do_not_auto_cook_stored_ingredients(terminal, station, ingredient, _, result):
+    """Food left in storage stays raw until the player crafts — install alone must not process it."""
+    terminal.harness.fill(1, 0, ingredient, 10)
+    terminal.open()
+
+    terminal.harness.do("install", station)
+    terminal.harness.settle(40)
+    assert terminal.count(ingredient) == 10
+    assert terminal.count(result) == 0
+
+
+def test_grain_mill_installs_as_instant_recipes(terminal):
+    """Installing a Grain Mill unlocks GRAIN_MILL: flour from wheat with no processing wait."""
+    terminal.harness.fill(1, 0, "wheat", 10)
+    terminal.open()
+
+    terminal.harness.do("install", "grainmill")
+    terminal.harness.do("craft", "flour")
+
+    assert terminal.harness.held("flour") == 1
+    assert terminal.count("wheat") == 9
+
+
+def test_grain_mill_does_not_auto_mill_stored_wheat(terminal):
+    """Wheat in storage stays wheat until the player crafts — install alone must not process it."""
+    terminal.harness.fill(1, 0, "wheat", 10)
+    terminal.open()
+
+    terminal.harness.do("install", "grainmill")
+    terminal.harness.settle(40)
+    assert terminal.count("wheat") == 10
+    assert terminal.count("flour") == 0
 
 
 #: Every vanilla station whose techs an installed item can answer for: `CraftingStationObject`
 #: subclasses, taken from `RecipeTechRegistry`'s own itemStringIDs so the list cannot drift from the
-#: game's.
+#: game's — plus recipe-only exceptions (forge / fueled food stations / grain mill).
 INSTALLABLE_STATIONS = [
     "workstation", "demonicworkstation", "tungstenworkstation", "fallenworkstation",
     "ironanvil", "demonicanvil", "tungstenanvil", "fallenanvil",
@@ -125,14 +179,15 @@ INSTALLABLE_STATIONS = [
     "alchemytable", "voidalchemytable", "caveglowalchemytable", "fallenalchemytable",
     "landscapingstation", "tungstenlandscapingstation", "fallenlandscapingstation",
     "transmutationstation",
+    "forge",
+    "cookingstation", "cookingpot", "roastingstation",
+    "grainmill",
 ]
 
-#: Stations that need their tile. The first three burn fuel; the rest process over time and are not
-#: `CraftingStationObject` at all -- they are `GameObject implements SettlementWorkstationObject`, so
-#: they are refused one step earlier, for having no techs to offer.
+#: Stations that still need their tile (processing OE / settler workstation). Recipe-only exceptions
+#: are listed above — compost bin and cheese press stay refused.
 PLACEMENT_DEPENDENT_STATIONS = [
-    "forge", "cookingstation", "cookingpot", "roastingstation",
-    "compostbin", "grainmill", "cheesepress",
+    "compostbin", "cheesepress",
 ]
 
 
@@ -149,8 +204,7 @@ def test_every_stateless_vanilla_station_installs(terminal, station):
 @pytest.mark.parametrize("station", PLACEMENT_DEPENDENT_STATIONS)
 def test_a_station_that_needs_its_tile_is_refused(terminal, station):
     """Fuel and processing time are enforced by the *container*, not by the object, so an installed one
-    would craft for free. Asserted over every such station in the game, not just the Forge that
-    exposed it."""
+    would craft for free. Asserted over every such station still refused in this release."""
     terminal.open()
 
     reply = terminal.harness.call("install", station)
