@@ -306,16 +306,16 @@ public final class NetworkScheduler {
       boolean unbounded = false;
       int ceiling = NONE;
       int floor = NONE;
-      boolean anyStocking = false;
+      boolean anyCountsInContainer = false;
 
       for (DeviceOnNetwork device : devices) {
          if (!device.wants(item)) {
             continue;
          }
 
-         if (!device.fillsNetwork() && device.containerTargetFor(item) != NONE) {
-            // Stocks its own chest rather than draining the network, so it sets no floor here. Handled below.
-            anyStocking = true;
+         if (device.containerTargetFor(item) != NONE) {
+            // Counts in its own chest, so it sets no floor or ceiling on the network. Handled below.
+            anyCountsInContainer = true;
             continue;
          }
 
@@ -347,15 +347,19 @@ public final class NetworkScheduler {
          moved += this.push(level, item, this.index.of(item) - floor, budget - moved, devices, now);
       }
 
-      if (anyStocking && moved < budget) {
-         moved += this.stock(level, item, budget - moved, devices, now);
+      if (anyCountsInContainer && moved < budget) {
+         moved += this.balanceContainers(level, item, budget - moved, devices, now);
       }
 
       return moved;
    }
 
    /**
-    * Tops up each stocking device's chest to its own number, from whatever the network holds.
+    * Moves each chest a container-counting device is attached to toward that device's number.
+    *
+    * <p>An export bus tops its chest up to the number from what the network holds; an import bus takes whatever
+    * its chest holds above the number. Each only ever moves the way its bus moves, so neither undoes the other
+    * or a player: an over-full stocked chest is left alone, and so is an import chest that has run low.
     *
     * <p>The count of the chest is read here, at the moment of acting, rather than cached. That is the whole of
     * the answer to "a chest we do not own has no index": a bus's container is already watched, so a settler
@@ -363,20 +367,16 @@ public final class NetworkScheduler {
     * container's worth of slots. Nothing polls it -- it is counted only when something has already said coal
     * changed. What a watch cannot see is a change it was never told about, and the heartbeat's
     * {@link #reconsiderEverything} on an emptied slot covers the one case that says nothing about the item.
-    *
-    * <p>Never pulls back. A chest holding more than its number is left alone: taking the excess into the network
-    * is what an import bus is for, and a stocking bus that also drained would fight every player who put
-    * something there by hand.
     */
-   private int stock(Level level, Item item, int budget, List<DeviceOnNetwork> devices, long now) {
+   private int balanceContainers(Level level, Item item, int budget, List<DeviceOnNetwork> devices, long now) {
       int moved = 0;
 
       for (DeviceOnNetwork device : devices) {
-         if (moved >= budget || this.index.of(item) <= 0) {
+         if (moved >= budget) {
             break;
          }
 
-         if (device.fillsNetwork() || !device.wants(item)) {
+         if (!device.wants(item)) {
             continue;
          }
 
@@ -386,12 +386,13 @@ public final class NetworkScheduler {
             continue;
          }
 
-         int gap = target - countIn(container, item);
-         if (gap <= 0) {
+         int inChest = countIn(container, item);
+         int amount = device.fillsNetwork() ? inChest - target : target - inChest;
+         if (amount <= 0 || !device.fillsNetwork() && this.index.of(item) <= 0) {
             continue;
          }
 
-         int did = device.moveItem(level, this.index, item, gap);
+         int did = device.moveItem(level, this.index, item, amount);
          if (did > 0) {
             moved++;
             this.recordMove(item, now);
@@ -428,6 +429,11 @@ public final class NetworkScheduler {
             continue;
          }
 
+         if (device.containerTargetFor(item) != NONE) {
+            // Counts in its chest, so it contributed no ceiling and has no share of this room either.
+            continue;
+         }
+
          int did = device.moveItem(level, this.index, item, room);
          if (did > 0) {
             moved++;
@@ -453,7 +459,7 @@ public final class NetworkScheduler {
          }
 
          if (device.containerTargetFor(item) != NONE) {
-            // A stocking device contributed no floor, so it has no share of this surplus either.
+            // Counts in its chest, so it contributed no floor and has no share of this surplus either.
             continue;
          }
 

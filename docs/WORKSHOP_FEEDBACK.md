@@ -447,7 +447,7 @@ the reason ("production stations are not crafting stations") would cost one loca
 the question without any mechanism changing. Not scheduled; worth doing next time the station UI is
 touched.
 
-## 7. Export bus: keep the adjacent container stocked at N per item — implemented (26 Sep), unreleased
+## 7. Export bus: keep the adjacent container stocked at N per item — implemented for both buses (26 Sep), unreleased
 
 **Report.** Talion The Tark (Workshop, 8 Sep, following up on a 22 Aug exchange): an export bus
 option to keep the neighbouring container topped up at a chosen amount per item — "select stone and
@@ -468,36 +468,51 @@ has none of that — nothing invalidates a cached count when a settler takes a s
 naive version rescans the neighbour every tick per item, which is the cost the index was built to
 remove, and the careful version needs the same machinery pointed at an inventory the mod does not own.
 
-**Implemented (26 Sep), and the difficulty above turned out smaller than stated.** A bus's container is
-*already* watched: `IndexedInventories.watch` registers it every tick, so the `updateSlot` hook marks an item
-dirty on the network's scheduler when anything, a settler included, takes it out of the chest. Nothing has to
-poll. The chest is counted only when the scheduler has already been told that item changed, and it is one
-container's worth of slots. An emptied slot, which does not say what left it, already triggers
-`reconsiderEverything`.
+**Implemented (26 Sep), then generalised the same day to both buses.** The difficulty above turned out
+smaller than stated. A bus's container is *already* watched: `IndexedInventories.watch` registers it every tick,
+so the `updateSlot` hook marks an item dirty on the network's scheduler when anything, a settler included, takes
+it out of the chest. Nothing has to poll. The chest is counted only when the scheduler has already been told that
+item changed, and it is one container's worth of slots. An emptied slot, which does not say what left it, already
+triggers `reconsiderEverything`.
+
+First shipped as an export-only "stock the container" checkbox. Then a comparator (`<`/`>`) plus network/chest
+on both buses was proposed, and the comparator was dropped: a bus moves one way only, so each place it counts in
+has exactly one meaningful direction, and the other comparator is either an off-by-one or a move the bus cannot
+make. What remains is a two-way *Count in: Network / Container* choice on both buses, which covers all four
+behaviours:
+
+| Bus | Counts in | Number means |
+|---|---|---|
+| Import | Network | fill the network up to N (unchanged) |
+| Import | Container | leave N in the chest, take the rest (new) |
+| Export | Network | leave N in the network, send the rest (unchanged) |
+| Export | Container | stock the chest up to N (the request) |
 
 What shipped:
 
-- `BusObjectEntity.stocking`, a flag beside the filter (not a reuse of `ItemCategoriesFilter.limitMode`, which
-  is already overloaded for a bus). Saved only when set, so old saves read unchanged. Export buses only.
-- `containerShouldHold` uses the same arithmetic as `networkShouldHold` (item limit, category limits walking
-  up, the panel-wide number, tightest wins), with the category term counted in the chest. The two now share
-  one `shouldHold`.
-- `DeviceOnNetwork.containerTargetFor`, NONE by default. In `NetworkScheduler.resolve` a stocking device
-  contributes no network floor and gets no share of the surplus. A new `stock` step tops each stocking chest up
-  to its number from what the network holds. It never pulls back. An item ticked without a number is still a
-  plain drain-everything export.
-- **Conflict rule.** A stocking exporter and an importer on the same chest have no resting state for any
-  positive stock, whatever the importer's number, so `whyRefused` refuses it at Apply. A stock of zero rests
-  and is allowed. `whyRefused(filter, stocking)` judges the flag together with the filter, because stocking
-  alone can turn an accepted rule set into a refused one.
-- UI: a checkbox, *Stock the container instead of the network*, under the amount row in `BusRulesEditor`,
-  offered on export buses in both the bus panel and the logistics tab. The flag travels after the filter in the
-  open packet, `SetFilterAction`, `SendRulesAction` and `SetRulesAction`. One new locale key in all ten
+- `BusObjectEntity.inContainer`, a flag beside the filter (not a reuse of `ItemCategoriesFilter.limitMode`, which
+  is already overloaded for a bus). Saved as `countsInContainer` only when set, so old saves read unchanged. The
+  unreleased export-only version used a `stocking` key; nothing was released with it, so it is not read.
+- `containerShouldHold` uses the same arithmetic as `networkShouldHold` (item limit, category limits walking up,
+  the panel-wide number, tightest wins), with the category term counted in the chest. The two share one
+  `shouldHold`.
+- `DeviceOnNetwork.containerTargetFor`, NONE by default. In `NetworkScheduler.resolve` a container-counting
+  device contributes no network floor or ceiling and gets no share of pull or push. `balanceContainers` moves each
+  such chest toward its number in the bus's own direction only. An item ticked without a number is still moved in
+  full.
+- **Conflict matrix** on a shared chest, in `firstUnsatisfiableItem`: network/network is the existing `C <= F`;
+  container/container rests when the export stock is at most what the importer leaves; export-container against
+  import-network rests only at a stock of zero; import-container against export-network is always refused,
+  because whether it rests depends on what the player owns rather than on the rules. `whyRefused(filter, mode)`
+  judges the mode together with the filter.
+- UI: a *Count in* dropdown under the number in `BusRulesEditor`, on both buses, in the bus panel and the
+  logistics tab. The number's label follows the mode (`*_buslimit_container`). The mode travels after the filter
+  in the open packet, `SetFilterAction`, `SendRulesAction` and `SetRulesAction`. Five locale keys in all ten
   languages.
 
-Tested in `tests/python/test_bus_stocking.py` (10 cases): fill to N with the network keeping the rest, a control
-with the flag off, a top-up after a `take`, two items at their own numbers, an over-full chest left alone, a
-short network, conservation, the conflict refusal, save/load (`bussave`), and the open-packet hand-off,
-which guards against the panel opening unticked and Apply silently switching the flag off. New harness verbs:
-`busstock`, `take`, `bussave`. **Not yet seen in game.** The checkbox's placement in the logistics pane is
-the part most likely to need a look.
+Tested in `tests/python/test_bus_stocking.py` (23 cases): both container modes with their network-mode
+controls, top-up after a `take`, over-full and under-full chests left alone, a short network, conservation,
+save/load (`bussave`), the open-packet hand-off, and the conflict matrix including a settling run. A control run
+with the container/container rule disabled fails the refused case. Harness verbs: `buscountin`, `take`,
+`bussave`, and `busapply` takes an optional mode so one Apply can carry filter and mode together. Both the
+export stocking checkbox and the dropdown that replaced it were tested in game (26 Sep) and work.

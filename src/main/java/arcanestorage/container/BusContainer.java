@@ -44,14 +44,14 @@ public class BusContainer extends Container {
     * Whether the bus stocks its container, as last known. The bus's own on the server; on a client, read from
     * the open packet, since like the filter it is saved but not synced.
     */
-   public boolean stocking;
+   public boolean inContainer;
 
    public BusContainer(NetworkClient client, int uniqueSeed, BusObjectEntity bus, Packet content) {
       super(client, uniqueSeed);
       this.bus = bus;
       if (client.isServer()) {
          this.filter = bus.filter;
-         this.stocking = bus.isStocking();
+         this.inContainer = bus.isCountingInContainer();
       } else {
          ItemCategoriesFilter local = new ItemCategoriesFilter(ItemCategory.masterCategory, false);
          if (content != null) {
@@ -59,7 +59,7 @@ public class BusContainer extends Container {
             local.readPacket(reader);
             // After the filter, in the same content packet, so the hand-off stays one wrapped layer -- see
             // openPacket for what a second layer cost once.
-            this.stocking = reader.getNextBoolean();
+            this.inContainer = reader.getNextBoolean();
          }
 
          this.filter = local;
@@ -90,7 +90,7 @@ public class BusContainer extends Container {
       Packet filterContent = new Packet();
       PacketWriter writer = new PacketWriter(filterContent);
       bus.filter.writePacket(writer);
-      writer.putNextBoolean(bus.isStocking());
+      writer.putNextBoolean(bus.isCountingInContainer());
       return PacketOpenContainer.ObjectEntity(containerID, bus, filterContent);
    }
 
@@ -121,11 +121,11 @@ public class BusContainer extends Container {
     */
    public class SetFilterAction extends ContainerCustomAction {
 
-      public void runAndSend(ItemCategoriesFilter edited, boolean stocking) {
+      public void runAndSend(ItemCategoriesFilter edited, boolean inContainer) {
          Packet content = new Packet();
          PacketWriter writer = new PacketWriter(content);
          edited.writePacket(writer);
-         writer.putNextBoolean(stocking);
+         writer.putNextBoolean(inContainer);
          this.runAndSendAction(content);
       }
 
@@ -140,9 +140,9 @@ public class BusContainer extends Container {
          // object -- possibly with half of it contradicting a neighbour and the other half fine.
          ItemCategoriesFilter proposed = new ItemCategoriesFilter(ItemCategory.masterCategory, false);
          proposed.readPacket(reader);
-         boolean stocking = reader.getNextBoolean();
+         boolean inContainer = reader.getNextBoolean();
 
-         String refusal = BusContainer.this.bus.whyRefused(proposed, stocking);
+         String refusal = BusContainer.this.bus.whyRefused(proposed, inContainer);
          if (refusal != null) {
             // Nothing is applied, not even the parts that were harmless. A half-applied rule set is a state the
             // player did not ask for and cannot see, which is worse than a refusal they can read.
@@ -151,8 +151,8 @@ public class BusContainer extends Container {
          }
 
          BusContainer.this.bus.filter.readPacket(new PacketReader(writeOf(proposed)));
-         BusContainer.this.bus.setStocking(stocking);
-         BusContainer.this.stocking = BusContainer.this.bus.isStocking();
+         BusContainer.this.bus.setCountingInContainer(inContainer);
+         BusContainer.this.inContainer = BusContainer.this.bus.isCountingInContainer();
 
          // The network has to be told, or a rule the player just set would wait for some unrelated change to
          // disturb the same item before anything happened. Nothing polls any more, so nothing would notice.

@@ -121,7 +121,7 @@ public final class ArcaneStorageVerbs {
       Harness.registerVerb(new IndexPoisonVerb());
       Harness.registerVerb(new HaulVerb());
       Harness.registerVerb(new BusApplyVerb());
-      Harness.registerVerb(new BusStockVerb());
+      Harness.registerVerb(new BusCountInVerb());
       Harness.registerVerb(new TakeVerb());
       Harness.registerVerb(new BusSaveVerb());
       Harness.registerVerb(new TerminalRulesVerb());
@@ -890,7 +890,7 @@ public final class ArcaneStorageVerbs {
          Packet content = new Packet();
          PacketWriter writer = new PacketWriter(content);
          edited.writePacket(writer);
-         writer.putNextBoolean(container.stocking);
+         writer.putNextBoolean(container.inContainer);
          container.setFilterAction.executePacket(new PacketReader(content));
 
          context.info("sent a filter allowing " + context.arg(1)
@@ -1335,20 +1335,20 @@ public final class ArcaneStorageVerbs {
     * more importantly, that none of it was applied anyway.
     */
    /**
-    * {@code busstock <dx> <dy> <0|1> [accepted|refused]} -- turns an export bus's "stock the container" mode on
-    * or off, through the same judgement the panel's Apply goes through.
+    * {@code buscountin <dx> <dy> <network|container> [accepted|refused]} -- sets which inventory a bus's numbers
+    * are counted in, through the same judgement the panel's Apply goes through.
     *
-    * <p>The flag travels with the filter and is refused with it, so this proposes the bus's current filter
-    * unchanged alongside the new flag: a test can then assert that stocking alone makes a layout
-    * unsatisfiable, which is the case the conflict rule exists for.
+    * <p>The mode travels with the filter and is refused with it, so this proposes the bus's current filter
+    * unchanged alongside the new mode: a test can then assert that the mode alone makes a layout
+    * unsatisfiable, which is the case the conflict rules exist for.
     */
-   private static final class BusStockVerb implements TestVerb {
+   private static final class BusCountInVerb implements TestVerb {
       public String name() {
-         return "busstock";
+         return "buscountin";
       }
 
       public String usage() {
-         return "busstock <dx> <dy> <0|1> [accepted|refused]";
+         return "buscountin <dx> <dy> <network|container> [accepted|refused]";
       }
 
       public int coordinateArgIndex() {
@@ -1358,22 +1358,30 @@ public final class ArcaneStorageVerbs {
       public boolean run(TestContext context) {
          BusObjectEntity bus = busAt(context, 1);
          if (bus == null) {
-            context.fail("busstock: no bus there");
+            context.fail("buscountin: no bus there");
             return false;
          }
 
-         boolean stocking = context.intArg(3) != 0;
+         String mode = context.arg(3);
+         if (!"network".equals(mode) && !"container".equals(mode)) {
+            context.fail("buscountin: the mode is network or container, not " + mode);
+            return false;
+         }
+
+         boolean inContainer = "container".equals(mode);
          String expected = context.argCount() > 4 ? context.arg(4) : "accepted";
 
-         String refusal = bus.whyRefused(bus.filter, stocking);
+         String refusal = bus.whyRefused(bus.filter, inContainer);
          if (refusal == null) {
-            bus.setStocking(stocking);
+            bus.setCountingInContainer(inContainer);
             bus.rulesChanged();
          }
 
-         context.info(refusal == null ? "stocking = " + bus.isStocking() : "refused: " + refusal);
+         context.info(refusal == null
+            ? "counting in " + (bus.isCountingInContainer() ? "container" : "network")
+            : "refused: " + refusal);
          return context.check("refused".equals(expected) == (refusal != null),
-            "busstock " + stocking + " " + expected,
+            "buscountin " + mode + " " + expected,
             refusal == null ? "it was applied" : "it was refused: " + refusal);
       }
    }
@@ -1444,11 +1452,11 @@ public final class ArcaneStorageVerbs {
 
          necesse.engine.save.SaveData save = new necesse.engine.save.SaveData("OBJECTENTITY");
          bus.addSaveData(save);
-         bus.setStocking(false);
+         bus.setCountingInContainer(false);
          bus.applyLoadData(new necesse.engine.save.LoadData(save.getScript()));
          bus.rulesChanged();
 
-         context.info("reloaded, stocking = " + bus.isStocking());
+         context.info("reloaded, counting in " + (bus.isCountingInContainer() ? "container" : "network"));
          return true;
       }
    }
@@ -1459,7 +1467,7 @@ public final class ArcaneStorageVerbs {
       }
 
       public String usage() {
-         return "busapply <dx> <dy> <item> <target> <accepted|refused>";
+         return "busapply <dx> <dy> <item> <target> <accepted|refused> [network|container]";
       }
 
       public int coordinateArgIndex() {
@@ -1476,6 +1484,11 @@ public final class ArcaneStorageVerbs {
 
          int target = context.intArg(4);
          String expected = context.argCount() > 5 ? context.arg(5) : "accepted";
+         // The mode travels in the same Apply as the filter, as the panel sends it: one bus can move to its final
+         // state in one step, which matters because some intermediate states are refused on their own.
+         boolean inContainer = context.argCount() > 6
+            ? "container".equals(context.arg(6))
+            : bus.isCountingInContainer();
 
          // As the client does it: read what the server would send on open, edit that copy, propose it back.
          Packet opened = new Packet();
@@ -1488,11 +1501,12 @@ public final class ArcaneStorageVerbs {
             proposed.setItemAllowed(item, true);
          }
 
-         String refusal = bus.whyRefused(proposed);
+         String refusal = bus.whyRefused(proposed, inContainer);
          if (refusal == null) {
             Packet accepted = new Packet();
             proposed.writePacket(new PacketWriter(accepted));
             bus.filter.readPacket(new PacketReader(accepted));
+            bus.setCountingInContainer(inContainer);
             bus.rulesChanged();
          }
 
@@ -1889,16 +1903,16 @@ public final class ArcaneStorageVerbs {
 
          // Exactly what BusContainer does on a client.
          ItemCategoriesFilter clientCopy = new ItemCategoriesFilter(ItemCategory.masterCategory, false);
-         boolean clientStocking = false;
+         boolean clientInContainer = false;
          if (forContainer != null) {
             PacketReader forReading = new PacketReader(forContainer);
             clientCopy.readPacket(forReading);
-            clientStocking = forReading.getNextBoolean();
+            clientInContainer = forReading.getNextBoolean();
          }
 
          out.num("clientcount", countAllowed(clientCopy));
-         out.bool("serverstocking", bus.isStocking());
-         out.bool("clientstocking", clientStocking);
+         out.bool("serverincontainer", bus.isCountingInContainer());
+         out.bool("clientincontainer", clientInContainer);
       }
    }
 

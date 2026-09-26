@@ -7,11 +7,13 @@ Dates are release dates. Anything still unreleased sits under Unreleased until i
 
 ## Unreleased
 
-**Export buses can keep a chest stocked.** A new checkbox on the export bus panel, *Stock the container instead
-of the network*, makes the bus's numbers count in the chest it is attached to. Set stone and sand to 100 and the
-chest is kept at 100 of each, topped back up whenever you or a settler take some out, while the network keeps
-everything else. It only ever adds, and it will not share a chest with an import bus that takes the same item,
-because the two would pass items back and forth forever. Without the checkbox nothing changes.
+**Buses can count in their chest instead of the network.** A new *Count in* choice under the number on both
+buses. On an export bus, *Container* keeps the chest stocked: set stone and sand to 100 and the chest is kept at
+100 of each, topped back up whenever you or a settler take some out, while the network keeps the rest. On an
+import bus it leaves that many behind: set torches to 10 and the bus takes everything but 10 torches. Each bus
+still only moves one way, so a stocked chest that is over its number, or an import chest that is under it, is
+left alone. Two buses on the same chest that would pass items back and forth forever are refused when you press
+Apply. *Network*, the default, changes nothing.
 
 **Another mod's broken item no longer crashes the terminal.** Opening the recipe tab with certain mods
 installed, Safe Haven QOL among them, crashed the game. An item whose icon never loaded now draws as the

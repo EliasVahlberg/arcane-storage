@@ -4,6 +4,7 @@ import java.awt.Rectangle;
 import java.util.function.Consumer;
 
 import arcanestorage.objectentity.BusObjectEntity;
+import arcanestorage.ui.ArcaneDropdown;
 import arcanestorage.ui.ArcanePanel;
 import necesse.engine.GameLog;
 import necesse.engine.ItemCategoryExpandedSetting;
@@ -14,7 +15,6 @@ import necesse.engine.network.client.Client;
 import necesse.gfx.forms.ComponentListContainer;
 import necesse.gfx.forms.Form;
 import necesse.gfx.forms.components.FormComponent;
-import necesse.gfx.forms.components.FormCheckBox;
 import necesse.gfx.forms.components.FormContentBox;
 import necesse.gfx.forms.components.FormInputSize;
 import necesse.gfx.forms.components.FormLabel;
@@ -54,8 +54,8 @@ public final class BusRulesEditor {
 
    private static final int SEARCH_ROW = 28;
 
-   /** The "stock the container" row, present on export buses only. */
-   private static final int STOCK_ROW = 26;
+   /** The "count in" row: whether the number above it is about the network or the attached container. */
+   private static final int COUNT_ROW = 28;
 
    /** The name row, which is also this panel's title: one control rather than a heading and a field. */
    static final int NAME_ROW_HEIGHT = 34;
@@ -137,10 +137,10 @@ public final class BusRulesEditor {
    private boolean unapplied;
 
    /**
-    * Whether this bus's numbers are about its container. Edited locally and sent with the filter at Apply,
-    * because it is judged with it: stocking can turn an accepted rule set into a refused one.
+    * Whether this bus's numbers are counted in its container. Edited locally and sent with the filter at Apply,
+    * because it is judged with it: the mode alone can turn an accepted rule set into a refused one.
     */
-   private boolean stocking;
+   private boolean inContainer;
 
    private BusRulesEditor(ItemCategoriesFilterForm filterForm, ItemCategoriesFilter filter,
          FormTextInput nameInput, FormLabel statusLabel, FontOptions statusFont, Form body, int bodyBaseY,
@@ -174,14 +174,14 @@ public final class BusRulesEditor {
     *        follow them rather than depending on which surface they opened
     * @param name what this bus is currently called, shown in the name row
     * @param onRename given the new name when the player submits the name row
-    * @param stocking the bus's current "stock the container" setting, or null where it is not offered -- an
-    *        import bus has no container reading of its number. Read back with {@link #isStocking()} at Apply
+    * @param inContainer whether the bus currently counts its numbers in its container. Read back with
+    *        {@link #isCountingInContainer()} at Apply
     * @param onApply given the edited filter when the player presses Apply
     * @param onLayoutChanged called when the editor's natural height changes, for a host that has to resize or
     *        rescroll around it. May be null
     */
    public static BusRulesEditor addTo(ComponentListContainer<FormComponent> host, Client client, ItemCategoriesFilter filter, String limitKey,
-         String expandKey, Rectangle region, String name, Consumer<String> onRename, Boolean stocking,
+         String expandKey, Rectangle region, String name, Consumer<String> onRename, boolean inContainer,
          Consumer<ItemCategoriesFilter> onApply, Scroll scroll, Runnable onLayoutChanged) {
       // The name row doubles as the panel's title. A device is addressed by coordinates and a player has no
       // way to relate coordinates to the bus in front of them -- nothing in the game shows a tile position --
@@ -208,9 +208,12 @@ public final class BusRulesEditor {
       body.drawBase = false;
       body.setPosition(region.x, bodyBaseY);
 
-      FormLabel limitLabel = body.addComponent(new FormLabel(
-            Localization.translate("ui", limitKey), new FontOptions(LIMIT_FONT), -1, 4, 0,
-            region.width / 2 - 12));
+      // Two keys per bus, one per mode: the number is the same number, but "keep 100 in the network" and "keep
+      // 100 in the chest" are different sentences, and the label is the only place the player reads which.
+      final String containerLimitKey = containerLimitKey(limitKey);
+      final FormLabel limitLabel = body.addComponent(new FormLabel(
+            Localization.translate("ui", inContainer ? containerLimitKey : limitKey), new FontOptions(LIMIT_FONT),
+            -1, 4, 0, region.width / 2 - 12));
       if (limitLabel.getHeight() > LIMIT_ROW) {
          GameLog.warn.println("Arcane Storage: the amount label needs " + limitLabel.getHeight()
                + "px but its row is " + LIMIT_ROW + "px; it will overlap what is below it.");
@@ -225,13 +228,19 @@ public final class BusRulesEditor {
          limitInput.setText(String.valueOf(filter.maxAmount));
       }
 
-      // The stock row goes directly under the number, because it is a statement about the number: which
-      // inventory it is counted in. Only offered where that question has two answers.
-      final FormCheckBox stockBox = stocking == null ? null : body.addComponent(new FormCheckBox(
-            Localization.translate("ui", "arcanestorage_busstock"), 4, LIMIT_ROW + 2, region.width - 8,
-            stocking));
+      // Directly under the number, because it is a statement about the number: which inventory it is counted in.
+      // A dropdown rather than a checkbox because both answers are positive statements, and on an import bus
+      // the container reading ("leave this many") is not a negation of the network one.
+      body.addComponent(new FormLabel(Localization.translate("ui", "arcanestorage_buscountin"),
+            new FontOptions(LIMIT_FONT), -1, 4, LIMIT_ROW + 4, region.width / 2 - 12));
+      final ArcaneDropdown<Boolean> countIn = body.addComponent(new ArcaneDropdown<Boolean>(
+            region.width / 2 + 2, LIMIT_ROW, FormInputSize.SIZE_24, ButtonColor.BASE, region.width / 2 - 6));
+      countIn.choices.add(false, new LocalMessage("ui", "arcanestorage_buscountnetwork"));
+      countIn.choices.add(true, new LocalMessage("ui", "arcanestorage_buscountcontainer"));
+      countIn.setSelected(inContainer, new LocalMessage("ui",
+            inContainer ? "arcanestorage_buscountcontainer" : "arcanestorage_buscountnetwork"));
 
-      int searchY = LIMIT_ROW + (stockBox == null ? 0 : STOCK_ROW);
+      int searchY = LIMIT_ROW + COUNT_ROW;
       int contentY = searchY + SEARCH_ROW;
 
       // The list stops short of the bottom to leave the Apply strip clear. It has to be clear rather than
@@ -291,13 +300,13 @@ public final class BusRulesEditor {
             statusWrapWidth, name);
       self[0] = editor;
       editor.onLayoutChanged = onLayoutChanged;
-      editor.stocking = stocking != null && stocking;
-      if (stockBox != null) {
-         stockBox.onClicked(e -> {
-            editor.stocking = stockBox.checked;
-            editor.edited();
-         });
-      }
+      editor.inContainer = inContainer;
+      countIn.onSelected(e -> {
+         editor.inContainer = e.value;
+         limitLabel.setText(Localization.translate("ui", e.value ? containerLimitKey : limitKey),
+               region.width / 2 - 12);
+         editor.edited();
+      });
 
       limitInput.onSubmit(e -> {
          int next = limitInput.getText().isEmpty() ? Integer.MAX_VALUE : parseOr(limitInput.getText());
@@ -426,9 +435,7 @@ public final class BusRulesEditor {
     * the layout grows rather than the controls being squeezed.
     */
    public static int minimumHeight() {
-      // STOCK_ROW is counted whether or not this editor has one: the bound is used to size hosts before they
-      // know which kind of bus they will show, and an export bus must fit.
-      return NAME_ROW_HEIGHT + STATUS_GAP + LIMIT_ROW + STOCK_ROW + SEARCH_ROW + FormInputSize.SIZE_24.height * 3
+      return NAME_ROW_HEIGHT + STATUS_GAP + LIMIT_ROW + COUNT_ROW + SEARCH_ROW + FormInputSize.SIZE_24.height * 3
             + APPLY_STRIP;
    }
 
@@ -466,9 +473,20 @@ public final class BusRulesEditor {
       return this.filter;
    }
 
-   /** The "stock the container" setting as edited, false where it was not offered. */
-   public boolean isStocking() {
-      return this.stocking;
+   /**
+    * The label for the same number counted in the container. Spelled out rather than built by appending a suffix,
+    * so that every key the code can show appears as a literal -- which is how the conventions test finds dead
+    * and missing locale keys.
+    */
+   private static String containerLimitKey(String limitKey) {
+      return "arcanestorage_importbuslimit".equals(limitKey)
+         ? "arcanestorage_importbuslimit_container"
+         : "arcanestorage_exportbuslimit_container";
+   }
+
+   /** Whether the numbers are counted in the container, as edited. */
+   public boolean isCountingInContainer() {
+      return this.inContainer;
    }
 
    private void edited() {

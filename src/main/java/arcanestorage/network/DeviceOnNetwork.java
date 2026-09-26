@@ -55,10 +55,11 @@ public interface DeviceOnNetwork {
    /**
     * How much of an item this device keeps in <i>its own container</i>, or {@link NetworkScheduler#NONE}.
     *
-    * <p>The other reading of an emptying device's number. {@link #targetFor} says how much the network should
-    * hold; this says how much the attached chest should, which is what "keep the box by the forge stocked with
-    * 100 coal" means. A device answering something other than NONE here contributes no floor to the network
-    * for that item -- it is not draining the network down to a number, it is filling a chest up to one.
+    * <p>The other reading of a device's number. {@link #targetFor} says how much the network should hold; this
+    * says how much the attached chest should. For an emptying device that is a stock to fill the chest up to
+    * ("keep the box by the forge at 100 coal"), for a filling one an amount to leave behind ("take everything
+    * but 10 torches"). A device answering something other than NONE contributes no floor or ceiling to the
+    * network for that item: its number is about the chest, not about the network.
     *
     * <p>NONE by default, so a device that knows nothing of this keeps the network reading unchanged.
     */

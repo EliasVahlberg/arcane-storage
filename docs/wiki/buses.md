@@ -56,20 +56,28 @@ Click a bus to open it. Every bus starts with no rules, which means everything i
   fills the network up to 200 and then stops. An export bus with a limit of 200 on wood sends out everything
   above 200, so the network is left holding 200 and the chest gets the rest.
 
-### Keeping a chest stocked
+### Counting in the chest instead
 
-Tick **Stock the container instead of the network** on an export bus to turn its limits around. The number
-is then how much the chest should hold, not the network. With stone at 100 and sand at 100, the chest is
-filled to 100 of each, the network keeps the rest, and whenever you or a settler take some out, the bus tops
-it back up.
+Under the number, **Count in** chooses where the number is counted. **Network** is the default and works as
+described above. **Container** counts in the chest the bus is attached to instead:
+
+- **Export bus, Container: keep the chest stocked.** With stone at 100 and sand at 100, the chest is filled
+  to 100 of each and the network keeps the rest. Whenever you or a settler take some out, the bus tops it back
+  up.
+- **Import bus, Container: leave some behind.** With torches at 10, the bus takes every torch above 10 into
+  the network and leaves 10 in the chest.
 
 A few things worth knowing:
 
-- It only ever adds. If the chest already holds more than the number, the bus leaves it alone.
-- If the network runs short, the chest gets what there is.
-- An item ticked without a number is sent out in full, the same as a normal export bus.
-- It cannot share a chest with an import bus that takes the same item. The import bus would empty the chest
-  as fast as this one fills it, so the panel refuses that combination when you press Apply.
+- Each bus still only moves one way. A stocked chest holding more than its number is left alone, and so is an
+  import chest holding less.
+- If the network runs short, a stocked chest gets what there is.
+- An item ticked without a number is moved in full, in either mode.
+- An import bus and an export bus on the same chest must agree. Both counting in the chest works when the
+  export number is no higher than the import number. Mixing a chest-counting bus with a network-counting one
+  on the same item does not settle, so the panel refuses it when you press Apply.
+- Settlers who haul into or out of the same chest can work against a bus. The bus simply corrects the chest
+  the next time it changes.
 
 ## Names
 

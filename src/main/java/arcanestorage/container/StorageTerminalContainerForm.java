@@ -1933,11 +1933,11 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
             "arcanestoragebus", new Rectangle(0, 0, contentWidth, paneHeight - PADDING),
             bus.name(),
             renamed -> this.getContainer().setNameAction.runAndSend(bus.tileX, bus.tileY, renamed),
-            bus.importing ? null : this.getContainer().stocking.getOrDefault(this.selectedDevice, false),
+            this.getContainer().inContainer.getOrDefault(this.selectedDevice, false),
             edited -> {
                this.getContainer().refusal = null;
                this.getContainer().setRulesAction.runAndSend(bus.tileX, bus.tileY, edited,
-                     this.deviceRules != null && this.deviceRules.isStocking());
+                     this.deviceRules != null && this.deviceRules.isCountingInContainer());
             },
             BusRulesEditor.Scroll.HOST_SCROLLS_ALL,
             () -> {

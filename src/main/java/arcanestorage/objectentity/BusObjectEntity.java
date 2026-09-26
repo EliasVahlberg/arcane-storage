@@ -92,18 +92,27 @@ public abstract class BusObjectEntity extends ObjectEntity implements DeviceOnNe
    public final ItemCategoriesFilter filter;
 
    /**
-    * Whether this bus's numbers are about its container rather than about the network. Export buses only.
+    * Whether this bus's numbers are counted in its container rather than in the network.
     *
-    * <p>An export bus's number normally means "drain the network down to this". With this set it means "keep
-    * this many in the chest I am attached to" -- the chest by the forge that should always hold 100 coal. The
-    * rules panel, the filter and every limit are unchanged; only the inventory the number is counted in moves.
+    * <p>A bus moves items one way only, so each place it can count in can only move one way, and the number
+    * needs no comparator to say which:
+    *
+    * <ul>
+    *   <li>import, network: fill the network up to N (the default)
+    *   <li>import, container: leave N in the chest and take the rest
+    *   <li>export, network: leave N in the network and send the rest (the default)
+    *   <li>export, container: stock the chest up to N -- the chest by the forge that always holds 100 coal
+    * </ul>
+    *
+    * <p>The rules panel, the filter and every limit are unchanged; only the inventory the number is counted in
+    * moves. An item with no number means what it always did in either mode: move everything.
     *
     * <p>A flag beside the filter rather than a mode inside it. {@code ItemCategoriesFilter}'s own
     * {@code limitMode} was the tempting place, and it is already overloaded for a bus (every mode is read per
     * item, see {@link #networkShouldHold}); giving one of its values a second meaning would make a vanilla field
     * say something vanilla does not.
     */
-   private boolean stocking;
+   private boolean inContainer;
 
 
    /**
@@ -236,7 +245,7 @@ public abstract class BusObjectEntity extends ObjectEntity implements DeviceOnNe
    }
 
    /**
-    * The same number read against the attached container instead of the network, for a stocking export bus.
+    * The same number read against the attached container instead of the network, for a bus counting in its container.
     *
     * <p>Identical arithmetic, and deliberately so: the three kinds of limit and "the tightest wins" are what the
     * panel says, and a player who ticks "stock the container" has changed which inventory the number is about,
@@ -385,12 +394,12 @@ public abstract class BusObjectEntity extends ObjectEntity implements DeviceOnNe
 
    @Override
    public int containerTargetFor(Item item) {
-      return this.containerTargetFor(this.filter, this.stocking, item);
+      return this.containerTargetFor(this.filter, this.inContainer, item);
    }
 
    /** The same, for a proposal that has not been adopted -- see {@link #whyRefused}. */
-   private int containerTargetFor(ItemCategoriesFilter rules, boolean stocks, Item item) {
-      if (!stocks || this.movesIntoNetwork()) {
+   private int containerTargetFor(ItemCategoriesFilter rules, boolean inContainer, Item item) {
+      if (!inContainer) {
          return NetworkScheduler.NONE;
       }
 
@@ -399,24 +408,26 @@ public abstract class BusObjectEntity extends ObjectEntity implements DeviceOnNe
          return NetworkScheduler.NONE;
       }
 
-      // No number means what it always meant for an export bus -- move everything -- so it is left to the
-      // network reading, where "no floor" already says exactly that. Stocking only changes what a number means.
+      // No number means what it always meant -- move everything -- so it is left to the network reading, where
+      // "no floor" and "no ceiling" already say exactly that. Counting in the container only changes what a
+      // number means.
       int target = this.containerShouldHold(rules, item, container);
       return target == NO_TARGET ? NetworkScheduler.NONE : target;
    }
 
-   public boolean isStocking() {
-      return this.stocking;
+   public boolean isCountingInContainer() {
+      return this.inContainer;
    }
 
    /**
-    * Changes what this bus's numbers are about. Ignored on an import bus, which has no container reading.
+    * Changes which inventory this bus's numbers are counted in.
     *
-    * <p>Not applied on its own by the panel: it travels with the filter and is judged with it, because a
-    * stocking bus conflicts with an import bus on the same chest where a draining one may not.
+    * <p>Not applied on its own by the panel: it travels with the filter and is judged with it, because a bus
+    * counting in its container can conflict with an opposite bus on the same chest where one counting in the
+    * network does not, and the other way round.
     */
-   public void setStocking(boolean stocking) {
-      this.stocking = stocking && !this.movesIntoNetwork();
+   public void setCountingInContainer(boolean inContainer) {
+      this.inContainer = inContainer;
    }
 
    @Override
@@ -547,6 +558,11 @@ public abstract class BusObjectEntity extends ObjectEntity implements DeviceOnNe
     * conflict when the other bus exports the same item. An export bus with no number has a floor of zero,
     * which is what {@code allowedToMove} already does with {@link #NO_TARGET}.
     *
+    * <p>Either bus may instead count in the shared chest, which gives three more pairs, each explained where it
+    * is decided: both in the chest rest when the exporter's stock is at most what the importer leaves; an
+    * exporter stocking the chest against a network importer rests only at a stock of zero; and an importer
+    * leaving N in the chest against a network exporter never reliably rests, so it is always refused.
+    *
     * <p><b>Both buses must share a container for any of this to matter</b>, which the caller has already
     * established. Import from one chest with export to another is {@code C > F} and perfectly well behaved:
     * items flow from the first to the second until the first is empty, and that is a feature. Flagging it
@@ -555,7 +571,8 @@ public abstract class BusObjectEntity extends ObjectEntity implements DeviceOnNe
    private static String firstUnsatisfiableItem(
       BusObjectEntity importer, BusObjectEntity exporter, NetworkIndex network
    ) {
-      return firstUnsatisfiableItem(importer.filter, exporter.filter, exporter.stocking, importer, exporter, network);
+      return firstUnsatisfiableItem(importer.filter, importer.inContainer, exporter.filter, exporter.inContainer,
+         importer, exporter, network);
    }
 
    /**
@@ -565,7 +582,8 @@ public abstract class BusObjectEntity extends ObjectEntity implements DeviceOnNe
     * one the device is currently using.
     */
    private static String firstUnsatisfiableItem(
-      ItemCategoriesFilter importRules, ItemCategoriesFilter exportRules, boolean exportStocks,
+      ItemCategoriesFilter importRules, boolean importInContainer,
+      ItemCategoriesFilter exportRules, boolean exportInContainer,
       BusObjectEntity importer, BusObjectEntity exporter, NetworkIndex network
    ) {
       for (Item item : ItemRegistry.getItems()) {
@@ -575,17 +593,38 @@ public abstract class BusObjectEntity extends ObjectEntity implements DeviceOnNe
             continue;
          }
 
-         // A stocking exporter fills the shared chest up to its number, and the importer empties that same chest
-         // into the network -- whatever the importer's own number, the moment the network dips below it the
-         // chest is drained again and refilled. There is no resting state unless the stock is zero, so any
-         // positive stock of an item both allow is a loop. No number falls through to the network reading.
-         int stock = exporter.containerTargetFor(exportRules, exportStocks, item);
+         // Either bus may count in the shared chest. NONE here means it counts in the network, either because
+         // that is its mode or because the item has no number, which reads the same in both modes.
+         int leave = importer.containerTargetFor(importRules, importInContainer, item);
+         int stock = exporter.containerTargetFor(exportRules, exportInContainer, item);
+
+         if (leave != NetworkScheduler.NONE && stock != NetworkScheduler.NONE) {
+            // Both about the chest: the importer holds it at or below `leave`, the exporter at or above `stock`.
+            // They meet whenever the band is non-empty.
+            if (stock > leave) {
+               return item.getStringID();
+            }
+
+            continue;
+         }
+
          if (stock != NetworkScheduler.NONE) {
+            // The exporter fills the chest to its number and the importer, counting in the network, empties that
+            // same chest into it -- whatever the importer's own number, the moment the network dips below it the
+            // chest is drained again and refilled. Only a stock of zero rests.
             if (stock > 0) {
                return item.getStringID();
             }
 
             continue;
+         }
+
+         if (leave != NetworkScheduler.NONE) {
+            // The importer takes everything above `leave` out of the chest, and the exporter, counting in the
+            // network, puts everything above its floor back in. They rest only while the total happens to fit
+            // under both numbers at once, which depends on what the player owns rather than on the rules -- so
+            // it is refused whatever the numbers, rather than accepted and found churning later.
+            return item.getStringID();
          }
 
          int ceiling = importer.networkShouldHold(importRules, item, network);
@@ -1022,12 +1061,11 @@ public abstract class BusObjectEntity extends ObjectEntity implements DeviceOnNe
     * as one thing, so nothing may be in force while it is still being judged.
     */
    public String whyRefused(ItemCategoriesFilter proposed) {
-      return this.whyRefused(proposed, this.stocking);
+      return this.whyRefused(proposed, this.inContainer);
    }
 
    /** The same, for a proposal that also changes whether this bus stocks its container. */
-   public String whyRefused(ItemCategoriesFilter proposed, boolean proposedStocking) {
-      boolean stocks = proposedStocking && !this.movesIntoNetwork();
+   public String whyRefused(ItemCategoriesFilter proposed, boolean proposedInContainer) {
       Inventory container = this.attachedContainer();
       NetworkIndex index = this.networkIndex();
       if (container == null || index == null) {
@@ -1045,8 +1083,8 @@ public abstract class BusObjectEntity extends ObjectEntity implements DeviceOnNe
          }
 
          String contested = this.movesIntoNetwork()
-            ? firstUnsatisfiableItem(proposed, other.filter, other.stocking, this, other, index)
-            : firstUnsatisfiableItem(other.filter, proposed, stocks, other, this, index);
+            ? firstUnsatisfiableItem(proposed, proposedInContainer, other.filter, other.inContainer, this, other, index)
+            : firstUnsatisfiableItem(other.filter, other.inContainer, proposed, proposedInContainer, other, this, index);
 
          if (contested != null) {
             return Localization.translate("ui", "arcanestorage_refused",
@@ -1287,9 +1325,9 @@ public abstract class BusObjectEntity extends ObjectEntity implements DeviceOnNe
       // The number is saved rather than derived on load, because deriving it would renumber the survivors
       // every time a bus was broken, and a player who has learnt which one is #2 would find it moved.
       save.addInt("ordinal", this.ordinal);
-      if (this.stocking) {
+      if (this.inContainer) {
          // Written only when set, so a save from before this existed and one that never used it read the same.
-         save.addBoolean("stocking", true);
+         save.addBoolean("countsInContainer", true);
       }
       if (this.customName != null) {
          // Safe, not unsafe: this string is whatever a player typed, and the unsafe variant writes it into the
@@ -1307,7 +1345,7 @@ public abstract class BusObjectEntity extends ObjectEntity implements DeviceOnNe
       }
 
       this.ordinal = save.getInt("ordinal", 0, false);
-      this.setStocking(save.getBoolean("stocking", false, false));
+      this.setCountingInContainer(save.getBoolean("countsInContainer", false, false));
       String name = save.getSafeString("customName", "", false);
       this.customName = name.isEmpty() ? null : name;
    }
