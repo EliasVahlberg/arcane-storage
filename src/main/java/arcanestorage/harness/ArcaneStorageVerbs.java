@@ -39,6 +39,8 @@ import necesse.inventory.container.ContainerAction;
 import necesse.inventory.container.slots.ContainerSlot;
 import necesse.inventory.InventoryUpdateListener;
 import necesse.inventory.item.Item;
+import necesse.inventory.item.miscItem.InternalInventoryItemInterface;
+import necesse.inventory.item.miscItem.PouchItem;
 import necesse.inventory.Inventory;
 import necesse.inventory.InventoryItem;
 import necesse.level.maps.Level;
@@ -145,6 +147,7 @@ public final class ArcaneStorageVerbs {
       Harness.registerExpectation(new EmptyQuery());
       Harness.registerExpectation(new PlayerItemQuery());
       Harness.registerVerb(new LockVerb());
+      Harness.registerVerb(new StuffPouchVerb());
       Harness.registerExpectation(new PlayerSlotQuery());
       Harness.registerExpectation(new HookQuery());
       Harness.registerVerb(new RuleGlobalVerb());
@@ -507,7 +510,7 @@ public final class ArcaneStorageVerbs {
       }
 
       public String usage() {
-         return "withdraw <itemStringID> <amount> [cursor]";
+         return "withdraw <itemStringID> <amount> [cursor] [gnd:<key>=<int>]";
       }
 
       public int coordinateArgIndex() {
@@ -526,14 +529,52 @@ public final class ArcaneStorageVerbs {
 
          String itemID = context.arg(1);
          int amount = context.intArg(2);
-         boolean toCursor = context.argCount() > 3 && "cursor".equalsIgnoreCase(context.arg(3));
+         boolean toCursor = false;
+         String gndKey = null;
+         int gndValue = 0;
+         for (int i = 3; i < context.argCount(); i++) {
+            String extra = context.arg(i);
+            if ("cursor".equalsIgnoreCase(extra)) {
+               toCursor = true;
+            } else if (extra.startsWith("gnd:") && extra.contains("=")) {
+               // A request whose GND data disagrees with what is stored -- what a lossy packet round trip
+               // produces for a bag that compares its own contents. Written as an int key, which is the
+               // shape CoinPouch.isSameGNDData compares, so a vanilla item can stand in for the modded one.
+               gndKey = extra.substring(4, extra.indexOf('='));
+               gndValue = Integer.parseInt(extra.substring(extra.indexOf('=') + 1));
+            }
+         }
+
+         // What the form actually sends is the *aggregated entry* the player clicked, GND data and
+         // all -- not a freshly constructed item. The difference is invisible for stone and decisive
+         // for anything carrying per-instance state: a pouch's contents, an enchantment, a tool's
+         // durability all live in GND data, and the server's match includes it. Building a bare item
+         // here would have tested a request no client ever makes.
+         InventoryItem wanted = null;
+         for (InventoryItem entry : container.getAggregatedItems()) {
+            if (entry.item.getStringID().equals(itemID)) {
+               wanted = entry;
+               break;
+            }
+         }
+
+         if (wanted == null) {
+            // Not in the network. Still send something, so "withdraw what isn't there" stays a
+            // testable no-op rather than a harness error.
+            wanted = new InventoryItem(itemID, 1);
+         }
+
+         if (gndKey != null) {
+            wanted = wanted.copy();
+            wanted.getGndData().setInt(gndKey, gndValue);
+         }
 
          // Encoded exactly as WithdrawAction.runAndSend does, and handed to the same executePacket,
          // so the packet encoding is exercised rather than bypassed. A withdrawal that works only
          // when called in-process is not a working withdrawal.
          Packet content = new Packet();
          PacketWriter writer = new PacketWriter(content);
-         new InventoryItem(itemID, 1).addPacketContent(writer);
+         wanted.addPacketContent(writer);
          writer.putNextInt(amount);
          writer.putNextBoolean(toCursor);
          container.withdrawAction.executePacket(new PacketReader(content));
@@ -2206,6 +2247,100 @@ public final class ArcaneStorageVerbs {
          }
 
          return context.check(false, "lock " + what, "expected 'hotbar' or 'slot'");
+      }
+   }
+
+   /**
+    * {@code stuffpouch <dx> <dy> <itemStringID> [contents] [amount]} -- gives a pouch already in the
+    * network something inside it, so its GND data is non-empty.
+    *
+    * <p>Exists because a pouch's contents are the thing that makes it hard: they live in the item's
+    * own GND data, every comparison the storage path makes is parameterised on whether GND data
+    * counts, and {@code fill} can only produce empty ones. Two shapes of pouch are covered, because
+    * vanilla has two: {@code InternalInventoryItemInterface} keeps a whole {@code Inventory} under
+    * the {@code inventory} key, while {@code CoinPouch} keeps a plain int under {@code coins} and is
+    * not an internal-inventory item at all.
+    */
+   private static final class StuffPouchVerb implements TestVerb {
+      public String name() {
+         return "stuffpouch";
+      }
+
+      public String usage() {
+         return "stuffpouch <dx> <dy> <itemStringID> [contents] [amount]";
+      }
+
+      public int coordinateArgIndex() {
+         return 1;
+      }
+
+      public boolean run(TestContext context) {
+         int x = context.tileX(context.intArg(1));
+         int y = context.tileY(context.intArg(2));
+         String pouchID = context.arg(3);
+
+         ObjectEntity entity = context.level.entityManager.getObjectEntity(x, y);
+         if (!(entity instanceof NetworkStorage)) {
+            return context.check(false, "stuffpouch " + pouchID,
+                  "no storage unit at " + context.arg(1) + "," + context.arg(2));
+         }
+
+         necesse.inventory.Inventory inventory = ((NetworkStorage)entity).getInventory();
+         for (int slot = 0; slot < inventory.getSize(); slot++) {
+            InventoryItem pouch = inventory.getItem(slot);
+            if (pouch == null || !pouch.item.getStringID().equals(pouchID)) {
+               continue;
+            }
+
+            if (pouch.item instanceof InternalInventoryItemInterface) {
+               InternalInventoryItemInterface holder = (InternalInventoryItemInterface)pouch.item;
+               String contentsID = context.argCount() > 4 ? context.arg(4) : defaultContentsFor(holder);
+               int amount = context.argCount() > 5 ? context.intArg(5) : 1;
+
+               necesse.inventory.Inventory internal = holder.getInternalInventory(pouch);
+               InventoryItem contents = new InventoryItem(contentsID, amount);
+               boolean valid = !(pouch.item instanceof PouchItem)
+                     || ((PouchItem)pouch.item).isValidPouchItem(contents);
+               if (!internal.addItem(context.level, context.client == null ? null : context.client.playerMob,
+                     contents, "itempickup", null)) {
+                  return context.check(false, "stuffpouch " + pouchID,
+                        "the pouch refused " + contentsID + " (isValidPouchItem=" + valid
+                              + ", internal size " + internal.getSize() + ") -- pass contents it accepts");
+               }
+
+               holder.saveInternalInventory(pouch, internal);
+               // The slot's item is mutated in place, so the inventory has to be told, exactly as any
+               // other write to it would: the index's change hook and the clients both listen here.
+               inventory.markDirty(slot);
+               context.info("stuffed " + pouchID + " in slot " + slot + " with " + amount + " " + contentsID);
+               return true;
+            }
+
+            // CoinPouch and anything else that keeps scalar state: write the key its own
+            // isSameGNDData compares, which is the part that matters for a withdrawal.
+            int coins = context.argCount() > 5 ? context.intArg(5) : 500;
+            pouch.getGndData().setInt("coins", coins);
+            inventory.markDirty(slot);
+            context.info("stuffed " + pouchID + " in slot " + slot + " with " + coins + " coins");
+            return true;
+         }
+
+         return context.check(false, "stuffpouch " + pouchID,
+               "no " + pouchID + " in that unit -- 'fill' one in first");
+      }
+
+      /** Something each vanilla pouch kind actually accepts, so a test does not have to know. */
+      private static String defaultContentsFor(InternalInventoryItemInterface holder) {
+         if (holder instanceof PouchItem) {
+            PouchItem pouch = (PouchItem)holder;
+            for (String candidate : new String[]{"bread", "arrow", "battlepotion", "grassseed", "stone", "coin"}) {
+               if (pouch.isValidPouchItem(new InventoryItem(candidate, 1))) {
+                  return candidate;
+               }
+            }
+         }
+
+         return "stone";
       }
    }
 

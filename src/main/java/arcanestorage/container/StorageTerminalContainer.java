@@ -25,6 +25,7 @@ import necesse.inventory.InventoryRange;
 import necesse.inventory.Inventory;
 import necesse.inventory.Inventory;
 import necesse.inventory.InventoryItem;
+import necesse.inventory.item.Item;
 import necesse.inventory.item.ItemCategory;
 import necesse.inventory.itemFilter.ItemCategoriesFilter;
 import necesse.inventory.recipe.GlobalIngredient;
@@ -1322,7 +1323,61 @@ public class StorageTerminalContainer extends Container {
          // Never trust the requested amount: one click yields at most one stack.
          int remaining = Math.min(Math.max(requested, 0), wanted.item.getStackSize());
          Level level = StorageTerminalContainer.this.level();
+
+         if (this.withdrawMatching(level, wanted, remaining, toCursor)) {
+            return;
+         }
+
+         // Nothing matched exactly. The request is the entry the player clicked, after a trip through
+         // the packet encoding -- and that encoding is lossy: InventoryItem.addPacketContent carries
+         // id, amount, lock and GND data, but not isNew, and GNDItemInventory.equals compares the
+         // items *inside* a bag with ignoreMeta = false, isNew included. So a bag whose
+         // isSameGNDData compares its contents can never match its own round-tripped request, and the
+         // click silently does nothing, forever. Vanilla bags inherit isSameGNDData -> true and are
+         // immune; a modded one written after CoinPouch's pattern is not.
+         //
+         // The fallback is deliberately narrow. If the network holds exactly one variant of this
+         // item, the player can only have meant that one, so it is withdrawn. If it holds several,
+         // nothing is: handing out a different enchantment or a different bag's contents would be a
+         // swap the player never asked for, and refusing is the only answer that cannot lose them
+         // anything.
+         InventoryItem onlyVariant = this.onlyVariantOf(level, wanted.item);
+         if (onlyVariant != null) {
+            this.withdrawMatching(level, onlyVariant, remaining, toCursor);
+         }
+      }
+
+      /**
+       * The single variant of {@code item} the network holds, or null when it holds none or more
+       * than one. "Variant" is the aggregation's own identity, so this agrees with what the grid
+       * shows: one entry means one variant.
+       */
+      private InventoryItem onlyVariantOf(Level level, Item item) {
+         InventoryItem variant = null;
+
+         for (int index = StorageTerminalContainer.this.NETWORK_START;
+              index <= StorageTerminalContainer.this.NETWORK_END;
+              index++) {
+            ContainerSlot slot = StorageTerminalContainer.this.getSlot(index);
+            InventoryItem held = slot == null ? null : slot.getItem();
+            if (held == null || held.item != item) {
+               continue;
+            }
+
+            if (variant == null) {
+               variant = held;
+            } else if (!variant.equals(level, held, true, false, AGGREGATE_PURPOSE)) {
+               return null;
+            }
+         }
+
+         return variant;
+      }
+
+      /** Withdraws up to {@code remaining} of {@code wanted}; true if any slot matched at all. */
+      private boolean withdrawMatching(Level level, InventoryItem wanted, int remaining, boolean toCursor) {
          ContainerSlot cursor = StorageTerminalContainer.this.getClientDraggingSlot();
+         boolean matched = false;
 
          for (int index = StorageTerminalContainer.this.NETWORK_START;
               index <= StorageTerminalContainer.this.NETWORK_END && remaining > 0;
@@ -1333,6 +1388,7 @@ public class StorageTerminalContainer extends Container {
                continue;
             }
 
+            matched = true;
             if (toCursor) {
                // combineSlots caps at the cursor's remaining stack space by itself, and
                // fails without moving anything if the cursor holds something else — so a
@@ -1355,6 +1411,8 @@ public class StorageTerminalContainer extends Container {
                remaining -= result.value;
             }
          }
+
+         return matched;
       }
    }
 }
