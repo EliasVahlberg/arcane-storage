@@ -5,7 +5,7 @@ the GitHub release notes are both taken from here, so they cannot disagree.
 
 Dates are release dates. Anything still unreleased sits under Unreleased until it ships.
 
-## Unreleased
+## 1.2.0
 
 **Buses can count in their chest instead of the network.** A new *Count in* choice under the number on both
 buses. On an export bus, *Container* keeps the chest stocked: set stone and sand to 100 and the chest is kept at

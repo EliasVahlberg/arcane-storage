@@ -85,6 +85,16 @@ and it comes from `CHANGELOG.md` so the two cannot drift.
 
 ---
 
+[h3]1.2.0[/h3]
+
+[b]Buses can count in their chest instead of the network.[/b] A new [i]Count in[/i] choice under the number on both buses. On an export bus, [i]Container[/i] keeps the chest stocked: set stone and sand to 100 and the chest is kept at 100 of each, topped back up whenever you or a settler take some out, while the network keeps the rest. On an import bus it leaves that many behind: set torches to 10 and the bus takes everything but 10 torches. Each bus still only moves one way, so a stocked chest that is over its number, or an import chest that is under it, is left alone. Two buses on the same chest that would pass items back and forth forever are refused when you press Apply. [i]Network[/i], the default, changes nothing.
+
+[b]Another mod's broken item no longer crashes the terminal.[/b] Opening the recipe tab with certain mods installed, Safe Haven QOL among them, crashed the game. An item whose icon never loaded now draws as the game's own missing-texture placeholder and can still be taken out as normal.
+
+[b]Items whose saved data does not survive being sent over the network can be taken out again.[/b] Clicking one did nothing, so it stayed in storage for good. This could affect bags and pouches from other mods. When the network holds only one version of the item, that is the one you get. When it holds several, nothing is taken, so you never get a different version from the one you clicked.
+
+[b]Fixed an error inside Arcane Storage that could interrupt unrelated item moves elsewhere in the game.[/b] It is now logged and recovered from instead.
+
 [h3]1.1.1[/h3]
 
 [b]Necesse 1.3.3 compatibility.[/b] No behaviour changes of its own; targets the game's latest update, whose own patch notes are content, AI, and bugfixes with nothing in Arcane Storage's path. Necesse's own network handshake refuses a client on a different version than the server, independent of any mod, so play across a mismatched pair still is not possible -- keep the server and every client on the same version.
