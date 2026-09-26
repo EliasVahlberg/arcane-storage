@@ -5,6 +5,26 @@ the GitHub release notes are both taken from here, so they cannot disagree.
 
 Dates are release dates. Anything still unreleased sits under Unreleased until it ships.
 
+## Unreleased
+
+**Export buses can keep a chest stocked.** A new checkbox on the export bus panel, *Stock the container instead
+of the network*, makes the bus's numbers count in the chest it is attached to. Set stone and sand to 100 and the
+chest is kept at 100 of each, topped back up whenever you or a settler take some out, while the network keeps
+everything else. It only ever adds, and it will not share a chest with an import bus that takes the same item,
+because the two would pass items back and forth forever. Without the checkbox nothing changes.
+
+**Another mod's broken item no longer crashes the terminal.** Opening the recipe tab with certain mods
+installed, Safe Haven QOL among them, crashed the game. An item whose icon never loaded now draws as the
+game's own missing-texture placeholder and can still be taken out as normal.
+
+**Items whose saved data does not survive being sent over the network can be taken out again.** Clicking one
+did nothing, so it stayed in storage for good. This could affect bags and pouches from other mods. When the
+network holds only one version of the item, that is the one you get. When it holds several, nothing is taken,
+so you never get a different version from the one you clicked.
+
+**Fixed an error inside Arcane Storage that could interrupt unrelated item moves elsewhere in the game.** It
+is now logged and recovered from instead.
+
 ## 1.1.1
 
 **Necesse 1.3.3 compatibility.** No behaviour changes of its own; targets the game's latest update, whose own
