@@ -306,9 +306,16 @@ public final class NetworkScheduler {
       boolean unbounded = false;
       int ceiling = NONE;
       int floor = NONE;
+      boolean anyStocking = false;
 
       for (DeviceOnNetwork device : devices) {
          if (!device.wants(item)) {
+            continue;
+         }
+
+         if (!device.fillsNetwork() && device.containerTargetFor(item) != NONE) {
+            // Stocks its own chest rather than draining the network, so it sets no floor here. Handled below.
+            anyStocking = true;
             continue;
          }
 
@@ -340,7 +347,72 @@ public final class NetworkScheduler {
          moved += this.push(level, item, this.index.of(item) - floor, budget - moved, devices, now);
       }
 
+      if (anyStocking && moved < budget) {
+         moved += this.stock(level, item, budget - moved, devices, now);
+      }
+
       return moved;
+   }
+
+   /**
+    * Tops up each stocking device's chest to its own number, from whatever the network holds.
+    *
+    * <p>The count of the chest is read here, at the moment of acting, rather than cached. That is the whole of
+    * the answer to "a chest we do not own has no index": a bus's container is already watched, so a settler
+    * taking coal out of it marks coal dirty and brings the scheduler here, and the chest is at most one
+    * container's worth of slots. Nothing polls it -- it is counted only when something has already said coal
+    * changed. What a watch cannot see is a change it was never told about, and the heartbeat's
+    * {@link #reconsiderEverything} on an emptied slot covers the one case that says nothing about the item.
+    *
+    * <p>Never pulls back. A chest holding more than its number is left alone: taking the excess into the network
+    * is what an import bus is for, and a stocking bus that also drained would fight every player who put
+    * something there by hand.
+    */
+   private int stock(Level level, Item item, int budget, List<DeviceOnNetwork> devices, long now) {
+      int moved = 0;
+
+      for (DeviceOnNetwork device : devices) {
+         if (moved >= budget || this.index.of(item) <= 0) {
+            break;
+         }
+
+         if (device.fillsNetwork() || !device.wants(item)) {
+            continue;
+         }
+
+         int target = device.containerTargetFor(item);
+         Inventory container = device.container();
+         if (target == NONE || container == null) {
+            continue;
+         }
+
+         int gap = target - countIn(container, item);
+         if (gap <= 0) {
+            continue;
+         }
+
+         int did = device.moveItem(level, this.index, item, gap);
+         if (did > 0) {
+            moved++;
+            this.recordMove(item, now);
+         }
+      }
+
+      return moved;
+   }
+
+   /** How many of one item a single inventory holds. */
+   private static int countIn(Inventory inventory, Item item) {
+      int total = 0;
+
+      for (int slot = 0; slot < inventory.getSize(); slot++) {
+         InventoryItem inSlot = inventory.getItem(slot);
+         if (inSlot != null && inSlot.item == item) {
+            total += inSlot.getAmount();
+         }
+      }
+
+      return total;
    }
 
    /** Asks the import buses to bring an item in, up to the room the ceiling leaves. */
@@ -377,6 +449,11 @@ public final class NetworkScheduler {
          }
 
          if (device.fillsNetwork() || !device.wants(item)) {
+            continue;
+         }
+
+         if (device.containerTargetFor(item) != NONE) {
+            // A stocking device contributed no floor, so it has no share of this surplus either.
             continue;
          }
 

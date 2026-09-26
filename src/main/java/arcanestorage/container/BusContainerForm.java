@@ -86,13 +86,18 @@ public class BusContainerForm<T extends BusContainer> extends ContainerForm<T> {
       // export bus treats everything as surplus. Both were observed in game.
       int rulesY = flow.next(0);
       this.rulesTop = rulesY;
-      this.rules = BusRulesEditor.addTo(this, client, filter, limitKey, "arcanestoragebus",
+      // A holder rather than this.rules: the Apply lambda is built before the field it reads is assigned, and a
+      // final field read from a lambda in its own constructor does not compile.
+      final BusRulesEditor[] built = new BusRulesEditor[1];
+      boolean exporting = "arcanestorage_exportbuslimit".equals(limitKey);
+      this.rules = built[0] = BusRulesEditor.addTo(this, client, filter, limitKey, "arcanestoragebus",
             new Rectangle(0, rulesY, WIDTH, BASE_HEIGHT - rulesY),
             container.bus == null ? Localization.translate("object", nameKey) : container.bus.name(),
             container.setNameAction::runAndSend,
+            exporting ? container.stocking : null,
             f -> {
                this.container.refusal = null;
-               this.container.setFilterAction.runAndSend(f);
+               this.container.setFilterAction.runAndSend(f, built[0] != null && built[0].isStocking());
             },
             BusRulesEditor.Scroll.OWN_LIST, null);
       this.filterForm = this.rules.filterForm;

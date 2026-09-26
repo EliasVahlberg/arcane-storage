@@ -63,6 +63,7 @@ arcanestorage_importbusname=Kênh Nhập #<n>
 arcanestorage_exportbusname=Kênh Xuất #<n>
 arcanestorage_importbuslimit=Nạp mạng đến, mỗi vật phẩm
 arcanestorage_exportbuslimit=Giữ trong mạng, mỗi vật phẩm
+arcanestorage_busstock=Bổ sung thùng chứa thay vì mạng
 arcanestorage_buslimithint=Không giới hạn
 arcanestorage_importbusrule=Kéo vật phẩm đã chọn vào cho đến khi mạng đạt số lượng này.
 arcanestorage_exportbusrule=Đẩy vật phẩm đã chọn ra, giữ lại số lượng này trong mạng.

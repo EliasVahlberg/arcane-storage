@@ -63,6 +63,7 @@ arcanestorage_importbusname=Bus Impor #<n>
 arcanestorage_exportbusname=Bus Ekspor #<n>
 arcanestorage_importbuslimit=Isi jaringan hingga, per item
 arcanestorage_exportbuslimit=Simpan di jaringan, per item
+arcanestorage_busstock=Isi wadah, bukan jaringan
 arcanestorage_buslimithint=Jumlah berapa pun
 arcanestorage_importbusrule=Menarik item yang dicentang sampai jaringan memiliki jumlah ini.
 arcanestorage_exportbusrule=Mendorong item yang dicentang keluar, menyimpan jumlah ini di jaringan.

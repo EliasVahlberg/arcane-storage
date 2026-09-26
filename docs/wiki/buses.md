@@ -52,8 +52,24 @@ Click a bus to open it. Every bus starts with no rules, which means everything i
 - **Item rules** let you list what may pass. An import bus with a rule for ore moves only ore and leaves the
   rest in the chest.
 - **Category rules** work the same way but for a whole category at once.
-- **A limit** on a rule stops the transfer once the network holds that many. An export bus with a limit of 200
-  on wood keeps the chest supplied up to 200 and then stops.
+- **A limit** on a rule is how much of that item the network keeps. An import bus with a limit of 200 on wood
+  fills the network up to 200 and then stops. An export bus with a limit of 200 on wood sends out everything
+  above 200, so the network is left holding 200 and the chest gets the rest.
+
+### Keeping a chest stocked
+
+Tick **Stock the container instead of the network** on an export bus to turn its limits around. The number
+is then how much the chest should hold, not the network. With stone at 100 and sand at 100, the chest is
+filled to 100 of each, the network keeps the rest, and whenever you or a settler take some out, the bus tops
+it back up.
+
+A few things worth knowing:
+
+- It only ever adds. If the chest already holds more than the number, the bus leaves it alone.
+- If the network runs short, the chest gets what there is.
+- An item ticked without a number is sent out in full, the same as a normal export bus.
+- It cannot share a chest with an import bus that takes the same item. The import bus would empty the chest
+  as fast as this one fills it, so the panel refuses that combination when you press Apply.
 
 ## Names
 

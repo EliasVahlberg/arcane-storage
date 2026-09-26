@@ -51,4 +51,18 @@ public interface DeviceOnNetwork {
 
    /** Report that an item keeps moving without the network getting closer to its rules. */
    void reportChurn(Item item);
+
+   /**
+    * How much of an item this device keeps in <i>its own container</i>, or {@link NetworkScheduler#NONE}.
+    *
+    * <p>The other reading of an emptying device's number. {@link #targetFor} says how much the network should
+    * hold; this says how much the attached chest should, which is what "keep the box by the forge stocked with
+    * 100 coal" means. A device answering something other than NONE here contributes no floor to the network
+    * for that item -- it is not draining the network down to a number, it is filling a chest up to one.
+    *
+    * <p>NONE by default, so a device that knows nothing of this keeps the network reading unchanged.
+    */
+   default int containerTargetFor(Item item) {
+      return NetworkScheduler.NONE;
+   }
 }

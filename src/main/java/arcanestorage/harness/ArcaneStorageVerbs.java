@@ -121,6 +121,9 @@ public final class ArcaneStorageVerbs {
       Harness.registerVerb(new IndexPoisonVerb());
       Harness.registerVerb(new HaulVerb());
       Harness.registerVerb(new BusApplyVerb());
+      Harness.registerVerb(new BusStockVerb());
+      Harness.registerVerb(new TakeVerb());
+      Harness.registerVerb(new BusSaveVerb());
       Harness.registerVerb(new TerminalRulesVerb());
       Harness.registerVerb(new BusNameVerb());
       Harness.registerExpectation(new BusNameQuery());
@@ -883,8 +886,11 @@ public final class ArcaneStorageVerbs {
             edited.setItemAllowed(item, true);
          }
 
+         // Encoded as SetFilterAction.runAndSend does: the filter, then the stocking flag, left as it was.
          Packet content = new Packet();
-         edited.writePacket(new PacketWriter(content));
+         PacketWriter writer = new PacketWriter(content);
+         edited.writePacket(writer);
+         writer.putNextBoolean(container.stocking);
          container.setFilterAction.executePacket(new PacketReader(content));
 
          context.info("sent a filter allowing " + context.arg(1)
@@ -1328,6 +1334,125 @@ public final class ArcaneStorageVerbs {
     * exactly as {@code SetFilterAction} judges it -- so a test can assert that a contradictory set is refused and,
     * more importantly, that none of it was applied anyway.
     */
+   /**
+    * {@code busstock <dx> <dy> <0|1> [accepted|refused]} -- turns an export bus's "stock the container" mode on
+    * or off, through the same judgement the panel's Apply goes through.
+    *
+    * <p>The flag travels with the filter and is refused with it, so this proposes the bus's current filter
+    * unchanged alongside the new flag: a test can then assert that stocking alone makes a layout
+    * unsatisfiable, which is the case the conflict rule exists for.
+    */
+   private static final class BusStockVerb implements TestVerb {
+      public String name() {
+         return "busstock";
+      }
+
+      public String usage() {
+         return "busstock <dx> <dy> <0|1> [accepted|refused]";
+      }
+
+      public int coordinateArgIndex() {
+         return 1;
+      }
+
+      public boolean run(TestContext context) {
+         BusObjectEntity bus = busAt(context, 1);
+         if (bus == null) {
+            context.fail("busstock: no bus there");
+            return false;
+         }
+
+         boolean stocking = context.intArg(3) != 0;
+         String expected = context.argCount() > 4 ? context.arg(4) : "accepted";
+
+         String refusal = bus.whyRefused(bus.filter, stocking);
+         if (refusal == null) {
+            bus.setStocking(stocking);
+            bus.rulesChanged();
+         }
+
+         context.info(refusal == null ? "stocking = " + bus.isStocking() : "refused: " + refusal);
+         return context.check("refused".equals(expected) == (refusal != null),
+            "busstock " + stocking + " " + expected,
+            refusal == null ? "it was applied" : "it was refused: " + refusal);
+      }
+   }
+
+   /**
+    * {@code take <dx> <dy> <item> <n>} -- removes items from a container the way a settler or a player would,
+    * through {@code Inventory.removeItems}, so the {@code updateSlot} hook sees it as a foreign change.
+    *
+    * <p>{@code haul} is the opposite direction. Something has to take from a chest for "keep it stocked" to be
+    * testable at all, and writing slots directly would bypass the very hook the behaviour depends on.
+    */
+   private static final class TakeVerb implements TestVerb {
+      public String name() {
+         return "take";
+      }
+
+      public String usage() {
+         return "take <dx> <dy> <itemStringID> <amount>";
+      }
+
+      public int coordinateArgIndex() {
+         return 1;
+      }
+
+      public boolean run(TestContext context) {
+         int x = context.tileX(context.intArg(1));
+         int y = context.tileY(context.intArg(2));
+         Item item = ItemRegistry.getItem(context.arg(3));
+         ObjectEntity target = context.level.entityManager.getObjectEntity(x, y);
+         if (item == null || !(target instanceof OEInventory)) {
+            return context.check(false, "take " + context.arg(3), "no such item, or no container there");
+         }
+
+         int wanted = context.intArg(4);
+         int removed = ((OEInventory)target).getInventory().removeItems(
+               context.level, null, item, wanted, "arcanestoragetest");
+         return context.check(removed == wanted, "take " + wanted + " " + context.arg(3),
+               "only " + removed + " were there to take");
+      }
+   }
+
+   /**
+    * {@code bussave <dx> <dy>} -- writes a bus's save data, resets the fields it covers, and reads it back.
+    *
+    * <p>The same round trip a world save and load performs, on the entity in place, without the cost of a
+    * server restart. Resetting in between is the point: reading back into a bus that still holds the value
+    * proves nothing.
+    */
+   private static final class BusSaveVerb implements TestVerb {
+      public String name() {
+         return "bussave";
+      }
+
+      public String usage() {
+         return "bussave <dx> <dy>";
+      }
+
+      public int coordinateArgIndex() {
+         return 1;
+      }
+
+      public boolean run(TestContext context) {
+         BusObjectEntity bus = busAt(context, 1);
+         if (bus == null) {
+            context.fail("bussave: no bus there");
+            return false;
+         }
+
+         necesse.engine.save.SaveData save = new necesse.engine.save.SaveData("OBJECTENTITY");
+         bus.addSaveData(save);
+         bus.setStocking(false);
+         bus.applyLoadData(new necesse.engine.save.LoadData(save.getScript()));
+         bus.rulesChanged();
+
+         context.info("reloaded, stocking = " + bus.isStocking());
+         return true;
+      }
+   }
+
    private static final class BusApplyVerb implements TestVerb {
       public String name() {
          return "busapply";
@@ -1764,11 +1889,16 @@ public final class ArcaneStorageVerbs {
 
          // Exactly what BusContainer does on a client.
          ItemCategoriesFilter clientCopy = new ItemCategoriesFilter(ItemCategory.masterCategory, false);
+         boolean clientStocking = false;
          if (forContainer != null) {
-            clientCopy.readPacket(new PacketReader(forContainer));
+            PacketReader forReading = new PacketReader(forContainer);
+            clientCopy.readPacket(forReading);
+            clientStocking = forReading.getNextBoolean();
          }
 
          out.num("clientcount", countAllowed(clientCopy));
+         out.bool("serverstocking", bus.isStocking());
+         out.bool("clientstocking", clientStocking);
       }
    }
 

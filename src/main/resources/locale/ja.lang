@@ -63,6 +63,7 @@ arcanestorage_importbusname=インポートバス #<n>
 arcanestorage_exportbusname=エクスポートバス #<n>
 arcanestorage_importbuslimit=ネットワーク目標数（アイテムごと）
 arcanestorage_exportbuslimit=ネットワーク保持数（アイテムごと）
+arcanestorage_busstock=ネットワークではなくコンテナを補充
 arcanestorage_buslimithint=制限なし
 arcanestorage_importbusrule=チェックしたアイテムをネットワークがこの数量に達するまで取り込みます。
 arcanestorage_exportbusrule=チェックしたアイテムをネットワークにこの数量を残して送り出します。

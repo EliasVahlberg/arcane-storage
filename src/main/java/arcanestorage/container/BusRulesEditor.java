@@ -14,6 +14,7 @@ import necesse.engine.network.client.Client;
 import necesse.gfx.forms.ComponentListContainer;
 import necesse.gfx.forms.Form;
 import necesse.gfx.forms.components.FormComponent;
+import necesse.gfx.forms.components.FormCheckBox;
 import necesse.gfx.forms.components.FormContentBox;
 import necesse.gfx.forms.components.FormInputSize;
 import necesse.gfx.forms.components.FormLabel;
@@ -52,6 +53,9 @@ public final class BusRulesEditor {
    private static final int LIMIT_ROW = 32;
 
    private static final int SEARCH_ROW = 28;
+
+   /** The "stock the container" row, present on export buses only. */
+   private static final int STOCK_ROW = 26;
 
    /** The name row, which is also this panel's title: one control rather than a heading and a field. */
    static final int NAME_ROW_HEIGHT = 34;
@@ -132,6 +136,12 @@ public final class BusRulesEditor {
    /** Whether the player has changed something the server has not been told about. */
    private boolean unapplied;
 
+   /**
+    * Whether this bus's numbers are about its container. Edited locally and sent with the filter at Apply,
+    * because it is judged with it: stocking can turn an accepted rule set into a refused one.
+    */
+   private boolean stocking;
+
    private BusRulesEditor(ItemCategoriesFilterForm filterForm, ItemCategoriesFilter filter,
          FormTextInput nameInput, FormLabel statusLabel, FontOptions statusFont, Form body, int bodyBaseY,
          int statusWrapWidth,
@@ -164,12 +174,14 @@ public final class BusRulesEditor {
     *        follow them rather than depending on which surface they opened
     * @param name what this bus is currently called, shown in the name row
     * @param onRename given the new name when the player submits the name row
+    * @param stocking the bus's current "stock the container" setting, or null where it is not offered -- an
+    *        import bus has no container reading of its number. Read back with {@link #isStocking()} at Apply
     * @param onApply given the edited filter when the player presses Apply
     * @param onLayoutChanged called when the editor's natural height changes, for a host that has to resize or
     *        rescroll around it. May be null
     */
    public static BusRulesEditor addTo(ComponentListContainer<FormComponent> host, Client client, ItemCategoriesFilter filter, String limitKey,
-         String expandKey, Rectangle region, String name, Consumer<String> onRename,
+         String expandKey, Rectangle region, String name, Consumer<String> onRename, Boolean stocking,
          Consumer<ItemCategoriesFilter> onApply, Scroll scroll, Runnable onLayoutChanged) {
       // The name row doubles as the panel's title. A device is addressed by coordinates and a player has no
       // way to relate coordinates to the bus in front of them -- nothing in the game shows a tile position --
@@ -213,7 +225,13 @@ public final class BusRulesEditor {
          limitInput.setText(String.valueOf(filter.maxAmount));
       }
 
-      int searchY = LIMIT_ROW;
+      // The stock row goes directly under the number, because it is a statement about the number: which
+      // inventory it is counted in. Only offered where that question has two answers.
+      final FormCheckBox stockBox = stocking == null ? null : body.addComponent(new FormCheckBox(
+            Localization.translate("ui", "arcanestorage_busstock"), 4, LIMIT_ROW + 2, region.width - 8,
+            stocking));
+
+      int searchY = LIMIT_ROW + (stockBox == null ? 0 : STOCK_ROW);
       int contentY = searchY + SEARCH_ROW;
 
       // The list stops short of the bottom to leave the Apply strip clear. It has to be clear rather than
@@ -273,6 +291,13 @@ public final class BusRulesEditor {
             statusWrapWidth, name);
       self[0] = editor;
       editor.onLayoutChanged = onLayoutChanged;
+      editor.stocking = stocking != null && stocking;
+      if (stockBox != null) {
+         stockBox.onClicked(e -> {
+            editor.stocking = stockBox.checked;
+            editor.edited();
+         });
+      }
 
       limitInput.onSubmit(e -> {
          int next = limitInput.getText().isEmpty() ? Integer.MAX_VALUE : parseOr(limitInput.getText());
@@ -401,7 +426,9 @@ public final class BusRulesEditor {
     * the layout grows rather than the controls being squeezed.
     */
    public static int minimumHeight() {
-      return NAME_ROW_HEIGHT + STATUS_GAP + LIMIT_ROW + SEARCH_ROW + FormInputSize.SIZE_24.height * 3
+      // STOCK_ROW is counted whether or not this editor has one: the bound is used to size hosts before they
+      // know which kind of bus they will show, and an export bus must fit.
+      return NAME_ROW_HEIGHT + STATUS_GAP + LIMIT_ROW + STOCK_ROW + SEARCH_ROW + FormInputSize.SIZE_24.height * 3
             + APPLY_STRIP;
    }
 
@@ -437,6 +464,11 @@ public final class BusRulesEditor {
 
    public ItemCategoriesFilter getFilter() {
       return this.filter;
+   }
+
+   /** The "stock the container" setting as edited, false where it was not offered. */
+   public boolean isStocking() {
+      return this.stocking;
    }
 
    private void edited() {

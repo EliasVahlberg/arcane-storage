@@ -63,6 +63,7 @@ arcanestorage_importbusname=Importbus #<n>
 arcanestorage_exportbusname=Exportbus #<n>
 arcanestorage_importbuslimit=Netzwerk füllen bis, pro Gegenstand
 arcanestorage_exportbuslimit=Im Netzwerk behalten, pro Gegenstand
+arcanestorage_busstock=Behälter auffüllen statt Netzwerk
 arcanestorage_buslimithint=Beliebige Menge
 arcanestorage_importbusrule=Zieht markierte Gegenstände ein, bis das Netzwerk diese Menge enthält.
 arcanestorage_exportbusrule=Gibt markierte Gegenstände ab und behält diese Menge im Netzwerk.

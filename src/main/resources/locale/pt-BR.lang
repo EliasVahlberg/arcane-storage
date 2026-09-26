@@ -63,6 +63,7 @@ arcanestorage_importbusname=Barramento de Importação #<n>
 arcanestorage_exportbusname=Barramento de Exportação #<n>
 arcanestorage_importbuslimit=Preencher a rede até, por item
 arcanestorage_exportbuslimit=Manter na rede, por item
+arcanestorage_busstock=Abastecer o recipiente em vez da rede
 arcanestorage_buslimithint=Qualquer quantidade
 arcanestorage_importbusrule=Puxa itens marcados até a rede atingir esta quantidade.
 arcanestorage_exportbusrule=Envia itens marcados, mantendo esta quantidade na rede.

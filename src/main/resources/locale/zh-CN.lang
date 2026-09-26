@@ -63,6 +63,7 @@ arcanestorage_importbusname=输入总线 #<n>
 arcanestorage_exportbusname=输出总线 #<n>
 arcanestorage_importbuslimit=网络填充至（每种物品）
 arcanestorage_exportbuslimit=网络保留（每种物品）
+arcanestorage_busstock=补充容器而非网络
 arcanestorage_buslimithint=不限
 arcanestorage_importbusrule=导入勾选的物品，直到网络持有该数量。
 arcanestorage_exportbusrule=导出勾选的物品，在网络中保留该数量。

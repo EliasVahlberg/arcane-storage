@@ -63,6 +63,7 @@ arcanestorage_importbusname=İçe Aktarma Hattı #<n>
 arcanestorage_exportbusname=Dışa Aktarma Hattı #<n>
 arcanestorage_importbuslimit=Eşya başına ağda tutulacak miktar
 arcanestorage_exportbuslimit=Eşya başına ağda kalacak miktar
+arcanestorage_busstock=Ağ yerine kabı doldur
 arcanestorage_buslimithint=Sınırsız
 arcanestorage_importbusrule=İşaretli eşyaları ağda bu miktara ulaşana dek çeker.
 arcanestorage_exportbusrule=İşaretli eşyaları dışarı iter, bu miktarı ağda tutar.

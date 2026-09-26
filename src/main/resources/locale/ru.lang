@@ -63,6 +63,7 @@ arcanestorage_importbusname=Шина импорта #<n>
 arcanestorage_exportbusname=Шина экспорта #<n>
 arcanestorage_importbuslimit=Наполнять сеть до (на предмет)
 arcanestorage_exportbuslimit=Оставлять в сети (на предмет)
+arcanestorage_busstock=Пополнять контейнер, а не сеть
 arcanestorage_buslimithint=Любое количество
 arcanestorage_importbusrule=Загружает отмеченные предметы, пока в сети не будет указанное количество.
 arcanestorage_exportbusrule=Выгружает отмеченные предметы, оставляя указанное количество в сети.

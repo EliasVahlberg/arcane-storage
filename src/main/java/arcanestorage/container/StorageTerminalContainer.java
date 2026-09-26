@@ -125,6 +125,13 @@ public class StorageTerminalContainer extends Container {
     */
    public final HashMap<Long, ItemCategoriesFilter> rules = new HashMap<>();
 
+   /**
+    * Each fetched bus's "stock the container" setting, keyed like {@link #rules} and filled by the same reply.
+    * Kept beside the filter rather than inside a wrapper so that every existing reader of {@code rules} is
+    * untouched.
+    */
+   public final HashMap<Long, Boolean> stocking = new HashMap<>();
+
    /** Why the last attempt to write a bus's rules was refused, or null. Transient, per attempt, per player. */
    public String refusal;
 
@@ -496,7 +503,7 @@ public class StorageTerminalContainer extends Container {
          int y = reader.getNextInt();
          BusObjectEntity bus = StorageTerminalContainer.this.busFor(x, y);
          if (bus != null) {
-            StorageTerminalContainer.this.sendRulesAction.runAndSend(x, y, bus.filter);
+            StorageTerminalContainer.this.sendRulesAction.runAndSend(x, y, bus.filter, bus.isStocking());
          }
       }
    }
@@ -510,12 +517,13 @@ public class StorageTerminalContainer extends Container {
     */
    public class SendRulesAction extends ContainerCustomAction {
 
-      public void runAndSend(int x, int y, ItemCategoriesFilter filter) {
+      public void runAndSend(int x, int y, ItemCategoriesFilter filter, boolean stocking) {
          Packet content = new Packet();
          PacketWriter writer = new PacketWriter(content);
          writer.putNextInt(x);
          writer.putNextInt(y);
          filter.writePacket(writer);
+         writer.putNextBoolean(stocking);
          this.runAndSendAction(content);
       }
 
@@ -529,6 +537,9 @@ public class StorageTerminalContainer extends Container {
          int y = reader.getNextInt();
          ItemCategoriesFilter filter = new ItemCategoriesFilter(ItemCategory.masterCategory, false);
          filter.readPacket(reader);
+         boolean stocking = reader.getNextBoolean();
+         // Stocking first, so a reader that sees the filter arrive also sees its companion.
+         StorageTerminalContainer.this.stocking.put(key(x, y), stocking);
          StorageTerminalContainer.this.rules.put(key(x, y), filter);
       }
    }
@@ -578,12 +589,13 @@ public class StorageTerminalContainer extends Container {
 
    public class SetRulesAction extends ContainerCustomAction {
 
-      public void runAndSend(int x, int y, ItemCategoriesFilter edited) {
+      public void runAndSend(int x, int y, ItemCategoriesFilter edited, boolean stocking) {
          Packet content = new Packet();
          PacketWriter writer = new PacketWriter(content);
          writer.putNextInt(x);
          writer.putNextInt(y);
          edited.writePacket(writer);
+         writer.putNextBoolean(stocking);
          this.runAndSendAction(content);
       }
 
@@ -597,6 +609,7 @@ public class StorageTerminalContainer extends Container {
          int y = reader.getNextInt();
          ItemCategoriesFilter proposed = new ItemCategoriesFilter(ItemCategory.masterCategory, false);
          proposed.readPacket(reader);
+         boolean stocking = reader.getNextBoolean();
 
          BusObjectEntity bus = StorageTerminalContainer.this.busFor(x, y);
          if (bus == null) {
@@ -605,7 +618,7 @@ public class StorageTerminalContainer extends Container {
             return;
          }
 
-         String refusal = bus.whyRefused(proposed);
+         String refusal = bus.whyRefused(proposed, stocking);
          if (refusal != null) {
             StorageTerminalContainer.this.rejectRulesAction.runAndSend(refusal);
             return;
@@ -614,6 +627,7 @@ public class StorageTerminalContainer extends Container {
          Packet accepted = new Packet();
          proposed.writePacket(new PacketWriter(accepted));
          bus.filter.readPacket(new PacketReader(accepted));
+         bus.setStocking(stocking);
 
          // Or a rule the player just set would wait for some unrelated change to disturb the same item before
          // anything happened. Nothing polls any more, so nothing would notice.

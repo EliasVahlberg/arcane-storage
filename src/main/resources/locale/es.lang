@@ -63,6 +63,7 @@ arcanestorage_importbusname=Bus de Importación #<n>
 arcanestorage_exportbusname=Bus de Exportación #<n>
 arcanestorage_importbuslimit=Llenar la red hasta, por objeto
 arcanestorage_exportbuslimit=Mantener en la red, por objeto
+arcanestorage_busstock=Abastecer el contenedor en lugar de la red
 arcanestorage_buslimithint=Cualquier cantidad
 arcanestorage_importbusrule=Importa objetos marcados hasta que la red tenga esta cantidad.
 arcanestorage_exportbusrule=Exporta objetos marcados, manteniendo esta cantidad en la red.
