@@ -385,8 +385,8 @@ So nothing is drawn that will not be used:
 - **A fullness state for the Storage Unit.** There is no fullness hook — `InventoryObject` supports
   exactly one alternate state, `_open`. Do not design a sprite whose readability depends on showing how
   full it is.
-- **`preview.png`.** Installed at **1024×512**, which is a clean 8× downscale to the 128 px height the
-  mod-info panel forces. It may want revisiting for the Workshop listing in Phase 7, but not as pixel art.
+- **`preview.png`.** Installed at **512×512** since 27 Sep 2026 (see "Non-sprite asset" below), a clean 4×
+  downscale to the 128 px height the mod-info panel forces. It may want revisiting for the Workshop listing in Phase 7, but not as pixel art.
 
 ### Corrections to this document, 14 Aug 2026
 
@@ -782,13 +782,25 @@ sizes, so the category row can be `SIZE_32` while the toolbar stays `SIZE_24`.
 
 ## Non-sprite asset
 
-`src/main/resources/preview.png` — required for Workshop upload. **Installed: 1024×512.**
+`src/main/resources/preview.png` — required for Workshop upload. **Installed: 512×512 since 27 Sep 2026.**
+
+It is square because the same file is the Steam Workshop thumbnail, which Steam shows square, and the earlier
+wide image was cropped there. The crop is deliberate rather than centred: source pixels x 325–837 of the
+1024×512 splash (`art-submissions/2026-08-16/preview-original/preview-1024x512.png`), full height and not
+resampled, chosen so the altar is whole and the knight and his pack stay in frame with a column of units
+either side. The title "ARCANE / STORAGE" is set in Silkscreen Bold (SIL OFL 1.1) at its native 8 px with a
+1 px dark outline, scaled 10x by nearest neighbour so it stays on one pixel grid, which makes STORAGE 490 of
+the 512 px wide. It sits on the bottom edge with the side margin as its bottom margin, over a plain dark fade
+and without a glow. The font is only used to draw the image and is not shipped. What shipped before was the same splash at 800×400, not the 1024×512 this section used to claim. It was
+resized deliberately in `3b0bc4d`: the game re-encodes the preview with stb's PNG writer before upload, which
+produces far larger files than the stored one, and 1024×512 exceeded Steam's 1 MB limit. 512×512 has 36% fewer
+pixels than 800×400, so it is further inside that limit, and ConventionsTest's projected-size check passes.
 
 There is no required size and no validation (verified Aug 2026): `LoadedMod` reads it straight
 into a texture. But `ModProvider.provideModInfoContent` calls `shrinkHeight(128, false)`, and
 that method *sets* height to 128 and scales width to match, with no minimum — so a smaller
-image is upscaled rather than left alone. The installed 1024×512 is an exact 8x downscale to
-the forced 128 px height, which keeps pixel art crisp, and is a reasonable Workshop thumbnail.
+image is upscaled rather than left alone. The installed 512×512 is an exact 4x downscale to
+the forced 128 px height, drawn 128×128 in the mod list.
 Avoid heights that are not integer multiples of 128.
 
 ## Summary of what to draw first
