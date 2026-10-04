@@ -152,6 +152,9 @@ tasks.register('runClient', JavaExec) {
     classpath = files(gameDirectory + "/Necesse.jar")
 
     getMainClass().set("StartSteamClient")
+    // The game's own JRE, not the system JDK: a headless-only JDK cannot open the clipboard
+    // (the creative copy tool) or the crash report window, and both then crash the client.
+    executable = "${gameDirectory}/jre/bin/java"
     jvmArgs "-Xms512m", "-Xmx4G", "-XX:+UnlockExperimentalVMOptions", "-XX:+UseG1GC", "-XX:G1NewSizePercent=20", "-XX:G1ReservePercent=20", "-XX:MaxGCPauseMillis=50", "-XX:G1HeapRegionSize=32M"
     args "-dev", "-mod \"${buildLocation}\""
 }
@@ -164,6 +167,7 @@ tasks.register('runDevClient', JavaExec) {
     classpath = files(gameDirectory + "/Necesse.jar")
 
     getMainClass().set("StartSteamClient")
+    executable = "${gameDirectory}/jre/bin/java" // same reason as runClient
     jvmArgs "-Xms512m", "-Xmx4G", "-XX:+UnlockExperimentalVMOptions", "-XX:+UseG1GC", "-XX:G1NewSizePercent=20", "-XX:G1ReservePercent=20", "-XX:MaxGCPauseMillis=50", "-XX:G1HeapRegionSize=32M"
     args "-dev 1", "-mod \"${buildLocation}\""
 }
