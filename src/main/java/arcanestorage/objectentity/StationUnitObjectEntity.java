@@ -5,7 +5,6 @@ import arcanestorage.network.NetworkStations;
 import necesse.entity.objectEntity.InventoryObjectEntity;
 import necesse.entity.objectEntity.ObjectEntity;
 import necesse.inventory.InventoryItem;
-import necesse.level.gameObject.container.CraftingStationObject;
 import necesse.level.maps.Level;
 
 /**
@@ -37,16 +36,15 @@ public class StationUnitObjectEntity extends InventoryObjectEntity implements Ne
    }
 
    /**
-    * Only crafting stations, and only ones that do not need their own tile.
+    * Crafting stations that do not need their own tile, plus the Forge as a recipe unlock.
     *
-    * <p>Delegates to the terminal's rule deliberately. The two must agree exactly -- a bench installable
-    * in a socket but unusable by the terminal, or the reverse, is a bug the player experiences as the
-    * interface lying -- and the cheapest guarantee of agreement is one implementation.
+    * <p>Delegates to {@link StationTechHelper} so Station Unit sockets and the terminal agree exactly —
+    * a bench installable in a socket but unusable by the terminal, or the reverse, is a bug the player
+    * experiences as the interface lying.
     */
    @Override
    public boolean isItemValid(int slot, InventoryItem item) {
-      CraftingStationObject station = StorageTerminalObjectEntity.getCraftingStation(item);
-      return station != null && !StorageTerminalObjectEntity.needsItsPlacement(station);
+      return StationTechHelper.isValidStationItem(item);
    }
 
    /** How many sockets hold a bench, for the interact readout. */
