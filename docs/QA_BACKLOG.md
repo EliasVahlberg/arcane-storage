@@ -123,6 +123,13 @@ Stated by Elias, in order of confirmation:
 
 ## Still needs eyes
 
+### Sources right-click exclusive select — Sep 2026
+
+Manual only: the Sources dropdown is client UI. Open Crafting with several benches ticked, right-click
+one row (e.g. Forge): only that row should stay checked and the recipe list should filter to it.
+Right-click that same row again: every source should re-check. Left-click should still multi-select
+without closing the menu. Hover the Sources button for the tip.
+
 ### The reworked rule panel and logistics tab — CONFIRMED 14 Aug 2026
 
 Moved to "Confirmed in game" above. The four-point script is kept there in summary; the one thing it
