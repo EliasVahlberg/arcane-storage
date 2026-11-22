@@ -157,6 +157,7 @@ public final class ArcaneStorageVerbs {
       Harness.registerVerb(new RuleCategoryVerb());
       Harness.registerExpectation(new BusOpenPacketQuery());
       Harness.registerExpectation(new StationSocketQuery());
+      Harness.registerExpectation(new SettlementStorageQuery());
 
       Harness.registerExpectation(new UnitsExpectation());
       Harness.registerExpectation(new StationsExpectation());
@@ -1712,6 +1713,46 @@ public final class ArcaneStorageVerbs {
                new InventoryItem(context.arg(2), 1));
          out.bool("accepted", error == null);
          out.str("error", error == null ? "" : error);
+      }
+   }
+
+   /**
+    * Whether an object offers itself to settlers as storage: {@code query settlementstorage <dx> <dy>} ->
+    * {@code {oeinventory, storage}}.
+    *
+    * <p>Asked of the object entity, which is what vanilla's own assignment check asks, and reported as two
+    * fields because they answer different questions. {@code oeinventory} says the tile holds a storage object at
+    * all; {@code storage} says that object exposes anything for a settler to haul. Without the first, an object
+    * that failed to place -- or a tile that is simply empty -- reads as "correctly refuses settlers", which is a
+    * vacuous pass of the one assertion that matters.
+    *
+    * <p>This is the only way that question can be asked here. Object entities need a level, and a level cannot
+    * be constructed outside a running game, so a unit test of {@code getSettlementStorage} is not available.
+    */
+   private static final class SettlementStorageQuery implements TestVerb, TestQuery {
+      public String name() {
+         return "settlementstorage";
+      }
+
+      public String usage() {
+         return "query settlementstorage <dx> <dy>";
+      }
+
+      public int coordinateArgIndex() {
+         return 2;
+      }
+
+      public boolean run(TestContext context) {
+         return true;
+      }
+
+      public void query(TestContext context, Json.Writer out) {
+         ObjectEntity entity = context.level.entityManager.getObjectEntity(
+               context.tileX(context.intArg(2)), context.tileY(context.intArg(3)));
+
+         boolean offers = entity instanceof OEInventory;
+         out.bool("oeinventory", offers);
+         out.bool("storage", offers && ((OEInventory)entity).getSettlementStorage() != null);
       }
    }
 
