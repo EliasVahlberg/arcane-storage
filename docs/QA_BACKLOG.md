@@ -67,7 +67,7 @@ setup in step 1 by hand, then run the order.
 
 ## Needs eyes — a station socket's refusal (Nov 2026)
 
-**0k. The socket says why it refuses.** *Compiled and covered by a unit test for the string, not seen:
+**0l. The socket says why it refuses.** *Compiled and covered by a unit test for the string, not seen:
 the line is drawn by the client on a refused drop, and nothing headless draws a client.* A forge, a
 cooking station and a lump of stone are each refused by a Station Unit's socket with the line that only
 a crafting station that works from any tile can be installed; a socket that refuses silently, or that
