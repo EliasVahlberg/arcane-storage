@@ -81,3 +81,8 @@ The window checks in `docs/QA_BACKLOG.md` are made quick by a small world that i
 The areas, their offsets and the exact in-window steps live in `qa-world/INDEX.md`. Player-coupled
 parts (pairing a terminal, holding a forge) are manual on purpose: the harness's synthetic player is
 not the person who later opens the world, so nothing placed in its bag survives for a visitor.
+
+The QA world builds into its own game-data directory (`build/qa-appdata`), separate from the scenario
+suite's (`build/necesse-appdata`, seeded by `tests/python/conftest.py`), so the two never share a mod
+list, a world or a settings file — a `make qa-world` and a `make pytest-all` can run in either order
+without the one leaking into the other.

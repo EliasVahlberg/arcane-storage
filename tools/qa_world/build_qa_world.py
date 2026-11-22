@@ -256,7 +256,7 @@ def write_world_settings(zip_path: Path) -> dict[str, str]:
 
 def world_zip() -> Path:
     """Where the harness keeps the world it just saved."""
-    appdata = Path(os.environ.get("NECESSE_APPDATA", MOD_DIR / "build/necesse-appdata"))
+    appdata = Path(os.environ.get("NECESSE_APPDATA", MOD_DIR / "build/qa-appdata"))
     return appdata / "saves" / "worlds" / f"{WORLD}.zip"
 
 

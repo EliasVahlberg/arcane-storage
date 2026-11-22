@@ -21,7 +21,7 @@ SHELL := /bin/bash
 GRADLE := ./gradlew --console=plain
 LOGDIR := build/logs
 
-.PHONY: help build test scene run dev server appid textures clean stop tasks doctor pytest pytest-all pytest-clock harness-appdata qa-world qa-world-install qa-world-reset
+.PHONY: help build test scene run dev server appid textures clean stop tasks doctor pytest pytest-all pytest-clock qa-appdata qa-world qa-world-install qa-world-reset
 
 help: ## Show available targets
 	@grep -hE '^[a-z-]+:.*##' $(MAKEFILE_LIST) \
@@ -139,27 +139,31 @@ pytest-clock: ## Run the whole suite on the game's own clock: the control for de
 #
 # INSTALL AND RESET WRITE THE USER'S OWN SAVE DATA. Run by hand, never by a build: both take
 # DRY_RUN=1, which prints the paths and copies nothing.
-HARNESS_APPDATA ?= $(CURDIR)/build/necesse-appdata
-HARNESS_OUTDIR ?= $(CURDIR)/build/harness-out
+# The QA world uses its OWN game-data directory, not the one pytest seeds. `tests/python/conftest.py`
+# seeds build/necesse-appdata for the scenario suite, and a build that shared it would leak the QA
+# world's saves, mod list and settings into the next test run (and a test run's leftovers back into
+# the build). build/qa-appdata keeps the two apart, with its own seeded mods.
+QA_APPDATA ?= $(CURDIR)/build/qa-appdata
+QA_OUTDIR ?= $(CURDIR)/build/qa-out
 INSTALLED_APPDATA ?= $(HOME)/.config/Necesse
-HARNESS_ENV = NECESSE_APPDATA=$(HARNESS_APPDATA) HARNESS_OUT=$(HARNESS_OUTDIR)
+QA_ENV = NECESSE_APPDATA=$(QA_APPDATA) HARNESS_OUT=$(QA_OUTDIR)
 
-QA_WORLD_SRC = $(HARNESS_APPDATA)/saves/worlds/arcane_qa_harness_world.zip
+QA_WORLD_SRC = $(QA_APPDATA)/saves/worlds/arcane_qa_harness_world.zip
 # 'arcane_storage_qa_world' rather than the sibling mod's 'arcane_qa_world', so the two QA worlds
 # do not collide in the shared saves directory.
 QA_WORLD_PRISTINE = $(CURDIR)/qa-world/arcane_storage_qa_world.zip
 QA_WORLD_INSTALLED = $(INSTALLED_APPDATA)/saves/worlds/arcane_storage_qa_world.zip
 
-harness-appdata: # (internal) seed this checkout's game data dir from the installed harness
-	@mkdir -p $(HARNESS_APPDATA)/mods
-	@rm -f $(HARNESS_APPDATA)/mods/NecesseHeadlessHarness-*.jar
+qa-appdata: # (internal) seed the QA world's own game data dir from the installed harness
+	@mkdir -p $(QA_APPDATA)/mods
+	@rm -f $(QA_APPDATA)/mods/NecesseHeadlessHarness-*.jar
 	@cp -p $(INSTALLED_APPDATA)/mods/NecesseHeadlessHarness-*.jar $(INSTALLED_APPDATA)/mods/modlist.data \
-		$(HARNESS_APPDATA)/mods/ || { echo "harness not installed in $(INSTALLED_APPDATA)/mods: run 'make install' in ../necesse-headless-harness"; exit 2; }
+		$(QA_APPDATA)/mods/ || { echo "harness not installed in $(INSTALLED_APPDATA)/mods: run 'make install' in ../necesse-headless-harness"; exit 2; }
 
-qa-world: harness-appdata ## Build the QA world from scratch, with a full read-back
+qa-world: qa-appdata ## Build the QA world from scratch, with a full read-back
 	@$(MAKE) --no-print-directory build > /dev/null
 	@mkdir -p $(LOGDIR)
-	@$(HARNESS_ENV) $(HARNESS_VENV) tools/qa_world/build_qa_world.py 2>&1 | tee $(LOGDIR)/qa-world.log
+	@$(QA_ENV) $(HARNESS_VENV) tools/qa_world/build_qa_world.py 2>&1 | tee $(LOGDIR)/qa-world.log
 
 qa-world-install: ## Install the QA world into the client's saves (DRY_RUN=1 previews; FORCE=1 overwrites)
 	@test -f "$(QA_WORLD_SRC)" || { echo "no built world at $(QA_WORLD_SRC) -- run 'make qa-world' first"; exit 2; }

@@ -6,8 +6,12 @@ hand-built network. Built with `make qa-world`, installed with `make qa-world-in
 You spawn at the first area, facing east. Every area is a horizontal strip near spawn; each area's
 objects sit on the row named below, with the spawn tile `(0,0)` left clear. Materials are already
 inside the storage units; your bag is empty on purpose, so the player-coupled steps are written out
-under each area. The world is creative with mobs off, so the items a step says to "spawn" come from
-the creative menu.
+under each area.
+
+The world is **creative** (mobs off, no hunger), so the items a step says to "spawn" come from the
+creative menu. Creative does **not** make Build Menu placement free: the server still deducts the
+materials from the network (Build Menu's own consumption runs the engine's craft path, which has no
+creative shortcut), so area 1 step 3's count-drop still happens exactly.
 
 | Area | Row | Name | QA_BACKLOG |
 |---|---|---|---|
