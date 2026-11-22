@@ -65,3 +65,19 @@ The `harness` fixture clears a radius around spawn and empties the player betwee
 fixture also walks the object entities and removes every storage object, wherever it is. A test that
 places something far from spawn should use `storage`, not `harness` — the radius will not reach it, and
 the level-wide totals will notice.
+
+## The QA world
+
+The window checks in `docs/QA_BACKLOG.md` are made quick by a small world that is built, not hand-made.
+
+- `make qa-world` — builds the world headlessly on the harness, places every area from
+  `tools/qa_world/build_qa_world.py`, reads it all back, and saves it as a zip. Fails loudly on a
+  mismatch; the log is `build/logs/qa-world.log`.
+- `make qa-world-install` — copies the built world into the game's saves. `DRY_RUN=1` previews the
+  paths and copies nothing; `FORCE=1` overwrites an existing one. Writes the user's own save data, so
+  it is run by hand, never by a build.
+- `make qa-world-reset` — restores the pristine copy over the installed one.
+
+The areas, their offsets and the exact in-window steps live in `qa-world/INDEX.md`. Player-coupled
+parts (pairing a terminal, holding a forge) are manual on purpose: the harness's synthetic player is
+not the person who later opens the world, so nothing placed in its bag survives for a visitor.

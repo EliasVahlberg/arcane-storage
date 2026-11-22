@@ -21,7 +21,7 @@ SHELL := /bin/bash
 GRADLE := ./gradlew --console=plain
 LOGDIR := build/logs
 
-.PHONY: help build test scene run dev server appid textures clean stop tasks doctor
+.PHONY: help build test scene run dev server appid textures clean stop tasks doctor pytest pytest-all pytest-clock harness-appdata qa-world qa-world-install qa-world-reset
 
 help: ## Show available targets
 	@grep -hE '^[a-z-]+:.*##' $(MAKEFILE_LIST) \
@@ -132,3 +132,52 @@ pytest-clock: ## Run the whole suite on the game's own clock: the control for de
 	@# them -- 20s against 333s. This target is the control: it runs the world on its own clock, so
 	@# something that passes here and fails by default means detached ticks are involved. Takes minutes.
 	@$(HARNESS_VENV) -m pytest tests/python -q --clock-ticks
+
+# A world the game client opens, already set up for the in-window checks. Built from scratch by a
+# script on the harness client, so a mod version bump means REBUILDING it: the world records the mod
+# list and versions, and a mismatch stops the client from opening it.
+#
+# INSTALL AND RESET WRITE THE USER'S OWN SAVE DATA. Run by hand, never by a build: both take
+# DRY_RUN=1, which prints the paths and copies nothing.
+HARNESS_APPDATA ?= $(CURDIR)/build/necesse-appdata
+HARNESS_OUTDIR ?= $(CURDIR)/build/harness-out
+INSTALLED_APPDATA ?= $(HOME)/.config/Necesse
+HARNESS_ENV = NECESSE_APPDATA=$(HARNESS_APPDATA) HARNESS_OUT=$(HARNESS_OUTDIR)
+
+QA_WORLD_SRC = $(HARNESS_APPDATA)/saves/worlds/arcane_qa_harness_world.zip
+# 'arcane_storage_qa_world' rather than the sibling mod's 'arcane_qa_world', so the two QA worlds
+# do not collide in the shared saves directory.
+QA_WORLD_PRISTINE = $(CURDIR)/qa-world/arcane_storage_qa_world.zip
+QA_WORLD_INSTALLED = $(INSTALLED_APPDATA)/saves/worlds/arcane_storage_qa_world.zip
+
+harness-appdata: # (internal) seed this checkout's game data dir from the installed harness
+	@mkdir -p $(HARNESS_APPDATA)/mods
+	@rm -f $(HARNESS_APPDATA)/mods/NecesseHeadlessHarness-*.jar
+	@cp -p $(INSTALLED_APPDATA)/mods/NecesseHeadlessHarness-*.jar $(INSTALLED_APPDATA)/mods/modlist.data \
+		$(HARNESS_APPDATA)/mods/ || { echo "harness not installed in $(INSTALLED_APPDATA)/mods: run 'make install' in ../necesse-headless-harness"; exit 2; }
+
+qa-world: harness-appdata ## Build the QA world from scratch, with a full read-back
+	@$(MAKE) --no-print-directory build > /dev/null
+	@mkdir -p $(LOGDIR)
+	@$(HARNESS_ENV) $(HARNESS_VENV) tools/qa_world/build_qa_world.py 2>&1 | tee $(LOGDIR)/qa-world.log
+
+qa-world-install: ## Install the QA world into the client's saves (DRY_RUN=1 previews; FORCE=1 overwrites)
+	@test -f "$(QA_WORLD_SRC)" || { echo "no built world at $(QA_WORLD_SRC) -- run 'make qa-world' first"; exit 2; }
+	@if [ -f "$(QA_WORLD_INSTALLED)" ] && [ "$(FORCE)" != "1" ]; then \
+		echo "REFUSING: $(QA_WORLD_INSTALLED) already exists. Pass FORCE=1 to overwrite."; exit 3; fi
+	@echo "install: $(QA_WORLD_SRC) -> $(QA_WORLD_INSTALLED)"
+	@echo "pristine kept at: $(QA_WORLD_PRISTINE)"
+	@# DRY_RUN must WRAP the copying: each recipe line is its own shell, so 'exit 0' would end only
+	@# that line and the copy would still run.
+	@if [ "$(DRY_RUN)" = "1" ]; then echo "(DRY_RUN=1: nothing copied)"; else \
+		mkdir -p "$(dir $(QA_WORLD_INSTALLED))" "$(dir $(QA_WORLD_PRISTINE))"; \
+		cp -p "$(QA_WORLD_SRC)" "$(QA_WORLD_INSTALLED)"; \
+		cp -p "$(QA_WORLD_SRC)" "$(QA_WORLD_PRISTINE)"; \
+		echo "installed, and the pristine copy is in qa-world/"; fi
+
+qa-world-reset: ## Restore the pristine QA world over the installed one (DRY_RUN=1 previews)
+	@test -f "$(QA_WORLD_PRISTINE)" || { echo "no pristine copy at $(QA_WORLD_PRISTINE)"; exit 2; }
+	@echo "reset: $(QA_WORLD_PRISTINE) -> $(QA_WORLD_INSTALLED)"
+	@if [ "$(DRY_RUN)" = "1" ]; then echo "(DRY_RUN=1: nothing copied)"; else \
+		cp -p "$(QA_WORLD_PRISTINE)" "$(QA_WORLD_INSTALLED)"; \
+		echo "restored -- close the world in the client before opening it again"; fi

@@ -61,6 +61,22 @@ not run in a window, and the arithmetic is what is proven.*
 Also worth knowing while doing this: the count a settler is given is a ceiling, so an order stopping a little earlier
 than a player expects is the safe direction and not a fault. Over-counting stops work; under-counting repeats it.
 
+**In the QA world.** `make qa-world` then `make qa-world-install` builds areas 1 and 2 of
+`qa-world/INDEX.md` for this — a paired network to place from and an unpaired control — with the
+materials already inside the units. Only the pairing is manual (your bag starts empty); the index
+lists the exact steps.
+
+## Needs eyes — a station socket's refusal (Nov 2026)
+
+**0k. The socket says why it refuses.** *Compiled and covered by a unit test for the string, not seen:
+the line is drawn by the client on a refused drop, and nothing headless draws a client.* A forge, a
+cooking station and a lump of stone are each refused by a Station Unit's socket with the line that only
+a crafting station that works from any tile can be installed; a socket that refuses silently, or that
+takes a stone, is a regression.
+
+**In the QA world.** Area 4 of `qa-world/INDEX.md` has a terminal, a Station Unit with a free socket,
+and the three items to drop. The index lists the exact steps.
+
 ## Needs eyes — the storage tab's item list (Nov 2026)
 
 **0i. The list keeps its place across a content change.** *Compiled and covered by reasoning, not seen: the
@@ -85,6 +101,9 @@ back to the top every few seconds", and the change usually lands while they are 
 6. **The shrinking case.** Scroll near the bottom, then withdraw enough to remove entries until the tree no
    longer reaches that far down. The list should settle at its own new end rather than overshooting into
    blank space — the clamp is the same one the mouse wheel uses.
+
+**In the QA world.** Area 3 of `qa-world/INDEX.md` has a terminal over a seven-unit network, an import
+bus on a chest, and a loaded backpack — the same setup, ready to open instead of hand-built.
 
 ## Needs eyes — the wireless terminal (Aug 2026)
 
