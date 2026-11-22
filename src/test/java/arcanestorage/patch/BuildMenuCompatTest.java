@@ -88,4 +88,14 @@ public class BuildMenuCompatTest {
       assertFalse(BuildMenuCompat.isActive());
       assertEquals(0, BuildMenuCompat.mismatchReports());
    }
+
+   @Test
+   public void a_mismatch_is_logged_once() {
+      // The signature check runs once at load, but a repeated failure -- say, if the advice could
+      // not be installed -- must not fill the log on every placement.
+      BuildMenuCompat.resetMismatchReporting();
+      BuildMenuCompat.logMismatch("first");
+      BuildMenuCompat.logMismatch("second");
+      assertEquals(1, BuildMenuCompat.mismatchReports());
+   }
 }

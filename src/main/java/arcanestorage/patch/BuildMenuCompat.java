@@ -201,7 +201,7 @@ public final class BuildMenuCompat {
    }
 
    /** Logs a mismatch once per launch, so a changed signature cannot fill the log on every placement. */
-   private static void logMismatch(String reason) {
+   static void logMismatch(String reason) {
       if (mismatchLogged) {
          return;
       }
@@ -210,6 +210,12 @@ public final class BuildMenuCompat {
       mismatchReports++;
       GameLog.warn.println("Arcane Storage: Build Menu support is off this launch: " + reason
             + ". The network is not offered to Build Menu, and everything else works as normal.");
+   }
+
+   /** Resets the once-per-launch mismatch flag and count, for the unit test of the log-once rule. */
+   static void resetMismatchReporting() {
+      mismatchLogged = false;
+      mismatchReports = 0;
    }
 
    /**
