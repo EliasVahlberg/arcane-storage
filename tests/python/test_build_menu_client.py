@@ -23,6 +23,8 @@ soft dependency and every assertion here is about what happens when it is instal
 
 from __future__ import annotations
 
+import time
+
 import pytest
 
 import buildmenu
@@ -69,6 +71,33 @@ def test_the_summary_reaches_a_real_clients_state(connected):
     assert answered["cleared"] is True, "an empty summary must clear the cached one"
 
 
+def test_an_unchanged_summary_is_not_handed_over_again(connected):
+    """The item-tooltip flash, counted instead of seen.
+
+    Build Menu answers a storage snapshot by rebuilding its item elements, and a hovered tooltip is
+    destroyed and recreated with the element it belongs to. Re-applying an unchanged summary on the
+    client's own tick therefore made a tooltip flash on and off at the re-apply cadence, twice a
+    second, and only while the compat had something to hand over.
+
+    `applies` counts the times the cached summary reached one of Build Menu's three snapshots during a
+    probe's ticks. The rounds are spaced past the re-apply cadence on purpose: a test that ticked in a
+    tight loop would sit inside one cadence window and see nothing either way, which is how the old
+    behaviour hid from a first attempt at this assertion.
+    """
+    connected.query("buildmenuclient", "stone")
+
+    handed_over = 0
+    for _ in range(3):
+        time.sleep(0.55)
+        answered = connected.query("buildmenuclient", "stone")
+        handed_over += answered["applies"]
+        assert answered["ticks"] > 0, "the advice should still run on every tick"
+
+    assert handed_over == 0, (
+        "an unchanged summary was handed to Build Menu again, which rebuilds its grid and takes the "
+        "hovered tooltip with it")
+
+
 def test_a_second_client_is_left_nothing_to_inherit(connected):
     """Two probes in a row, because the harness server is one JVM and the client's statics are global.
 
@@ -84,7 +113,12 @@ def test_a_second_client_is_left_nothing_to_inherit(connected):
 
 
 def test_the_network_changing_is_what_the_client_sees(connected):
-    """Not a frozen copy of the first summary: the state follows the network the packet describes."""
+    """Not a frozen copy of the first summary: the state follows the network the packet describes.
+
+    The other half of the fix above. A re-apply that never ran would pass that test and break the
+    compat, so the pair is what actually pins it: nothing when nothing changed, and the new number
+    when something did.
+    """
     before = connected.query("buildmenuclient", "stone")["amount"]
     connected.fill(1, 0, "stone", 200)
 

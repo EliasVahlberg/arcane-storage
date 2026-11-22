@@ -3906,11 +3906,16 @@ public final class ArcaneStorageVerbs {
             out.num("distinct", received == null ? -1 : occupied(received.inventory));
             out.num("amount", received == null ? -1 : countOf(received.inventory, context.arg(2)));
 
+            // The tooltip question, asked directly: how many times an unchanged summary is handed to Build Menu.
+            // Every handover makes Build Menu rebuild its item elements, and a hovered tooltip goes with the element
+            // it belongs to -- so this number is the flash, counted rather than seen.
+            long appliesBefore = arcanestorage.patch.BuildMenuCompat.appliedCount();
             for (int i = 0; i < 3; i++) {
                probe.tick();
             }
 
             out.num("ticks", arcanestorage.patch.BuildMenuCompat.clientTickCount() - before);
+            out.num("applies", arcanestorage.patch.BuildMenuCompat.appliedCount() - appliesBefore);
 
             // A summary with nothing in it is how the server says a player stopped being connected, and it has to
             // clear what is cached rather than leave the last one standing.

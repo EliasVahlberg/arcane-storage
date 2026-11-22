@@ -142,6 +142,12 @@ public final class BuildMenuCompat {
    /** How many times the client tick advice has run, whatever it then decided to do. Diagnostic. */
    private static volatile long clientTicks;
 
+   /** The summary range last handed to Build Menu's snapshots, so an unchanged one is not handed over again. */
+   private static volatile InventoryRange appliedRange;
+
+   /** How many times a summary has been handed to a Build Menu snapshot. Diagnostic, read by the harness. */
+   private static volatile long applied;
+
    /**
     * The cached-summary re-apply's own tick count.
     *
@@ -151,6 +157,16 @@ public final class BuildMenuCompat {
     */
    public static long clientTickCount() {
       return clientTicks;
+   }
+
+   /**
+    * How many times the cached summary has actually been handed to one of Build Menu's snapshots.
+    *
+    * <p>The counter that matters for the tooltip: each handover costs Build Menu a rebuild of its item elements,
+    * so a steady increase while nothing has changed is the flash, and no increase is the fix.
+    */
+   public static long appliedCount() {
+      return applied;
    }
 
    public static boolean isEnabled() {
@@ -472,28 +488,37 @@ public final class BuildMenuCompat {
    }
 
    /**
-    * Re-applies the cached summary to Build Menu's three snapshots at a bounded rate, client-side.
+    * Re-applies the cached summary to Build Menu's three snapshots, client-side, when there is something new.
     *
-    * <p>Build Menu's tools and form start with an empty list and reset it in
-    * {@code cancelStorageSubscription}, so a tool opened after the last packet would see no network
-    * until the next content change. This re-applies the cached summary on the client's own tick, at
-    * most twice a second, while a non-empty summary is cached and the compat is active. Idempotent:
-    * it passes the same list again, with no packet.
+    * <p><b>Why "when there is something new" is the whole point.</b> Calling a target's
+    * {@code onStorageSnapshot} is not a cheap notification: the form sets its own refresh flag and rebuilds every
+    * item element of its visible categories on the next draw, which destroys and recreates the element under the
+    * cursor -- and with it the item tooltip. Re-applying an unchanged summary twice a second therefore made the
+    * tooltip flash on and off while hovering, at exactly the re-apply cadence, and only when this compat had
+    * something to hand over.
     *
-    * <p>The tick is counted before any of those guards, because the guards are what make a missing
-    * invocation invisible: with nothing cached this returns immediately having done nothing, which is
-    * indistinguishable from advice that was never woven in. {@link #clientTickCount()} is the difference
-    * between the two, and it is the only way a headless test can tell them apart.
+    * <p>So a summary is handed over once, and again only when the cached one has been replaced. Nothing Build Menu
+    * reads changes while nothing new has arrived.
     *
-    * <p>Public for the same reason as {@link #withNetworkSummary}: the advice is inlined into
-    * {@code Client.tick()}, in the game's own package, and a package-private method there fails with
-    * {@code IllegalAccessError} -- on every client tick, swallowed by the advice's guard, leaving the
-    * re-apply doing nothing in a player's game while every test still passed.
+    * <p>The case the re-apply was originally added for stays covered, by the game rather than by a timer: a target
+    * that clears its list (Build Menu's {@code cancelStorageSubscription}) clears it together with an unsubscribe,
+    * and re-subscribing makes Build Menu send a snapshot to every target itself -- a snapshot the advice then
+    * appends the cached network to. A target that never subscribed never clears its list either.
+    *
+    * <p>The tick is counted before any of those guards, because the guards are what make a missing invocation
+    * invisible: with nothing cached this returns immediately having done nothing, which is indistinguishable from
+    * advice that was never woven in. {@link #clientTickCount()} is the difference between the two, and it is the
+    * only way a headless test can tell them apart.
+    *
+    * <p>Public for the same reason as {@link #withNetworkSummary}: the advice is inlined into {@code Client.tick()},
+    * in the game's own package, and a package-private method there fails with {@code IllegalAccessError} -- on
+    * every client tick, swallowed by the advice's guard, leaving the re-apply doing nothing in a player's game
+    * while every test still passed.
     */
    public static void clientTickReapply() {
       clientTicks++;
 
-      if (!active || networkSummaryRange == null) {
+      if (!active || networkSummaryRange == null || networkSummaryRange == appliedRange) {
          return;
       }
 
@@ -514,6 +539,10 @@ public final class BuildMenuCompat {
    /**
     * Re-invokes Build Menu's three {@code onStorageSnapshot} methods with the last list they were
     * given, so a change to the network alone refreshes their view without a settlement snapshot.
+    *
+    * <p>Records what it handed over, which is what lets {@link #clientTickReapply()} leave an unchanged summary
+    * alone. {@link #appliedCount()} counts the handovers rather than the passes, so "nothing was handed over"
+    * means literally nothing Build Menu reads was replaced.
     */
    private static void refreshClientSnapshots() {
       if (!active) {
@@ -525,6 +554,7 @@ public final class BuildMenuCompat {
          current = new ArrayList<>();
       }
 
+      InventoryRange range = networkSummaryRange;
       for (PatchTarget target : TARGETS) {
          if (!target.snapshot) {
             continue;
@@ -534,10 +564,13 @@ public final class BuildMenuCompat {
             Class<?> cls = resolveClass(target.className);
             Method method = cls.getMethod(target.methodName, target.argumentTypes);
             method.invoke(null, current);
+            applied++;
          } catch (Throwable t) {
             snapshotFailed(t);
          }
       }
+
+      appliedRange = range;
    }
 
    /** The advice inlined into Build Menu's server method. */
