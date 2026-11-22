@@ -57,6 +57,7 @@ arcanestorage_exportbuslimit_container=Fill container to, per item
 arcanestorage_buscountin=Count in
 arcanestorage_buscountnetwork=Network
 arcanestorage_buscountcontainer=Container
+arcanestorage_buscountcontainerhint=Settlers only see a chest assigned to settlement storage
 arcanestorage_buslimithint=Any amount
 arcanestorage_importbusrule=Pulls in ticked items until the network holds this amount.
 arcanestorage_exportbusrule=Pushes out ticked items, keeping this amount in the network.

@@ -68,6 +68,7 @@ arcanestorage_exportbuslimit_container=Заполнить контейнер д�
 arcanestorage_buscountin=Считать в
 arcanestorage_buscountnetwork=Сеть
 arcanestorage_buscountcontainer=Контейнер
+arcanestorage_buscountcontainerhint=Поселенцы видят только сундуки, привязанные к хранилищу поселения
 arcanestorage_buslimithint=Любое количество
 arcanestorage_importbusrule=Загружает отмеченные предметы, пока в сети не будет указанное количество.
 arcanestorage_exportbusrule=Выгружает отмеченные предметы, оставляя указанное количество в сети.

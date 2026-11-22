@@ -68,6 +68,7 @@ arcanestorage_exportbuslimit_container=容器填充至（每种物品）
 arcanestorage_buscountin=计数位置
 arcanestorage_buscountnetwork=网络
 arcanestorage_buscountcontainer=容器
+arcanestorage_buscountcontainerhint=居民只能看到已分配至营地存储的箱子
 arcanestorage_buslimithint=不限
 arcanestorage_importbusrule=导入勾选的物品，直到网络持有该数量。
 arcanestorage_exportbusrule=导出勾选的物品，在网络中保留该数量。

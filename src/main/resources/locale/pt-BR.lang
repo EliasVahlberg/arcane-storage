@@ -68,6 +68,7 @@ arcanestorage_exportbuslimit_container=Encher o recipiente até, por item
 arcanestorage_buscountin=Contar em
 arcanestorage_buscountnetwork=Rede
 arcanestorage_buscountcontainer=Recipiente
+arcanestorage_buscountcontainerhint=Colonos só veem baús atribuídos ao armazenamento deste vilarejo
 arcanestorage_buslimithint=Qualquer quantidade
 arcanestorage_importbusrule=Puxa itens marcados até a rede atingir esta quantidade.
 arcanestorage_exportbusrule=Envia itens marcados, mantendo esta quantidade na rede.

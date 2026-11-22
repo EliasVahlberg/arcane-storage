@@ -68,6 +68,7 @@ arcanestorage_exportbuslimit_container=Behälter füllen bis, pro Gegenstand
 arcanestorage_buscountin=Zählen in
 arcanestorage_buscountnetwork=Netzwerk
 arcanestorage_buscountcontainer=Behälter
+arcanestorage_buscountcontainerhint=Siedler sehen nur Truhen, die dem Siedlungslager zugewiesen sind
 arcanestorage_buslimithint=Beliebige Menge
 arcanestorage_importbusrule=Zieht markierte Gegenstände ein, bis das Netzwerk diese Menge enthält.
 arcanestorage_exportbusrule=Gibt markierte Gegenstände ab und behält diese Menge im Netzwerk.

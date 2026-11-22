@@ -68,6 +68,7 @@ arcanestorage_exportbuslimit_container=Kabı şuna kadar doldur, eşya başına
 arcanestorage_buscountin=Sayılacak yer
 arcanestorage_buscountnetwork=Ağ
 arcanestorage_buscountcontainer=Kap
+arcanestorage_buscountcontainerhint=Yerleşimciler yalnızca yerleşim deposuna atanmış sandıkları görür
 arcanestorage_buslimithint=Sınırsız
 arcanestorage_importbusrule=İşaretli eşyaları ağda bu miktara ulaşana dek çeker.
 arcanestorage_exportbusrule=İşaretli eşyaları dışarı iter, bu miktarı ağda tutar.

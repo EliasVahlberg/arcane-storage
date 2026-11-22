@@ -68,6 +68,7 @@ arcanestorage_exportbuslimit_container=Isi wadah hingga, per item
 arcanestorage_buscountin=Hitung di
 arcanestorage_buscountnetwork=Jaringan
 arcanestorage_buscountcontainer=Wadah
+arcanestorage_buscountcontainerhint=Penduduk hanya melihat peti yang ditetapkan ke penyimpanan pemukiman
 arcanestorage_buslimithint=Jumlah berapa pun
 arcanestorage_importbusrule=Menarik item yang dicentang sampai jaringan memiliki jumlah ini.
 arcanestorage_exportbusrule=Mendorong item yang dicentang keluar, menyimpan jumlah ini di jaringan.

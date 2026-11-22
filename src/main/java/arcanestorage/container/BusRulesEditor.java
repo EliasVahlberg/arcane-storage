@@ -6,6 +6,7 @@ import java.util.function.Consumer;
 import arcanestorage.objectentity.BusObjectEntity;
 import arcanestorage.ui.ArcaneDropdown;
 import arcanestorage.ui.ArcanePanel;
+import arcanestorage.ui.ArcaneText;
 import necesse.engine.GameLog;
 import necesse.engine.ItemCategoryExpandedSetting;
 import necesse.engine.Settings;
@@ -56,6 +57,17 @@ public final class BusRulesEditor {
 
    /** The "count in" row: whether the number above it is about the network or the attached container. */
    private static final int COUNT_ROW = 28;
+
+   /**
+    * The dim line under it, saying why a container-counted number needs the chest to be settlement storage.
+    *
+    * <p>Reserved whether or not it has anything to say, because the row is laid out once: the list below it is a
+    * fixed height computed here, so showing and hiding a line would move the search box and the category tree under a
+    * player who is using them. A blank 18px strip is the cheaper of the two surprises.
+    */
+   private static final int HINT_ROW = 18;
+
+   private static final int HINT_FONT = 12;
 
    /** The name row, which is also this panel's title: one control rather than a heading and a field. */
    static final int NAME_ROW_HEIGHT = 34;
@@ -240,7 +252,20 @@ public final class BusRulesEditor {
       countIn.setSelected(inContainer, new LocalMessage("ui",
             inContainer ? "arcanestorage_buscountcontainer" : "arcanestorage_buscountnetwork"));
 
-      int searchY = LIMIT_ROW + COUNT_ROW;
+      // Why choosing Container is not the end of the story, and the one thing a player cannot read off this panel:
+      // a chest that is not assigned to settlement storage is a chest settlers never look in, so the number they are
+      // asked to keep there is kept by nobody. Faint rather than absent, because it is an explanation and not a rule.
+      final FormLabel countInHint = body.addComponent(new FormLabel("",
+            ArcaneText.dim(body, HINT_FONT), -1, 4, LIMIT_ROW + COUNT_ROW, region.width - 12));
+      countInHint.setText(inContainer
+            ? Localization.translate("ui", "arcanestorage_buscountcontainerhint")
+            : "", region.width - 12);
+      if (countInHint.getHeight() > HINT_ROW) {
+         GameLog.warn.println("Arcane Storage: the count-in hint needs " + countInHint.getHeight()
+               + "px but its row is " + HINT_ROW + "px; it will overlap the search box below it.");
+      }
+
+      int searchY = LIMIT_ROW + COUNT_ROW + HINT_ROW;
       int contentY = searchY + SEARCH_ROW;
 
       // The list stops short of the bottom to leave the Apply strip clear. It has to be clear rather than
@@ -305,6 +330,11 @@ public final class BusRulesEditor {
          editor.inContainer = e.value;
          limitLabel.setText(Localization.translate("ui", e.value ? containerLimitKey : limitKey),
                region.width / 2 - 12);
+         // Only while the number is about the chest: with Network selected the line would be advice about a
+         // container the rule does not mention, which reads as a warning about nothing.
+         countInHint.setText(e.value
+               ? Localization.translate("ui", "arcanestorage_buscountcontainerhint")
+               : "", region.width - 12);
          editor.edited();
       });
 

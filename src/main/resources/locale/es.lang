@@ -68,6 +68,7 @@ arcanestorage_exportbuslimit_container=Llenar el contenedor hasta, por objeto
 arcanestorage_buscountin=Contar en
 arcanestorage_buscountnetwork=Red
 arcanestorage_buscountcontainer=Contenedor
+arcanestorage_buscountcontainerhint=Los colonos solo ven cofres asignados al almacenamiento del asentamiento
 arcanestorage_buslimithint=Cualquier cantidad
 arcanestorage_importbusrule=Importa objetos marcados hasta que la red tenga esta cantidad.
 arcanestorage_exportbusrule=Exporta objetos marcados, manteniendo esta cantidad en la red.

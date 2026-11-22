@@ -68,6 +68,7 @@ arcanestorage_exportbuslimit_container=Làm đầy thùng đến, mỗi vật ph
 arcanestorage_buscountin=Đếm trong
 arcanestorage_buscountnetwork=Mạng
 arcanestorage_buscountcontainer=Thùng chứa
+arcanestorage_buscountcontainerhint=Cư dân chỉ thấy rương được gán vào kho của khu định cư
 arcanestorage_buslimithint=Không giới hạn
 arcanestorage_importbusrule=Kéo vật phẩm đã chọn vào cho đến khi mạng đạt số lượng này.
 arcanestorage_exportbusrule=Đẩy vật phẩm đã chọn ra, giữ lại số lượng này trong mạng.
