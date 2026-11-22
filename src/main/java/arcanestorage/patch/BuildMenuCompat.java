@@ -1,6 +1,7 @@
 package arcanestorage.patch;
 
 import java.lang.instrument.Instrumentation;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
@@ -77,7 +78,14 @@ public final class BuildMenuCompat {
    private static final String BUILD_MENU_METHOD = "buildAvailabilityRanges";
    private static final String SNAPSHOT_METHOD = "onStorageSnapshot";
 
-   /** A class and method to patch, plus the advice to weave in. {@code returnType == null} means void. */
+   /**
+    * A class and method to patch, the advice to weave in, and -- for the three that keep a snapshot list -- how to
+    * find the instance holding that list.
+    *
+    * <p>{@code instanceAccessor} and {@code instanceField} are the two shapes Build Menu uses: the form exposes a
+    * static getter, the two tools keep a private static field. {@code listField} is the instance field the target
+    * stores its snapshots in, which is what decides whether it already has ours.
+    */
    private static final class PatchTarget {
       final String className;
       final String methodName;
@@ -85,17 +93,32 @@ public final class BuildMenuCompat {
       final Class<?> returnType;
       final Class<?> adviceClass;
       final boolean snapshot;
+      final String instanceAccessor;
+      final String instanceField;
+      final String listField;
 
       PatchTarget(String className, String methodName, Class<?>[] argumentTypes, Class<?> returnType,
             Class<?> adviceClass, boolean snapshot) {
+         this(className, methodName, argumentTypes, returnType, adviceClass, snapshot, null, null, null);
+      }
+
+      PatchTarget(String className, String methodName, Class<?>[] argumentTypes, Class<?> returnType,
+            Class<?> adviceClass, boolean snapshot, String instanceAccessor, String instanceField,
+            String listField) {
          this.className = className;
          this.methodName = methodName;
          this.argumentTypes = argumentTypes;
          this.returnType = returnType;
          this.adviceClass = adviceClass;
          this.snapshot = snapshot;
+         this.instanceAccessor = instanceAccessor;
+         this.instanceField = instanceField;
+         this.listField = listField;
       }
    }
+
+   /** The field name both snapshot targets store their ranges in. */
+   private static final String LIST_FIELD = "remoteStorageRanges";
 
    /** All four targets, checked and woven together. */
    private static final PatchTarget[] TARGETS = {
@@ -103,11 +126,11 @@ public final class BuildMenuCompat {
             new Class<?>[]{Level.class, PlayerMob.class, int.class, int.class}, List.class,
             BuildMenuAvailabilityAdvice.class, false),
       new PatchTarget(BUILDING_MENU_FORM, SNAPSHOT_METHOD, new Class<?>[]{List.class}, null,
-            SnapshotAdvice.class, true),
+            SnapshotAdvice.class, true, "getActiveInstance", null, LIST_FIELD),
       new PatchTarget(PASTE_TOOL, SNAPSHOT_METHOD, new Class<?>[]{List.class}, null,
-            SnapshotAdvice.class, true),
+            SnapshotAdvice.class, true, null, "activeInstance", LIST_FIELD),
       new PatchTarget(PLACE_TOOL, SNAPSHOT_METHOD, new Class<?>[]{List.class}, null,
-            SnapshotAdvice.class, true)
+            SnapshotAdvice.class, true, null, "activeInstance", LIST_FIELD)
    };
 
    /** Set once at load from the config. Read by the advice, so it cannot be changed at runtime. */
@@ -142,11 +165,19 @@ public final class BuildMenuCompat {
    /** How many times the client tick advice has run, whatever it then decided to do. Diagnostic. */
    private static volatile long clientTicks;
 
-   /** The summary range last handed to Build Menu's snapshots, so an unchanged one is not handed over again. */
-   private static volatile InventoryRange appliedRange;
+   /** The range handed over on the previous pass, which is how a target still holding it is recognised. */
+   private static volatile InventoryRange lastHandedOver;
 
    /** How many times a summary has been handed to a Build Menu snapshot. Diagnostic, read by the harness. */
    private static volatile long applied;
+
+   /** The same count, per target, so a test can say which target was handed one. */
+   private static final java.util.Map<String, Long> APPLIED_PER_TARGET = new java.util.concurrent.ConcurrentHashMap<>();
+
+   private static void countHandover(String className) {
+      applied++;
+      APPLIED_PER_TARGET.merge(className, 1L, Long::sum);
+   }
 
    /**
     * The cached-summary re-apply's own tick count.
@@ -162,11 +193,43 @@ public final class BuildMenuCompat {
    /**
     * How many times the cached summary has actually been handed to one of Build Menu's snapshots.
     *
-    * <p>The counter that matters for the tooltip: each handover costs Build Menu a rebuild of its item elements,
-    * so a steady increase while nothing has changed is the flash, and no increase is the fix.
+    * <p>The counter that matters for the tooltip: the form rebuilds its item elements on every handover, so a
+    * steady increase while nothing has changed is the flash, and no increase is the fix.
     */
    public static long appliedCount() {
       return applied;
+   }
+
+   /** The same count for one target class, or zero. Read by the harness to name which target was told. */
+   public static long appliedCount(String className) {
+      Long count = APPLIED_PER_TARGET.get(className);
+      return count == null ? 0L : count;
+   }
+
+   /**
+    * Whether a target's own list currently holds the cached summary, read through the same field the re-apply
+    * checks. Null when the target has no instance in play, which is what the harness sees with no form open.
+    */
+   public static Boolean targetHoldsRange(String className) {
+      for (PatchTarget target : TARGETS) {
+         if (!target.className.equals(className)) {
+            continue;
+         }
+
+         try {
+            Object instance = instanceOf(target);
+            if (instance == null) {
+               return null;
+            }
+
+            return containsIdentity(heldBy(instance, target.listField), networkSummaryRange);
+         } catch (Throwable t) {
+            snapshotFailed(t);
+            return null;
+         }
+      }
+
+      return null;
    }
 
    public static boolean isEnabled() {
@@ -229,6 +292,16 @@ public final class BuildMenuCompat {
          String problem = signatureProblem(cls, target.methodName, target.argumentTypes, target.returnType);
          if (problem != null) {
             logMismatch(problem + " (" + target.className + ")");
+            BuildMenuSummary.forget();
+            return;
+         }
+
+         // The snapshot targets are also read, not only patched: the re-apply has to know whether one already holds
+         // our range. A field renamed in a Build Menu update would leave that check silently answering "no" for
+         // ever, which is a per-tick rebuild -- the flash again -- so it is checked here with the signatures.
+         String state = clientStateProblem(cls, target.instanceAccessor, target.instanceField, target.listField);
+         if (state != null) {
+            logMismatch(state + " (" + target.className + ")");
             BuildMenuSummary.forget();
             return;
          }
@@ -310,6 +383,57 @@ public final class BuildMenuCompat {
          }
       } else if (!returnType.isAssignableFrom(actualReturn)) {
          return methodName + " returns " + actualReturn.getName() + ", not " + returnType.getSimpleName();
+      }
+
+      return null;
+   }
+
+   /**
+    * Why the shape the re-apply reads does not match, or null when it does.
+    *
+    * <p>These members are read rather than patched, so they get the same treatment as the patched methods: checked
+    * once at load, with the same single log line, and a mismatch turns the whole compat off. The alternative is a
+    * compat that installs, offers the network once, and then re-hands it to a target it cannot see is holding it --
+    * which is the tooltip flash again, from a cause nothing would name.
+    *
+    * <p>Plain parameters rather than a target, so the check is a unit test with a stand-in class.
+    */
+   public static String clientStateProblem(Class<?> targetClass, String instanceAccessor, String instanceField,
+         String listField) {
+      if (targetClass == null) {
+         return "no such class";
+      }
+
+      if (listField != null) {
+         Field list;
+         try {
+            list = targetClass.getDeclaredField(listField);
+         } catch (NoSuchFieldException changed) {
+            return "no " + listField + " field";
+         }
+
+         if (!List.class.isAssignableFrom(list.getType())) {
+            return listField + " holds " + list.getType().getName() + ", not a list";
+         }
+      }
+
+      if (instanceAccessor != null) {
+         try {
+            Method accessor = targetClass.getMethod(instanceAccessor);
+            if (!Modifier.isStatic(accessor.getModifiers())) {
+               return instanceAccessor + " is not static";
+            }
+         } catch (NoSuchMethodException changed) {
+            return "no " + instanceAccessor + " method";
+         }
+      } else if (instanceField != null) {
+         try {
+            if (!Modifier.isStatic(targetClass.getDeclaredField(instanceField).getModifiers())) {
+               return instanceField + " is not static";
+            }
+         } catch (NoSuchFieldException changed) {
+            return "no " + instanceField + " field";
+         }
       }
 
       return null;
@@ -497,13 +621,15 @@ public final class BuildMenuCompat {
     * tooltip flash on and off while hovering, at exactly the re-apply cadence, and only when this compat had
     * something to hand over.
     *
-    * <p>So a summary is handed over once, and again only when the cached one has been replaced. Nothing Build Menu
-    * reads changes while nothing new has arrived.
+    * <p>So a target is told only while it does not already hold our range. That is one condition for both goals:
+    * while it holds the range nothing happens and nothing is rebuilt, and once it has lost it -- which Build Menu's
+    * {@code cancelStorageSubscription} does by replacing the list with an empty one -- it is handed it exactly
+    * once.
     *
-    * <p>The case the re-apply was originally added for stays covered, by the game rather than by a timer: a target
-    * that clears its list (Build Menu's {@code cancelStorageSubscription}) clears it together with an unsubscribe,
-    * and re-subscribing makes Build Menu send a snapshot to every target itself -- a snapshot the advice then
-    * appends the cached network to. A target that never subscribed never clears its list either.
+    * <p><b>That second half cannot be left to the game, and this was nearly lost.</b> Build Menu subscribes from
+    * inside a settlement, and its subscribe packet is answered with a snapshot only when a settlement covers the
+    * player's tile; outside one the server unsubscribes and sends nothing at all. So hiding and reopening the menu
+    * outside a settlement would otherwise never offer the network again until the summary happened to change.
     *
     * <p>The tick is counted before any of those guards, because the guards are what make a missing invocation
     * invisible: with nothing cached this returns immediately having done nothing, which is indistinguishable from
@@ -518,7 +644,7 @@ public final class BuildMenuCompat {
    public static void clientTickReapply() {
       clientTicks++;
 
-      if (!active || networkSummaryRange == null || networkSummaryRange == appliedRange) {
+      if (!active || networkSummaryRange == null) {
          return;
       }
 
@@ -537,12 +663,13 @@ public final class BuildMenuCompat {
    }
 
    /**
-    * Re-invokes Build Menu's three {@code onStorageSnapshot} methods with the last list they were
-    * given, so a change to the network alone refreshes their view without a settlement snapshot.
+    * Hands the cached summary to whichever of Build Menu's three targets does not already hold it.
     *
-    * <p>Records what it handed over, which is what lets {@link #clientTickReapply()} leave an unchanged summary
-    * alone. {@link #appliedCount()} counts the handovers rather than the passes, so "nothing was handed over"
-    * means literally nothing Build Menu reads was replaced.
+    * <p>Per target rather than all at once, deliberately: the form rebuilds its item grid when it is told, and the
+    * tools only replace a list. A tool that has lost the range must not cost the form a rebuild, which is the flash.
+    *
+    * <p>{@link #appliedCount()} counts handovers rather than passes, so "nothing was handed over" means literally
+    * nothing Build Menu reads was replaced.
     */
    private static void refreshClientSnapshots() {
       if (!active) {
@@ -561,16 +688,88 @@ public final class BuildMenuCompat {
          }
 
          try {
+            Object instance = instanceOf(target);
+            if (instance == null) {
+               // No form open and no tool active: there is nothing of Build Menu's to keep in step. Deliberately
+               // different from a target that has lost the range -- one has a list, the other does not exist.
+               continue;
+            }
+
+            if (!needsHandover(heldBy(instance, target.listField), range, lastHandedOver)) {
+               continue;
+            }
+
             Class<?> cls = resolveClass(target.className);
             Method method = cls.getMethod(target.methodName, target.argumentTypes);
             method.invoke(null, current);
-            applied++;
+            countHandover(target.className);
          } catch (Throwable t) {
             snapshotFailed(t);
          }
       }
 
-      appliedRange = range;
+      lastHandedOver = range;
+   }
+
+   /**
+    * Whether this target has to be told about {@code wanted}, given what its own list holds.
+    *
+    * <p>The core of the flash fix, and a rule rather than plumbing so it can be a unit test. Identity rather than
+    * content on purpose: the range object we put in is the one we look for, and anything else in the list belongs
+    * to Build Menu.
+    *
+    * <ul>
+    *   <li>It already holds this exact range: nothing to do, and telling it again rebuilds its grid for nothing.</li>
+    *   <li>It holds an older range of ours: a new summary arrived, so hand the new one over.</li>
+    *   <li>It holds neither, or an empty list: it has been reset, so hand over -- once.</li>
+    *   <li>Our summary has been cleared: only a target still holding the old range needs telling.</li>
+    * </ul>
+    */
+   static boolean needsHandover(List<?> held, InventoryRange wanted, InventoryRange previouslyHandedOver) {
+      if (wanted == null) {
+         return previouslyHandedOver != null && containsIdentity(held, previouslyHandedOver);
+      }
+
+      return !containsIdentity(held, wanted);
+   }
+
+   /** Whether a list holds this exact object: the only way we can recognise our own range inside it. */
+   static boolean containsIdentity(List<?> held, Object wanted) {
+      if (held == null || wanted == null) {
+         return false;
+      }
+
+      for (Object entry : held) {
+         if (entry == wanted) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /** The target's active instance, or null when Build Menu has none of it in play. */
+   private static Object instanceOf(PatchTarget target) throws ReflectiveOperationException {
+      Class<?> cls = resolveClass(target.className);
+      if (cls == null) {
+         return null;
+      }
+
+      if (target.instanceAccessor != null) {
+         return cls.getMethod(target.instanceAccessor).invoke(null);
+      }
+
+      Field field = cls.getDeclaredField(target.instanceField);
+      field.setAccessible(true);
+      return field.get(null);
+   }
+
+   /** The list an instance stores its snapshots in, or null when that field does not hold a list. */
+   private static List<?> heldBy(Object instance, String listField) throws ReflectiveOperationException {
+      Field field = instance.getClass().getDeclaredField(listField);
+      field.setAccessible(true);
+      Object value = field.get(instance);
+      return value instanceof List ? (List<?>)value : null;
    }
 
    /** The advice inlined into Build Menu's server method. */

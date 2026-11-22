@@ -166,6 +166,8 @@ public final class ArcaneStorageVerbs {
       Harness.registerExpectation(new BuildMenuCostQuery());
       Harness.registerExpectation(new BuildMenuSummaryQuery());
       Harness.registerExpectation(new BuildMenuClientQuery());
+      Harness.registerVerb(new BuildMenuClientTargetVerb());
+      Harness.registerExpectation(new BuildMenuClientTargetQuery());
       Harness.registerExpectation(new BuildMenuPacketSizeQuery());
       Harness.registerVerb(new BuildMenuSweepVerb());
       Harness.registerVerb(new BuildMenuToggleVerb());
@@ -3890,6 +3892,13 @@ public final class ArcaneStorageVerbs {
             return;
          }
 
+         // `tickonly` drives the client's ticks without handing it a packet, and `keep` delivers a packet and
+         // stops. Together with the default (deliver, tick, then clear) they separate a handover a packet caused
+         // from one the re-apply decided on, and leave the cached summary in place for the next step.
+         String mode = context.argCount() > 3 ? context.arg(3) : "";
+         boolean tickOnly = "tickonly".equalsIgnoreCase(mode);
+         boolean keep = "keep".equalsIgnoreCase(mode);
+
          out.bool("active", arcanestorage.patch.BuildMenuCompat.isActive());
          out.num("sent", countOf(sent, context.arg(2)));
 
@@ -3900,27 +3909,47 @@ public final class ArcaneStorageVerbs {
          try {
             long before = arcanestorage.patch.BuildMenuCompat.clientTickCount();
             long failuresBefore = arcanestorage.patch.BuildMenuCompat.snapshotFailureCount();
-            deliver(probe, ticks, new arcanestorage.patch.PacketBuildMenuNetworkSummary(sent));
+            long pasteBefore = arcanestorage.patch.BuildMenuCompat.appliedCount(
+                  BuildMenuClientTargetVerb.targetClassName("paste"));
+            long formBefore = arcanestorage.patch.BuildMenuCompat.appliedCount(
+                  BuildMenuClientTargetVerb.targetClassName("form"));
 
-            InventoryRange received = arcanestorage.patch.BuildMenuCompat.networkSummaryRange();
-            out.num("distinct", received == null ? -1 : occupied(received.inventory));
-            out.num("amount", received == null ? -1 : countOf(received.inventory, context.arg(2)));
+            if (!tickOnly) {
+               deliver(probe, ticks, new arcanestorage.patch.PacketBuildMenuNetworkSummary(sent));
 
-            // The tooltip question, asked directly: how many times an unchanged summary is handed to Build Menu.
-            // Every handover makes Build Menu rebuild its item elements, and a hovered tooltip goes with the element
-            // it belongs to -- so this number is the flash, counted rather than seen.
+               InventoryRange received = arcanestorage.patch.BuildMenuCompat.networkSummaryRange();
+               out.num("distinct", received == null ? -1 : occupied(received.inventory));
+               out.num("amount", received == null ? -1 : countOf(received.inventory, context.arg(2)));
+            }
+
+            // The tooltip question, asked directly: how many times a summary is handed to Build Menu. Every
+            // handover makes the form rebuild its item elements, and a hovered tooltip goes with the element it
+            // belongs to -- so this number is the flash, counted rather than seen.
             long appliesBefore = arcanestorage.patch.BuildMenuCompat.appliedCount();
-            for (int i = 0; i < 3; i++) {
+            for (int i = 0; i < (keep ? 0 : 3); i++) {
                probe.tick();
             }
 
             out.num("ticks", arcanestorage.patch.BuildMenuCompat.clientTickCount() - before);
             out.num("applies", arcanestorage.patch.BuildMenuCompat.appliedCount() - appliesBefore);
 
-            // A summary with nothing in it is how the server says a player stopped being connected, and it has to
-            // clear what is cached rather than leave the last one standing.
-            deliver(probe, ticks, new arcanestorage.patch.PacketBuildMenuNetworkSummary(new Inventory(0)));
-            out.bool("cleared", arcanestorage.patch.BuildMenuCompat.networkSummaryRange() == null);
+            // Per target, because the rule is per target: a tool that has lost the range must not cost the form a
+            // rebuild, and a reset target is the one that has to be handed it exactly once.
+            String paste = BuildMenuClientTargetVerb.targetClassName("paste");
+            String form = BuildMenuClientTargetVerb.targetClassName("form");
+            Boolean pasteHolds = arcanestorage.patch.BuildMenuCompat.targetHoldsRange(paste);
+            Boolean formHolds = arcanestorage.patch.BuildMenuCompat.targetHoldsRange(form);
+            out.bool("pasteInstance", pasteHolds != null).bool("pasteHolds", pasteHolds != null && pasteHolds);
+            out.bool("formInstance", formHolds != null).bool("formHolds", formHolds != null && formHolds);
+            out.num("pasteHandovers", arcanestorage.patch.BuildMenuCompat.appliedCount(paste) - pasteBefore);
+            out.num("formHandovers", arcanestorage.patch.BuildMenuCompat.appliedCount(form) - formBefore);
+
+            if (!tickOnly && !keep) {
+               // A summary with nothing in it is how the server says a player stopped being connected, and it has
+               // to clear what is cached rather than leave the last one standing.
+               deliver(probe, ticks, new arcanestorage.patch.PacketBuildMenuNetworkSummary(new Inventory(0)));
+               out.bool("cleared", arcanestorage.patch.BuildMenuCompat.networkSummaryRange() == null);
+            }
 
             // Both halves of the client path catch their own failures and log them, so a broken one looks exactly
             // like a working one with nothing to do. This is the count that tells the two apart.
@@ -3959,6 +3988,141 @@ public final class ArcaneStorageVerbs {
          }
 
          return total;
+      }
+   }
+
+   /**
+    * {@code buildmenuclienttarget <paste|form> [reset]} -- a real Build Menu target, in the harness's own JVM.
+    *
+    * <p>{@code reset} replaces the target's list with a fresh empty one, which is what Build Menu itself does in
+    * {@code cancelStorageSubscription} when the menu is hidden. That is the state the per-target re-apply has to
+    * notice, and the state that would otherwise leave the network unoffered after a close and reopen outside a
+    * settlement -- where no snapshot is ever sent.
+    *
+    * <p>{@code paste} builds the real paste tool: its constructor takes three plain values and touches no window, so
+    * the instance is genuine and registers itself as its class's active one. {@code form} cannot be built headlessly
+    * (it needs the game's form machinery), so it reports no instance.
+    */
+   private static final class BuildMenuClientTargetVerb implements TestVerb {
+      /** The field Build Menu's snapshot targets store their ranges in, shared by all three. */
+      private static final String TARGET_LIST_FIELD = "remoteStorageRanges";
+
+      public String name() {
+         return "buildmenuclienttarget";
+      }
+
+      public String usage() {
+         return "buildmenuclienttarget <paste|form> [reset]";
+      }
+
+      public boolean run(TestContext context) {
+         String className;
+         try {
+            className = targetClassName(context.arg(1));
+         } catch (IllegalArgumentException e) {
+            return context.fail(e.getMessage());
+         }
+
+         Object instance = activeTarget(className);
+         if (instance == null) {
+            instance = instantiateTarget(className);
+            if (instance == null) {
+               return context.fail("no active " + context.arg(1) + " target, and this one cannot be built headlessly");
+            }
+         }
+
+         String action = context.argCount() > 2 ? context.arg(2) : "";
+         if ("reset".equalsIgnoreCase(action)) {
+            try {
+               java.lang.reflect.Field field = instance.getClass().getDeclaredField(TARGET_LIST_FIELD);
+               field.setAccessible(true);
+               field.set(instance, new java.util.ArrayList<>());
+            } catch (Throwable t) {
+               return context.fail("could not reset the " + context.arg(1) + " target's list: " + t);
+            }
+
+            return context.check(true, context.arg(1) + " target's list replaced, as Build Menu does when hidden", "");
+         }
+
+         return context.check(true, context.arg(1) + " target present", "");
+      }
+
+      /** The class for a short name, or an exception naming what was wrong. */
+      static String targetClassName(String which) {
+         if ("paste".equalsIgnoreCase(which)) {
+            return "BuildMenu.modclass.tool.BuildMenuPasteGameTool";
+         }
+
+         if ("form".equalsIgnoreCase(which)) {
+            return "BuildMenu.modclass.ui.BuildingMenuForm";
+         }
+
+         throw new IllegalArgumentException("buildmenuclienttarget takes 'paste' or 'form', not '" + which + "'");
+      }
+
+      /** The class's own active instance, read the way the compat reads it: a getter, or a static field. */
+      static Object activeTarget(String className) {
+         try {
+            Class<?> cls = Class.forName(className, false, BuildMenuClientTargetVerb.class.getClassLoader());
+            if (className.endsWith("BuildingMenuForm")) {
+               return cls.getMethod("getActiveInstance").invoke(null);
+            }
+
+            java.lang.reflect.Field field = cls.getDeclaredField("activeInstance");
+            field.setAccessible(true);
+            return field.get(null);
+         } catch (Throwable t) {
+            return null;
+         }
+      }
+
+      /** Builds the real paste tool, or null for a target that needs the game's own machinery. */
+      static Object instantiateTarget(String className) {
+         if (!className.endsWith("BuildMenuPasteGameTool")) {
+            return null;
+         }
+
+         try {
+            Class<?> cls = Class.forName(className, true, BuildMenuClientTargetVerb.class.getClassLoader());
+            return cls.getConstructor(int.class, String.class, boolean.class).newInstance(0, "", false);
+         } catch (Throwable t) {
+            return null;
+         }
+      }
+   }
+
+   /**
+    * {@code query buildmenuclienttarget <paste|form>} -> {@code {instance, holds, handovers}}.
+    *
+    * <p>Whether that target currently holds the network range, and how many times it has been handed one. The two
+    * values a test needs to say "nothing was handed over" and "after a reset it was handed over once".
+    */
+   private static final class BuildMenuClientTargetQuery implements TestVerb, TestQuery {
+      public String name() {
+         return "buildmenuclienttarget";
+      }
+
+      public String usage() {
+         return "query buildmenuclienttarget <paste|form>";
+      }
+
+      public boolean run(TestContext context) {
+         return true;
+      }
+
+      public void query(TestContext context, Json.Writer out) {
+         String className;
+         try {
+            className = BuildMenuClientTargetVerb.targetClassName(context.arg(2));
+         } catch (IllegalArgumentException e) {
+            context.fail(e.getMessage());
+            return;
+         }
+
+         Boolean holds = arcanestorage.patch.BuildMenuCompat.targetHoldsRange(className);
+         out.bool("instance", holds != null);
+         out.bool("holds", holds != null && holds);
+         out.num("handovers", arcanestorage.patch.BuildMenuCompat.appliedCount(className));
       }
    }
 }
