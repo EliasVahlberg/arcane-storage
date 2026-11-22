@@ -165,6 +165,19 @@ public class ArcaneStorageSettings extends ModSettings {
     */
    public final Map<String, String> costs = new LinkedHashMap<>();
 
+   /**
+    * Whether a settler's "craft until N" order counts stock kept in this mod's Storage Units inside the settlement.
+    *
+    * <p>On by default, because the alternative is the bug it fixes: a settlement chest with an export bus beside it
+    * sends an order's results into units, the engine counts only assigned storage, and the order crafts forever. Off
+    * is vanilla exactly -- nothing is counted that the engine would not count -- which matters because this changes
+    * when an order stops, and an order that stops early is a surprise of a different kind.
+    *
+    * <p>Read by the server, because that is where a settler's job selection runs. A client never reads it, so a
+    * mismatch between the two cannot show anything wrong in an interface.
+    */
+   public boolean settlerOrderCountsUnits = true;
+
    public ArcaneStorageSettings() {
       // Safe this early: the table is a jar resource and needs no registry. load() is idempotent for exactly this
       // reason -- the loader constructs this object before init runs, and init loads the table again.
@@ -187,6 +200,9 @@ public class ArcaneStorageSettings extends ModSettings {
             "How deep the crafting tab's category tree goes: none, coarse or fine");
       save.addBoolean("buildMenuCompat", this.buildMenuCompat,
             "Whether Arcane Storage offers the network to Build Menu for blueprint placement, when that mod is installed");
+      save.addBoolean("settlerOrderCountsUnits", this.settlerOrderCountsUnits,
+            "Whether a settler's 'craft until N' order counts items kept in this mod's Storage Units inside the"
+               + " settlement. Set to false to count only settlement storage, as the game does on its own");
 
       SaveData reach = new SaveData("REACH");
       reach.addInt("demonic", this.wirelessRangeDemonic,
@@ -244,6 +260,10 @@ public class ArcaneStorageSettings extends ModSettings {
       this.storageGroupingMode = save.getSafeString("storageGroupingMode", this.storageGroupingMode);
       this.craftingGroupingMode = save.getSafeString("craftingGroupingMode", this.craftingGroupingMode);
       this.buildMenuCompat = save.getBoolean("buildMenuCompat", this.buildMenuCompat);
+
+      // Missing is normal rather than suspicious: every config file written before this setting existed lacks the
+      // key, and the default it falls back to is the behaviour being introduced. So the loader is told not to warn.
+      this.settlerOrderCountsUnits = save.getBoolean("settlerOrderCountsUnits", this.settlerOrderCountsUnits, false);
 
       LoadData reach = save.getFirstLoadDataByName("REACH");
       if (reach != null) {
