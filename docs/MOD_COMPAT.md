@@ -212,3 +212,34 @@ line. Two traps, both of which shipped broken:
 Reusing a vanilla form is still the right call, but this is the shape of its cost: the widget carries the
 assumptions of the thing it was built for, and the ones that do not transfer have to be found and removed
 rather than inherited.
+
+## Build Menu: patching its one material list, as a soft dependency
+
+Build Menu places blueprints and takes their materials from the player's inventory, cloud storage and
+settlement chests. Its author declined to add support here, so this mod does it on our side.
+
+**What is patched.** Build Menu's `BuildMenuInventoryUtil.buildAvailabilityRanges(Level, PlayerMob,
+int, int)` builds the single list of `InventoryRange`s that every place, paste and craft path hands to
+the engine's `Recipe.canCraftRange` and `craftRange`. This mod appends the network's inventories to
+that list, so the engine — which already sums across ranges — does the counting and consuming. Nothing
+here re-implements item consumption, which is where duplication bugs live.
+
+Because Build Menu is deliberately not on this mod's compile classpath, the advice is installed by
+class name through ByteBuddy rather than through the usual patch annotation, which takes a class
+literal. The class and method above are the only Build Menu identifiers named anywhere in this mod.
+
+**The connected rule.** The player is connected when they carry a wireless terminal paired to a
+transceiver. Resolution is the wireless terminal's own, server-side: the player's real inventory is
+read and the binding is resolved against the server's world, so a client cannot make itself count as
+connected. The network is appended last, so the player's inventory, cloud storage and settlement
+chests drain before it.
+
+**The toggle.** `buildMenuCompat` in the config file, on by default, turns the link off without
+otherwise changing what Build Menu does.
+
+**How a Build Menu update is caught.** The method's signature — name, parameter types and return type
+— is checked by reflection at load, not by a version string. If Build Menu changes it, one line is
+logged and the compat turns itself off for that launch; everything else works as before. The headless
+suite runs the integration test against the Workshop copy and skips, rather than fails, when that copy
+is absent.
+

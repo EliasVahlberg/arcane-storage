@@ -17,6 +17,14 @@ honoured from a socket.
 throws the storage list back to the top. It still starts at the top after a search or a filter change, where a
 narrower list is what you asked for.
 
+**Build Menu can build from the network.** With Build Menu installed, a blueprint or placeable now takes its
+materials from the storage network as well as from your pockets, cloud storage and settlement chests -- and in
+that order, so the network is the last place it looks and what you carry is spent first. This happens while you
+are carrying a wireless terminal paired to a transceiver, the same link that opens the network from afar. The
+server decides whether you count as connected, so nothing a client sends can change it. Nothing here needs Build
+Menu to be installed, and if it is not there -- or if it updates in a way this cannot follow -- everything else
+works exactly as before. A config option turns the link off.
+
 ## 1.2.0
 
 **Buses can count in their chest instead of the network.** A new *Count in* choice under the number on both
