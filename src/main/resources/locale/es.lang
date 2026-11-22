@@ -82,6 +82,7 @@ arcanestorage_emptiedpartial=Se movieron <moved> objetos; <left> no caben y sigu
 arcanestorage_emptynoroom=El resto de la red está lleno, no se movió nada
 arcanestorage_emptynoothers=Es la única unidad de almacenamiento en la red, no hay adónde mover su contenido
 arcanestorage_stations_none=Coloca una Unidad de Estaciones en la red para añadir bancos de trabajo.
+arcanestorage_station_refused=Solo se puede instalar un banco de trabajo que funcione en cualquier lugar
 arcanestorage_capacity=<used> / <total> espacios
 arcanestorage_capacity_tip=Espacios usados en toda la red
 arcanestorage_summary=<kinds> tipos, <items> objetos

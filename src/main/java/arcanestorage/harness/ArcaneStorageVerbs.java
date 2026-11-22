@@ -156,6 +156,7 @@ public final class ArcaneStorageVerbs {
       Harness.registerVerb(new RuleGlobalVerb());
       Harness.registerVerb(new RuleCategoryVerb());
       Harness.registerExpectation(new BusOpenPacketQuery());
+      Harness.registerExpectation(new StationSocketQuery());
 
       Harness.registerExpectation(new UnitsExpectation());
       Harness.registerExpectation(new StationsExpectation());
@@ -1661,6 +1662,56 @@ public final class ArcaneStorageVerbs {
          out.str("name", bus == null ? "" : bus.name());
          out.num("ordinal", bus == null ? -1 : bus.getOrdinal());
          out.str("custom", bus == null ? "" : bus.getCustomName());
+      }
+   }
+
+   /**
+    * What a station socket would say about an item: {@code query socketerror <itemStringID>} ->
+    * {@code {sockets, accepted, error}}.
+    *
+    * <p>Asked of the open terminal's own socket slot, so this is the same answer the click path consumes:
+    * {@code Container.applyLeftClick} asks the slot whether it takes the item, and on a refusal the slot
+    * component floats the returned line over the cursor. What no headless test can see is that drawing, so
+    * the assertion stops at the string the drawing is given -- which is also the part that was empty, and the
+    * reason a refused bench looked like a broken slot.
+    *
+    * <p>{@code accepted} is reported alongside because "says nothing" and "says the wrong thing" are
+    * different bugs, and a test needs to tell them apart from "the socket took it after all".
+    */
+   private static final class StationSocketQuery implements TestVerb, TestQuery {
+      public String name() {
+         return "socketerror";
+      }
+
+      public String usage() {
+         return "query socketerror <itemStringID>";
+      }
+
+      public boolean needsPlayer() {
+         return true;
+      }
+
+      public boolean run(TestContext context) {
+         return true;
+      }
+
+      public void query(TestContext context, Json.Writer out) {
+         StorageTerminalContainer container = requireTerminalContainer(context, "query socketerror");
+         int sockets = container == null || container.STATION_START == -1
+               ? 0
+               : container.STATION_END - container.STATION_START + 1;
+
+         out.num("sockets", sockets);
+         if (sockets == 0) {
+            out.bool("accepted", false);
+            out.str("error", "");
+            return;
+         }
+
+         String error = container.getSlot(container.STATION_START).getItemInvalidError(
+               new InventoryItem(context.arg(2), 1));
+         out.bool("accepted", error == null);
+         out.str("error", error == null ? "" : error);
       }
    }
 

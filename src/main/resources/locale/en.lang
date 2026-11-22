@@ -71,6 +71,7 @@ arcanestorage_emptiedpartial=Moved <moved> items; <left> would not fit and are s
 arcanestorage_emptynoroom=The rest of the network is full, so nothing was moved
 arcanestorage_emptynoothers=This is the only storage unit on the network, so there is nowhere to move its contents
 arcanestorage_stations_none=Place a Station Unit on the network to add crafting stations.
+arcanestorage_station_refused=Only a crafting station that works from any tile can be installed
 arcanestorage_capacity=<used> / <total> slots
 arcanestorage_capacity_tip=Slots used across the network
 arcanestorage_summary=<kinds> kinds, <items> items

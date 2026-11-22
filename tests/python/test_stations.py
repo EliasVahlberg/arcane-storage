@@ -156,3 +156,53 @@ def test_a_station_that_needs_its_tile_is_refused(terminal, station):
     reply = terminal.harness.call("install", station)
 
     assert not reply.ok, f"{station} was installed, and would then craft with no fuel or no processing"
+
+
+# Refusing quietly reads as a bug. A slot's own answer to "why not" is an empty string, which the slot
+# component draws as a line of floating text with no words in it, so a bench dropped into a socket
+# disappeared into nothing. The tests below are about the line the socket now gives instead.
+#
+# What they cannot see is that line being drawn: the drawing happens in a client, and this suite drives a
+# server. So they assert what the drawing is handed -- the socket's own answer, which is the part that was
+# empty. `query socketerror` asks the open terminal's real socket slot, the same one a click consults.
+
+
+@pytest.mark.parametrize("station", PLACEMENT_DEPENDENT_STATIONS)
+def test_a_refused_station_comes_with_a_reason(terminal, station):
+    """Every refusal names the rule, rather than leaving the slot looking inert."""
+    terminal.open()
+
+    asked = terminal.harness.query("socketerror", station)
+
+    assert asked["sockets"] == 1, "the fixture's Station Unit is one socket"
+    assert asked["accepted"] is False, f"{station} should not be installable"
+    assert asked["error"], f"{station} is refused with nothing said, so the slot looks broken"
+
+
+@pytest.mark.parametrize("station", INSTALLABLE_STATIONS)
+def test_a_socket_says_nothing_when_it_takes_the_item(terminal, station):
+    """And a bench that does go in produces no message, so the line means something is wrong."""
+    terminal.open()
+
+    asked = terminal.harness.query("socketerror", station)
+
+    assert asked["accepted"] is True, f"{station} is an installable bench"
+    assert asked["error"] == ""
+
+
+@pytest.mark.parametrize("not_a_station", ["stone", "ironpickaxe", "oaklog"])
+def test_anything_else_gets_the_same_one_line(terminal, not_a_station):
+    """One rule, one message: the socket takes a station that works from any tile.
+
+    A lump of stone and a forge are refused for different reasons inside the rule, and a player does not
+    need to be told which -- what they need is to know the slot saw the item and said no. Two messages
+    would also mean deciding what an unrecognised modded item deserves.
+    """
+    terminal.open()
+    refused_for_needing_its_tile = terminal.harness.query("socketerror", "forge")["error"]
+
+    asked = terminal.harness.query("socketerror", not_a_station)
+
+    assert asked["accepted"] is False
+    assert asked["error"], f"{not_a_station} is refused with nothing said"
+    assert asked["error"] == refused_for_needing_its_tile, "the same rule should read the same way"

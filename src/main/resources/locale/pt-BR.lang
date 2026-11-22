@@ -82,6 +82,7 @@ arcanestorage_emptiedpartial=<moved> itens movidos; <left> não couberam e perma
 arcanestorage_emptynoroom=O resto da rede está cheio, nada foi movido
 arcanestorage_emptynoothers=Esta é a única unidade de armazenamento na rede, não há para onde mover o conteúdo
 arcanestorage_stations_none=Coloque uma Unidade de Estação na rede para adicionar estações de fabricação.
+arcanestorage_station_refused=Só dá para instalar uma estação de fabricação que funcione em qualquer lugar
 arcanestorage_capacity=<used> / <total> espaços
 arcanestorage_capacity_tip=Espaços usados em toda a rede
 arcanestorage_summary=<kinds> tipos, <items> itens

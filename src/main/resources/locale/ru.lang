@@ -82,6 +82,7 @@ arcanestorage_emptiedpartial=Перемещено <moved> предметов; <l
 arcanestorage_emptynoroom=Остальная сеть заполнена, ничего не перемещено
 arcanestorage_emptynoothers=Это единственный блок хранения в сети, перемещать некуда
 arcanestorage_stations_none=Разместите Блок станций в сети, чтобы добавить приборы для создания.
+arcanestorage_station_refused=Установить можно только станок, который работает в любом месте
 arcanestorage_capacity=<used> / <total> ячеек
 arcanestorage_capacity_tip=Ячейки, занятые по всей сети
 arcanestorage_summary=<kinds> видов, <items> предметов

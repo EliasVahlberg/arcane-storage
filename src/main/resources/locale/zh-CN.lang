@@ -82,6 +82,7 @@ arcanestorage_emptiedpartial=已移动 <moved> 个物品；<left> 个放不下�
 arcanestorage_emptynoroom=网络其余部分已满，无法移动
 arcanestorage_emptynoothers=这是网络上唯一的存储单元，没有其他位置可移入
 arcanestorage_stations_none=在网络上放置工站单元以添加制造站。
+arcanestorage_station_refused=只能安装在任何位置都能工作的制造站
 arcanestorage_capacity=<used> / <total> 槽位
 arcanestorage_capacity_tip=网络中已使用的槽位
 arcanestorage_summary=<kinds> 种类，<items> 件物品

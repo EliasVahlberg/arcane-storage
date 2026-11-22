@@ -275,7 +275,9 @@ public class StorageTerminalContainer extends Container {
       for (NetworkStations unit : this.stationUnits) {
          Inventory sockets = unit.getInventory();
          for (int i = 0; i < sockets.getSize(); i++) {
-            int index = this.addSlot(new OEInventoryContainerSlot(unit, i));
+            // A socket rather than a plain inventory slot, so a refused item says why instead of leaving the
+            // slot empty with nothing said. See StationSocketSlot.
+            int index = this.addSlot(new StationSocketSlot(unit, i));
             if (stationStart == -1) {
                stationStart = index;
             }

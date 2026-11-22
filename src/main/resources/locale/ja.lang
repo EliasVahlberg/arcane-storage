@@ -82,6 +82,7 @@ arcanestorage_emptiedpartial=<moved>個を移動。<left>個は入りきらず�
 arcanestorage_emptynoroom=ネットワークの残りが満杯のため、移動できませんでした
 arcanestorage_emptynoothers=ネットワーク上にこのユニットしかないため、移動先がありません
 arcanestorage_stations_none=ネットワークにステーションユニットを設置して作業台を追加してください。
+arcanestorage_station_refused=どこでも使える作業台だけを設置できます
 arcanestorage_capacity=<used> / <total> スロット
 arcanestorage_capacity_tip=ネットワーク全体の使用スロット数
 arcanestorage_summary=<kinds>種類、<items>個のアイテム

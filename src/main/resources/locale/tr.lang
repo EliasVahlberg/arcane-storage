@@ -82,6 +82,7 @@ arcanestorage_emptiedpartial=<moved> eşya taşındı; <left> sığmadığı iç
 arcanestorage_emptynoroom=Ağın geri kalanı dolu, hiçbir şey taşınamadı
 arcanestorage_emptynoothers=Ağda tek depolama birimi bu, içindekilerin taşınacağı bir yer yok
 arcanestorage_stations_none=Üretim tezgahı eklemek için ağa bir Tezgah Birimi yerleştirin.
+arcanestorage_station_refused=Yalnızca her yerde çalışan bir üretim tezgahı kurulabilir
 arcanestorage_capacity=<used> / <total> yuva
 arcanestorage_capacity_tip=Ağ genelinde kullanılan yuvalar
 arcanestorage_summary=<kinds> çeşit, <items> eşya

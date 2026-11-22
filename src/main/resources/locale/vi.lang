@@ -82,6 +82,7 @@ arcanestorage_emptiedpartial=Đã chuyển <moved> vật phẩm; <left> không v
 arcanestorage_emptynoroom=Phần còn lại của mạng đã đầy, không chuyển được gì
 arcanestorage_emptynoothers=Đây là kho duy nhất trên mạng, không có chỗ để chuyển
 arcanestorage_stations_none=Đặt một Kho Bàn Chế Tạo trên mạng để thêm bàn chế tạo.
+arcanestorage_station_refused=Chỉ lắp đặt được bàn chế tạo hoạt động ở mọi nơi
 arcanestorage_capacity=<used> / <total> ô
 arcanestorage_capacity_tip=Ô đã dùng trên toàn mạng
 arcanestorage_summary=<kinds> loại, <items> vật phẩm

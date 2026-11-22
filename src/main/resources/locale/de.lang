@@ -82,6 +82,7 @@ arcanestorage_emptiedpartial=<moved> Gegenstände verschoben; <left> passen nich
 arcanestorage_emptynoroom=Das restliche Netzwerk ist voll, nichts wurde verschoben
 arcanestorage_emptynoothers=Dies ist die einzige Lagereinheit im Netzwerk, es gibt keinen Platz zum Verschieben
 arcanestorage_stations_none=Platziere eine Stationseinheit im Netzwerk, um Handwerksstationen hinzuzufügen.
+arcanestorage_station_refused=Nur eine Handwerksstation, die überall arbeitet, lässt sich hier einbauen
 arcanestorage_capacity=<used> / <total> Plätze
 arcanestorage_capacity_tip=Belegte Plätze im gesamten Netzwerk
 arcanestorage_summary=<kinds> Sorten, <items> Gegenstände

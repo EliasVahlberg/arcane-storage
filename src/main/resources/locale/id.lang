@@ -82,6 +82,7 @@ arcanestorage_emptiedpartial=Memindahkan <moved> item; <left> tidak muat dan mas
 arcanestorage_emptynoroom=Jaringan lainnya penuh, tidak ada yang dipindahkan
 arcanestorage_emptynoothers=Ini satu-satunya unit penyimpanan di jaringan, tidak ada tempat untuk memindahkan isinya
 arcanestorage_stations_none=Letakkan Unit Stasiun di jaringan untuk menambahkan stasiun kerajinan.
+arcanestorage_station_refused=Hanya stasiun kerajinan yang bekerja di mana saja yang bisa dipasang
 arcanestorage_capacity=<used> / <total> slot
 arcanestorage_capacity_tip=Slot yang digunakan di seluruh jaringan
 arcanestorage_summary=<kinds> jenis, <items> item
