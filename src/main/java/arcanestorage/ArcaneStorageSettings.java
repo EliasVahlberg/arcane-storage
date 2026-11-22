@@ -58,6 +58,16 @@ public class ArcaneStorageSettings extends ModSettings {
    public String craftingGroupingMode = "fine";
 
    /**
+    * Whether Arcane Storage offers the network to Build Menu, when that mod is installed.
+    *
+    * <p>On by default. Read only on the server, because that is the one side that decides what a
+    * placement may take; the client's "can afford" display is Build Menu's own and is unaffected.
+    * Turning it off here leaves Build Menu with exactly its vanilla behaviour (inventory, cloud and
+    * settlement chests), so this is a safe escape hatch if the two mods ever disagree.
+    */
+   public boolean buildMenuCompat = true;
+
+   /**
     * Which interface style the mod's own windows are drawn with: {@code slate}, {@code dark}, or {@code vanilla}.
     *
     * <p>Defaults to a theme rather than to vanilla, because the difference is a storage terminal that looks like
@@ -175,6 +185,8 @@ public class ArcaneStorageSettings extends ModSettings {
             "How deep the storage tab's category tree goes: none, coarse or fine");
       save.addSafeString("craftingGroupingMode", this.craftingGroupingMode,
             "How deep the crafting tab's category tree goes: none, coarse or fine");
+      save.addBoolean("buildMenuCompat", this.buildMenuCompat,
+            "Whether Arcane Storage offers the network to Build Menu for blueprint placement, when that mod is installed");
 
       SaveData reach = new SaveData("REACH");
       reach.addInt("demonic", this.wirelessRangeDemonic,
@@ -231,6 +243,7 @@ public class ArcaneStorageSettings extends ModSettings {
       this.sortMode = save.getSafeString("sortMode", this.sortMode);
       this.storageGroupingMode = save.getSafeString("storageGroupingMode", this.storageGroupingMode);
       this.craftingGroupingMode = save.getSafeString("craftingGroupingMode", this.craftingGroupingMode);
+      this.buildMenuCompat = save.getBoolean("buildMenuCompat", this.buildMenuCompat);
 
       LoadData reach = save.getFirstLoadDataByName("REACH");
       if (reach != null) {

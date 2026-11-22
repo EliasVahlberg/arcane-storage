@@ -323,6 +323,12 @@ public class ArcaneStorage {
       // inventory. When it fails the index falls back to recounting on a timer, which is slower but correct.
       IndexedInventories.recordVerification(IndexedInventories.verifyHook());
 
+      // The Build Menu compat, if that mod is present and its method still has the expected shape.
+      // A name-based patch of another mod's class cannot use the usual annotation, so it installs its
+      // own advice here. Every failure mode (mod absent, signature changed, toggle off) leaves this a
+      // no-op; the network is simply not offered, and nothing else is affected.
+      arcanestorage.patch.BuildMenuCompat.install();
+
       // Every cost below comes from resources/recipes.properties. None of these numbers are written in Java, and
       // the reasoning for each is in that file next to the value it explains.
       Recipes.registerModRecipe(
