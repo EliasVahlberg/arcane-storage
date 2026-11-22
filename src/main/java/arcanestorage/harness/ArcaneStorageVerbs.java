@@ -28,6 +28,7 @@ import arcanestorage.network.NetworkScheduler;
 import arcanestorage.network.NetworkStations;
 import arcanestorage.network.NetworkStorage;
 import arcanestorage.patch.BuildMenuCompat;
+import arcanestorage.patch.PacketBuildMenuNetworkSummary;
 import necesse.engine.network.Packet;
 import necesse.engine.network.PacketReader;
 import necesse.engine.network.packet.PacketOpenContainer;
@@ -163,6 +164,9 @@ public final class ArcaneStorageVerbs {
       Harness.registerExpectation(new BuildMenuQuery());
       Harness.registerVerb(new BuildMenuCraftVerb());
       Harness.registerExpectation(new BuildMenuCostQuery());
+      Harness.registerExpectation(new BuildMenuSummaryQuery());
+      Harness.registerExpectation(new BuildMenuPacketSizeQuery());
+      Harness.registerVerb(new BuildMenuSweepVerb());
       Harness.registerVerb(new RuleGlobalVerb());
       Harness.registerVerb(new RuleCategoryVerb());
       Harness.registerExpectation(new BusOpenPacketQuery());
@@ -456,6 +460,7 @@ public final class ArcaneStorageVerbs {
          // Indexes are derived from a layout that is about to stop existing, and setObject below does not
          // run the destroy hook that would normally invalidate them.
          NetworkIndexes.forget();
+         arcanestorage.patch.BuildMenuSummary.forget();
 
          // Regions first, or the sweep below reads an unloaded region as empty and leaves everything in it
          // standing. That is not hypothetical: a saved world boots with no regions loaded, so the first test
@@ -3210,7 +3215,8 @@ public final class ArcaneStorageVerbs {
             .bool("active", BuildMenuCompat.isActive())
             .num("appended", BuildMenuCompat.appendedCount())
             .num("appendedRanges", BuildMenuCompat.appendedRangeCount())
-            .num("mismatch", BuildMenuCompat.mismatchReports());
+            .num("mismatch", BuildMenuCompat.mismatchReports())
+            .num("summaryPackets", arcanestorage.patch.BuildMenuSummary.packetsSent());
       }
    }
 
@@ -3305,6 +3311,129 @@ public final class ArcaneStorageVerbs {
          }
 
          out.num("ranges", rangeCount).num("buildNs", buildNs).num("cancraftNs", craftNs);
+      }
+   }
+
+   /**
+    * {@code query buildmenusummary} -- the compact network summary for the synthetic player's paired
+    * network, with a serialise-then-decode round trip so the wire format is proven exact.
+    */
+   private static final class BuildMenuSummaryQuery implements TestVerb, TestQuery {
+      public String name() {
+         return "buildmenusummary";
+      }
+
+      public String usage() {
+         return "query buildmenusummary";
+      }
+
+      public boolean needsPlayer() {
+         return true;
+      }
+
+      public boolean run(TestContext context) {
+         return true;
+      }
+
+      public void query(TestContext context, Json.Writer out) {
+         Inventory summary = arcanestorage.patch.BuildMenuSummary.summaryFor(context.client, context.client.playerMob);
+         if (summary == null) {
+            out.num("distinct", -1).bool("roundtrip", false).num("bytes", -1);
+            return;
+         }
+
+         byte[] data = new PacketBuildMenuNetworkSummary(summary).getPacketData();
+         Inventory decoded = new PacketBuildMenuNetworkSummary(data).summary;
+         out.num("distinct", summary.getSize()).bool("roundtrip", sameContents(summary, decoded)).num("bytes", data.length);
+         if (context.argCount() > 2) {
+            out.num("amount", amountOf(summary, context.arg(2)));
+         }
+      }
+
+      private int amountOf(Inventory summary, String itemID) {
+         int total = 0;
+         for (int i = 0; i < summary.getSize(); i++) {
+            InventoryItem item = summary.getItem(i);
+            if (item != null && item.item != null && item.item.getStringID().equals(itemID)) {
+               total += item.getAmount();
+            }
+         }
+
+         return total;
+      }
+
+      private boolean sameContents(Inventory a, Inventory b) {
+         if (a.getSize() != b.getSize()) {
+            return false;
+         }
+
+         for (int i = 0; i < a.getSize(); i++) {
+            InventoryItem x = a.getItem(i);
+            InventoryItem y = b.getItem(i);
+            if (x == null || y == null || x.item != y.item || x.getAmount() != y.getAmount()) {
+               return false;
+            }
+         }
+
+         return true;
+      }
+   }
+
+   /**
+    * {@code query buildmenupacketsize <n>} -- the serialised size of a summary holding {@code n}
+    * distinct registered items, one stack each. Measures the packet, not the network, so it can
+    * scale without placing hundreds of units.
+    */
+   private static final class BuildMenuPacketSizeQuery implements TestVerb, TestQuery {
+      public String name() {
+         return "buildmenupacketsize";
+      }
+
+      public String usage() {
+         return "query buildmenupacketsize <n>";
+      }
+
+      public boolean run(TestContext context) {
+         return true;
+      }
+
+      public void query(TestContext context, Json.Writer out) {
+         int count = context.intArg(2);
+         List<Item> items = ItemRegistry.getItems();
+         Inventory summary = new Inventory(Math.min(count, items.size()));
+         int distinct = 0;
+         for (int i = 0; i < summary.getSize() && i < items.size(); i++) {
+            Item item = items.get(i);
+            if (item == null) {
+               continue;
+            }
+
+            summary.setItem(i, new InventoryItem(item, 1));
+            distinct++;
+         }
+
+         byte[] data = new PacketBuildMenuNetworkSummary(summary).getPacketData();
+         out.num("distinct", distinct).num("bytes", data.length);
+      }
+   }
+
+   /**
+    * {@code buildmenusweep} -- forces one summary sweep, ignoring the throttle, so a test running
+    * faster than wall-clock can observe the send-and-dedupe behaviour deterministically.
+    */
+   private static final class BuildMenuSweepVerb implements TestVerb {
+      public String name() {
+         return "buildmenusweep";
+      }
+
+      public String usage() {
+         return "buildmenusweep";
+      }
+
+      public boolean run(TestContext context) {
+         arcanestorage.patch.BuildMenuSummary.sweepNow(context.server);
+         context.info("swept Build Menu summaries");
+         return true;
       }
    }
 }

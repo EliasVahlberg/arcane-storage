@@ -158,3 +158,81 @@ def test_placement_cost_stays_inside_a_frame(storage):
         assert sample["ranges"] == 2 + size, "main + cloud + one range per unit"
         # The engine's count over the whole network must stay well inside a fiftieth of a second.
         assert sample["cancraftNs"] < 1_000_000, f"{size} units took {sample['cancraftNs'] / 1_000_000:.1f}ms to count"
+
+
+def test_the_network_summary_aggregates_and_round_trips(storage):
+    """Equal items summed (including a count above one stack), unequal kept apart, wire exact."""
+    storage.place("transceiver", 0, 0)
+    storage.place("unit", 1, 0)
+    storage.place("unit", 2, 0)
+    storage.fill(1, 0, "stone", 5000)  # above one stack (250)
+    storage.fill(2, 0, "stone", 7)
+    storage.fill(1, 0, "oaklog", 3)
+    storage.do("pair", 0, 0)
+
+    summary = storage.query("buildmenusummary", "stone")
+    print(f"\nsummary: {summary}")
+    assert summary["distinct"] == 2, "stone and oaklog, each once"
+    assert summary["roundtrip"] is True, "decode(encode(summary)) must preserve every count exactly"
+    assert summary["amount"] == 5007, "5000 + 7 in one stack, above the stack size, not clamped"
+    assert summary["bytes"] > 0
+
+
+def test_variants_with_different_saved_data_stay_apart(storage):
+    """Same item, different saved data: two stacks, not one merged count."""
+    storage.place("transceiver", 0, 0)
+    storage.place("unit", 1, 0)
+    storage.place("unit", 2, 0)
+    storage.fill(1, 0, "coinpouch", 1)
+    storage.do("stuffpouch", "1", "0", "coinpouch", "coin", "500")
+    storage.fill(2, 0, "coinpouch", 1)
+    storage.do("stuffpouch", "2", "0", "coinpouch", "coin", "200")
+    storage.do("pair", 0, 0)
+
+    summary = storage.query("buildmenusummary")
+    assert summary["distinct"] == 2, "two coin pouches with different coins stay apart"
+
+
+def test_same_variants_merge(storage):
+    """Same item and same saved data: one stack with the summed count."""
+    storage.place("transceiver", 0, 0)
+    storage.place("unit", 1, 0)
+    storage.place("unit", 2, 0)
+    storage.fill(1, 0, "coinpouch", 1)
+    storage.do("stuffpouch", "1", "0", "coinpouch", "coin", "500")
+    storage.fill(2, 0, "coinpouch", 1)
+    storage.do("stuffpouch", "2", "0", "coinpouch", "coin", "500")
+    storage.do("pair", 0, 0)
+
+    summary = storage.query("buildmenusummary", "coinpouch")
+    assert summary["distinct"] == 1
+    assert summary["amount"] == 2
+
+
+def test_the_packet_size_is_bounded(storage):
+    for n in (1, 50, 600):
+        size = storage.query("buildmenupacketsize", str(n))
+        print(f"\n{n} distinct items: {size['bytes']} bytes")
+        assert size["bytes"] < 200_000, "600 items must stay a small packet"
+
+
+def test_the_summary_send_is_deduplicated(storage):
+    """An unchanged network is not resent; a burst of changes sends one update, not one per item."""
+    storage.place("transceiver", 0, 0)
+    storage.place("unit", 1, 0)
+    storage.do("pair", 0, 0)
+
+    storage.do("buildmenusweep")
+    first = storage.query("buildmenu")["summaryPackets"]
+    assert first == 1, "a connected player gets one summary"
+
+    storage.do("buildmenusweep")
+    second = storage.query("buildmenu")["summaryPackets"]
+    assert second == first, "an unchanged network is not resent"
+
+    for _ in range(10):
+        storage.fill(1, 0, "stone", 1)
+    storage.do("buildmenusweep")
+    third = storage.query("buildmenu")["summaryPackets"]
+    print(f"\npackets sent: {first} -> {second} -> {third}")
+    assert third == first + 1, "a burst of changes sends one update, not one per change"
