@@ -57,6 +57,24 @@ def connected(storage):
     return storage
 
 
+@pytest.fixture()
+def paste_target(connected):
+    """A real Build Menu paste tool, made live in the harness's own JVM.
+
+    Its constructor takes three plain values and touches no window, so this is the genuine class, the
+    same one the game creates when a player picks a blueprint up -- registered as its class's active
+    instance by its own constructor, exactly as it is in play. All three snapshot targets share one
+    implementation of the "does it already hold our range" check and one field name, so this proves
+    the rule end to end for one of them.
+
+    The form cannot be built headlessly (it needs the game's own form machinery), so what it cannot
+    prove is the form's own rebuild -- the thing the tooltip hangs off. That stays a window check; its
+    field is covered by the load-time shape check, which the unit tests exercise.
+    """
+    assert connected.call("buildmenuclienttarget", "paste").ok, "the paste tool should be buildable here"
+    return connected
+
+
 def test_the_summary_reaches_a_real_clients_state(connected):
     """The whole client path at once: packet, decode, client-side state, and the tick behind it."""
     answered = connected.query("buildmenuclient", "stone")
@@ -71,7 +89,7 @@ def test_the_summary_reaches_a_real_clients_state(connected):
     assert answered["cleared"] is True, "an empty summary must clear the cached one"
 
 
-def test_an_unchanged_summary_is_not_handed_over_again(connected):
+def test_an_unchanged_summary_is_not_handed_over_again(paste_target):
     """The item-tooltip flash, counted instead of seen.
 
     Build Menu answers a storage snapshot by rebuilding its item elements, and a hovered tooltip is
@@ -79,23 +97,61 @@ def test_an_unchanged_summary_is_not_handed_over_again(connected):
     client's own tick therefore made a tooltip flash on and off at the re-apply cadence, twice a
     second, and only while the compat had something to hand over.
 
-    `applies` counts the times the cached summary reached one of Build Menu's three snapshots during a
-    probe's ticks. The rounds are spaced past the re-apply cadence on purpose: a test that ticked in a
-    tight loop would sit inside one cadence window and see nothing either way, which is how the old
-    behaviour hid from a first attempt at this assertion.
+    The target here is a real one holding the summary, so this is the actual condition: spaced past
+    the re-apply cadence, its ticks must hand nothing over. The spacing matters -- a tight loop sits
+    inside one cadence window and sees nothing either way, which is how the old behaviour hid from a
+    first attempt at this assertion.
     """
-    connected.query("buildmenuclient", "stone")
+    primed = paste_target.query("buildmenuclient", "stone", "keep")
+    assert primed["pasteHandovers"] == 1, "the packet should hand the summary over once"
+    assert primed["pasteHolds"] is True, "and the target should be holding it"
 
     handed_over = 0
-    for _ in range(3):
+    for _ in range(2):
         time.sleep(0.55)
-        answered = connected.query("buildmenuclient", "stone")
-        handed_over += answered["applies"]
+        answered = paste_target.query("buildmenuclient", "stone", "tickonly")
+        handed_over += answered["pasteHandovers"]
         assert answered["ticks"] > 0, "the advice should still run on every tick"
 
     assert handed_over == 0, (
-        "an unchanged summary was handed to Build Menu again, which rebuilds its grid and takes the "
-        "hovered tooltip with it")
+        "the target already held the summary and was handed it again, which rebuilds its grid and "
+        "takes the hovered tooltip with it")
+
+
+def test_a_target_that_lost_its_summary_is_handed_it_once(paste_target):
+    """The other half, and the half a summary-only check would lose.
+
+    Build Menu replaces its list with a fresh empty one when its menu is hidden, and outside a
+    settlement no snapshot ever comes back to refill it -- the server unsubscribes and sends nothing.
+    So after a close and reopen the network has to be offered by this mod's own re-apply, exactly once.
+
+    `reset` does what Build Menu does: replaces the target's list with an empty one.
+    """
+    paste_target.query("buildmenuclient", "stone", "keep")
+    assert paste_target.call("buildmenuclienttarget", "paste", "reset").ok, "the list should be emptied"
+
+    time.sleep(0.55)
+    first = paste_target.query("buildmenuclient", "stone", "tickonly")
+
+    assert first["pasteHandovers"] == 1, "a target that lost the summary should be handed it again"
+    assert first["pasteHolds"] is True, "and should be holding it afterwards"
+
+    time.sleep(0.55)
+    second = paste_target.query("buildmenuclient", "stone", "tickonly")
+
+    assert second["pasteHandovers"] == 0, "and not handed it a second time"
+
+
+def test_the_form_cannot_be_driven_headlessly(paste_target):
+    """Stated rather than glossed: the target whose rebuild the tooltip hangs off is not reachable here.
+
+    The form needs the game's own form machinery, so the harness sees no instance of it. Its field and
+    accessor are checked at load with the other signatures, and its rebuild is what the window check
+    looks at.
+    """
+    answered = paste_target.query("buildmenuclienttarget", "form")
+
+    assert answered["instance"] is False, "if this ever becomes buildable, this test should say so loudly"
 
 
 def test_a_second_client_is_left_nothing_to_inherit(connected):

@@ -72,6 +72,36 @@ public class BuildMenuCompatTest {
       }
    }
 
+   /** The client-side shape the re-apply reads: a static getter and the list field, as the form has them. */
+   public static final class CorrectState {
+      public static final CorrectState activeInstance = new CorrectState();
+
+      private final List<InventoryRange> remoteStorageRanges = new ArrayList<InventoryRange>();
+
+      public static CorrectState getActiveInstance() {
+         return activeInstance;
+      }
+   }
+
+   /** The same, with the list field renamed: the re-apply would never see what the target holds. */
+   public static final class RenamedListField {
+      public static final RenamedListField activeInstance = new RenamedListField();
+
+      private final List<InventoryRange> storageRanges = new ArrayList<InventoryRange>();
+   }
+
+   /** The list field holds something that is not a list. */
+   public static final class WrongListType {
+      private final Object remoteStorageRanges = new Object();
+   }
+
+   /** The instance accessor is no longer static, so a static call on it would throw. */
+   public static final class NonStaticAccessor {
+      public Object getActiveInstance() {
+         return this;
+      }
+   }
+
    @Test
    public void the_expected_server_signature_passes() {
       assertNull(BuildMenuCompat.signatureProblem(Correct.class, "buildAvailabilityRanges", SERVER_ARGS, List.class));
@@ -185,5 +215,94 @@ public class BuildMenuCompatTest {
       assertEquals("one summary appended", 1, once.size());
       assertEquals("and still one on the next pass, not two", 1, twice.size());
       assertEquals("Build Menu's own list is never mutated", 0, base.size());
+   }
+
+   @Test
+   public void a_target_holding_the_summary_is_left_alone() {
+      // The flash, as a rule. Telling a target again is not free: the form rebuilds its item grid, which takes
+      // the hovered item's tooltip with it. So a target that already holds this exact range must not be told.
+      InventoryRange wanted = new InventoryRange(new Inventory(1));
+      List<InventoryRange> held = new ArrayList<InventoryRange>();
+      held.add(wanted);
+
+      assertFalse(BuildMenuCompat.needsHandover(held, wanted, wanted));
+   }
+
+   @Test
+   public void a_target_that_lost_its_list_is_told_once() {
+      // Build Menu replaces the list with a fresh empty one when its menu is hidden, and outside a settlement no
+      // snapshot ever comes back to refill it. That is the case the re-apply exists for.
+      InventoryRange wanted = new InventoryRange(new Inventory(1));
+
+      assertTrue("an emptied list needs the range again",
+            BuildMenuCompat.needsHandover(new ArrayList<InventoryRange>(), wanted, wanted));
+      assertTrue("a null list is the same case",
+            BuildMenuCompat.needsHandover(null, wanted, wanted));
+   }
+
+   @Test
+   public void a_target_holding_an_older_summary_gets_the_new_one() {
+      InventoryRange older = new InventoryRange(new Inventory(1));
+      InventoryRange newer = new InventoryRange(new Inventory(2));
+      List<InventoryRange> held = new ArrayList<InventoryRange>();
+      held.add(older);
+
+      assertTrue("a new summary arrived, so hand it over",
+            BuildMenuCompat.needsHandover(held, newer, older));
+   }
+
+   @Test
+   public void a_cleared_summary_only_tells_a_target_still_holding_the_old_range() {
+      InventoryRange older = new InventoryRange(new Inventory(1));
+      List<InventoryRange> holding = new ArrayList<InventoryRange>();
+      holding.add(older);
+
+      assertTrue("it still holds the range that is now gone",
+            BuildMenuCompat.needsHandover(holding, null, older));
+      assertFalse("nothing to clear",
+            BuildMenuCompat.needsHandover(new ArrayList<InventoryRange>(), null, older));
+      assertFalse("and nothing was ever handed over",
+            BuildMenuCompat.needsHandover(holding, null, null));
+   }
+
+   @Test
+   public void build_menus_own_ranges_in_the_list_are_not_ours() {
+      // Identity, not content: a range that looks the same is Build Menu's own and tells us nothing.
+      InventoryRange ours = new InventoryRange(new Inventory(1));
+      InventoryRange theirs = new InventoryRange(new Inventory(1));
+      List<InventoryRange> held = new ArrayList<InventoryRange>();
+      held.add(theirs);
+
+      assertFalse(BuildMenuCompat.containsIdentity(held, ours));
+      assertTrue(BuildMenuCompat.needsHandover(held, ours, null));
+   }
+
+   @Test
+   public void the_expected_client_state_shape_passes() {
+      assertNull(BuildMenuCompat.clientStateProblem(CorrectState.class, "getActiveInstance", null,
+            "remoteStorageRanges"));
+      assertNull("and the tools' shape, with a static field instead of a getter",
+            BuildMenuCompat.clientStateProblem(RenamedListField.class, null, "activeInstance", "storageRanges"));
+   }
+
+   @Test
+   public void a_renamed_list_field_is_named() {
+      String problem = BuildMenuCompat.clientStateProblem(RenamedListField.class, null, null, "remoteStorageRanges");
+      assertNotNull(problem);
+      assertTrue(problem, problem.contains("remoteStorageRanges"));
+   }
+
+   @Test
+   public void a_list_field_of_the_wrong_type_is_named() {
+      String problem = BuildMenuCompat.clientStateProblem(WrongListType.class, null, null, "remoteStorageRanges");
+      assertNotNull(problem);
+      assertTrue(problem, problem.contains("not a list"));
+   }
+
+   @Test
+   public void an_instance_accessor_is_named() {
+      String problem = BuildMenuCompat.clientStateProblem(NonStaticAccessor.class, "getActiveInstance", null, null);
+      assertNotNull(problem);
+      assertTrue(problem, problem.contains("not static"));
    }
 }
