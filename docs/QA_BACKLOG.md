@@ -12,9 +12,10 @@ reference now points at the pytest file that owns the assertion. See `docs/TESTI
 
 **0j. Building from the network, in a window.** *Compiled and unit tested, not run in a window. The
 server half is proven headless (`tests/python/test_build_menu.py` consumes from the network with the
-exact remaining count), and the client view and summary are unit tested — but the whole client path,
-Build Menu's greyed-out display and its refusal message included, has never been seen, because nothing
-headless draws a client at all.*
+exact remaining count), and the client half is too (`tests/python/test_build_menu_client.py` drives a
+real windowless engine client: the packet decodes, the client-side state is what was sent, an empty
+summary clears it, and the client-tick advice runs). What only a window still shows is Build Menu's
+own greyed-out display, its refusal message, and anything drawn.*
 
 Worth doing because this is the one place the two mods meet in a UI, and a wrong "can afford" on the
 client would refuse a placement the server would happily honour.
