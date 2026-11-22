@@ -85,6 +85,16 @@ and it comes from `CHANGELOG.md` so the two cannot drift.
 
 ---
 
+[h3]1.3.0[/h3]
+
+[b]A settler's "craft until N" order now counts stock kept in Storage Units inside the settlement.[/b] Before this, an order was compared only against what the settlement's assigned storage held -- so a chest with an export bus beside it sent every result straight into a unit, the count never rose, and the order crafted forever. Anything in a Storage Unit standing inside the settlement now counts toward the number, and it is a ceiling: an order stops when the settlement has N of the item, wherever those N are kept. Ingredients are unchanged, because settlers cannot take items out of a unit and counting them there would leave jobs unfinished. settlerOrderCountsUnits in the mod's config file turns it off, and off counts exactly what the game counts on its own.
+
+[b]A refused crafting station now says why.[/b] Dropping something a socket will not take -- a forge, a cooking station, a lump of stone -- used to leave the slot empty with nothing said, which read as a broken slot. A line now appears where you dropped it, saying what a socket takes: a crafting station that works from any tile. Forges and cooking stations are declined on purpose, because they burn fuel over time and that cannot be honoured from a socket.
+
+[b]The item list keeps its place.[/b] A settler depositing, a bus moving a stack, or your own withdrawal no longer throws the storage list back to the top. It still starts at the top after a search or a filter change, where a narrower list is what you asked for.
+
+[b]Build Menu can build from the network.[/b] With Build Menu installed, a blueprint or placeable now takes its materials from the storage network as well as from your pockets, cloud storage and settlement chests -- and in that order, so the network is the last place it looks and what you carry is spent first. This happens while you are carrying a wireless terminal paired to a transceiver, the same link that opens the network from afar. The server decides whether you count as connected, so nothing a client sends can change it. Nothing else needs Build Menu to be installed, and if it is not there -- or if it updates in a way this cannot follow -- everything else works exactly as before. A config option turns the link off.
+
 [h3]1.2.0[/h3]
 
 [b]Buses can count in their chest instead of the network.[/b] A new [i]Count in[/i] choice under the number on both buses. On an export bus, [i]Container[/i] keeps the chest stocked: set stone and sand to 100 and the chest is kept at 100 of each, topped back up whenever you or a settler take some out, while the network keeps the rest. On an import bus it leaves that many behind: set torches to 10 and the bus takes everything but 10 torches. Each bus still only moves one way, so a stocked chest that is over its number, or an import chest that is under it, is left alone. Two buses on the same chest that would pass items back and forth forever are refused when you press Apply. [i]Network[/i], the default, changes nothing.

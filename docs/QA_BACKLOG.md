@@ -62,10 +62,8 @@ not run in a window, and the arithmetic is what is proven.*
 Also worth knowing while doing this: the count a settler is given is a ceiling, so an order stopping a little earlier
 than a player expects is the safe direction and not a fault. Over-counting stops work; under-counting repeats it.
 
-**In the QA world.** `make qa-world` then `make qa-world-install` builds areas 1 and 2 of
-`qa-world/INDEX.md` for this — a paired network to place from and an unpaired control — with the
-materials already inside the units. Only the pairing is manual (your bag starts empty); the index
-lists the exact steps.
+**In the QA world.** Not covered: the QA world has no settlement area, so this needs a live settlement -- build the
+setup in step 1 by hand, then run the order.
 
 ## Needs eyes — a station socket's refusal (Nov 2026)
 

@@ -5,7 +5,7 @@ the GitHub release notes are both taken from here, so they cannot disagree.
 
 Dates are release dates. Anything still unreleased sits under Unreleased until it ships.
 
-## Unreleased
+## 1.3.0
 
 **A settler's "craft until N" order now counts stock kept in Storage Units inside the settlement.** Before this, an
 order was compared only against what the settlement's assigned storage held -- so a chest with an export bus beside
@@ -29,7 +29,7 @@ narrower list is what you asked for.
 materials from the storage network as well as from your pockets, cloud storage and settlement chests -- and in
 that order, so the network is the last place it looks and what you carry is spent first. This happens while you
 are carrying a wireless terminal paired to a transceiver, the same link that opens the network from afar. The
-server decides whether you count as connected, so nothing a client sends can change it. Nothing here needs Build
+server decides whether you count as connected, so nothing a client sends can change it. Nothing else needs Build
 Menu to be installed, and if it is not there -- or if it updates in a way this cannot follow -- everything else
 works exactly as before. A config option turns the link off.
 
