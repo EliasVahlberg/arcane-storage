@@ -1528,8 +1528,11 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
     * category that did not exist a moment ago or remove the last item from one that did, which
     * neither a filter change nor a sort change can do on their own.
     *
-    * <p>Driven by a content signature rather than run every frame, for the same reason the grid
-    * this replaced was: rebuilding resets the player's scroll position.
+    * <p>Driven by a content signature rather than run every frame, the same way the grid this replaced
+    * was. Rebuilding used to lose the player's place on every pass through here -- a settler depositing
+    * anything, a bus moving a stack, the viewer's own withdrawal -- which is a real complaint from the
+    * Workshop thread, because the list is long enough to scroll and the change usually happens while the
+    * player is reading it.
     */
    private void refreshList() {
       this.shownSignature = signatureOf(this.aggregated);
@@ -1538,9 +1541,15 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
       this.updateCapacityLabel();
    }
 
-   /** Same entries, a new search query or stack filter -- categories and ordering are untouched. */
+   /**
+    * Same entries, a new search query or stack filter -- categories and ordering are untouched.
+    *
+    * <p>This one does go back to the top, deliberately: a search narrows the list, and a position kept
+    * across that would leave the player somewhere past the end of what they just asked for.
+    */
    private void refilterStorageTree() {
       this.storageGrouping.onFilterChanged(this.currentMask());
+      this.itemList.setScrollY(0);
       this.rebuildStorageTree();
    }
 
@@ -1574,8 +1583,18 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
     * Lays the tree out from whatever {@link #storageGrouping} currently says is visible, and updates
     * the summary label and the box's own scrollable height to match -- the part shared by all three
     * of the methods above, regardless of which of {@link CategoryGrouping}'s update methods ran first.
+    *
+    * <p><b>The scroll position is carried across, and that is not a one-liner about tidiness.</b> Every
+    * leaf is discarded and rebuilt, and the box's scroll is clamped against whatever height it is told
+    * about along the way -- so laying a tree out from scratch drags the offset to the top even though
+    * nothing the player did asked for that. The offset is therefore read before the rebuild and put back
+    * after the final height is known, where the clamp is against the finished tree and is exactly the
+    * behaviour wanted: a shorter list than the position implies scrolls up to its own end, the way it
+    * does for the mouse wheel.
     */
    private void rebuildStorageTree() {
+      int scrollY = this.itemList.getScrollY();
+
       this.itemList.clearComponents();
       int height = CategoryTreeForm.buildTopLevel(this.itemList, this.storageGrouping,
             ItemCategory.masterCategory, this.itemCategoryExpanded,
@@ -1588,6 +1607,7 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
             });
 
       this.itemList.setContentBox(new Rectangle(this.itemList.getWidth(), height));
+      this.itemList.setScrollY(scrollY);
       this.updateSummary();
    }
 

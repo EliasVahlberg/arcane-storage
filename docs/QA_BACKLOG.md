@@ -8,6 +8,31 @@ Restructured 11 Aug 2026 because it had grown into a diary and he was right that
 Revised again the same evening: the bash scenario suite it kept citing no longer exists, so every
 reference now points at the pytest file that owns the assertion. See `docs/TESTING.md`.
 
+## Needs eyes — the storage tab's item list (Nov 2026)
+
+**0i. The list keeps its place across a content change.** *Compiled and covered by reasoning, not seen: the
+offset lives in a client-side `FormContentBox` and this suite drives a server with no client attached at all,
+so no automated test can read it — `make test` cannot build a form, or even a `Level`.*
+
+Worth doing because the report that prompted the fix came from a player who described it as "the list jumps
+back to the top every few seconds", and the change usually lands while they are reading.
+
+1. **Make a list long enough to scroll.** `harness run full_network` (with `make run HARNESS=1`) builds a
+   full network; otherwise deposit a mixed load until the grid scrolls. Open the terminal on the Storage tab.
+2. **Scroll down a few rows** and note what is under the cursor.
+3. **Change the network's contents while the terminal is open, without touching the search box, the stack
+   filter or the tab.** The easiest is Deposit all from a loaded backpack; leaving an import bus running
+   does the same thing from outside.
+4. **The list should stay where it was** — same rows, same position — rather than snapping to the top. A
+   small shift is expected when the change adds or removes a category header above the view, since that
+   moves everything below it; what must not happen is a jump to the top.
+5. **Now type in the search box.** The list *should* go to the top, deliberately: the result set just
+   changed, and a kept position would leave the player past the end of what they asked for. Same for the
+   stack filter dropdown. The sort and grouping controls keep the position instead.
+6. **The shrinking case.** Scroll near the bottom, then withdraw enough to remove entries until the tree no
+   longer reaches that far down. The list should settle at its own new end rather than overshooting into
+   blank space — the clamp is the same one the mouse wheel uses.
+
 ## Needs eyes — the wireless terminal (Aug 2026)
 
 **0a. The click path, which no test touches.** *(Pairing, opening, depositing items and installing benches are
