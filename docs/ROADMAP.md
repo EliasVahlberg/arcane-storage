@@ -297,6 +297,12 @@ worse than choosing them.
 
 Worth doing, not worth blocking on, and none started.
 
+- **Settler crafting against the network, seen in a live settlement.** The count behind a settler's "craft until N"
+  order includes Storage Units inside the settlement (1.3.0), and a headless test proves the arithmetic and that the
+  patch is in place. What has not been seen is a settler choosing the job, walking to the bench and crafting to N
+  with a bus moving the output into a unit. Investigate it in a real settlement (`docs/QA_BACKLOG.md` item 0k), and
+  look at whether a settler could ever take ingredients from a unit, which today it cannot.
+
 - ~~**Wirelessly linked silos**~~ — **built as a frequency band** (Aug 2026), which is a
   cell network rather than the entangled pair the deferral imagined. An **Arcane Base
   Station** (Demonic → Tungsten → Fallen) generates a numbered band whose channel count is
