@@ -1584,13 +1584,11 @@ public class StorageTerminalContainerForm<T extends StorageTerminalContainer> ex
     * the summary label and the box's own scrollable height to match -- the part shared by all three
     * of the methods above, regardless of which of {@link CategoryGrouping}'s update methods ran first.
     *
-    * <p><b>The scroll position is carried across, and that is not a one-liner about tidiness.</b> Every
-    * leaf is discarded and rebuilt, and the box's scroll is clamped against whatever height it is told
-    * about along the way -- so laying a tree out from scratch drags the offset to the top even though
-    * nothing the player did asked for that. The offset is therefore read before the rebuild and put back
-    * after the final height is known, where the clamp is against the finished tree and is exactly the
-    * behaviour wanted: a shorter list than the position implies scrolls up to its own end, the way it
-    * does for the mouse wheel.
+    * <p><b>The scroll position is carried across deliberately.</b> Every leaf is discarded and rebuilt, and
+    * the box sizes itself from whatever heights the tree reports while it is being laid out, so the offset a
+    * player had is not something a rebuild keeps on its own. It is read before the rebuild and put back once
+    * the finished height is known, and the box's own limit applies at that point: a list shorter than the
+    * position implies scrolls up to its own end, the same clamp the mouse wheel gets.
     */
    private void rebuildStorageTree() {
       int scrollY = this.itemList.getScrollY();
