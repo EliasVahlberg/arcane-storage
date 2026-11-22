@@ -216,6 +216,11 @@ public class ArcaneStorage {
       necesse.engine.registries.LevelDataRegistry.registerLevelData(
             arcanestorage.band.BandIndex.KEY, arcanestorage.band.BandIndex.class);
 
+      // The Build Menu client summary. Registered on both sides, like every packet; the server sends
+      // it and the client's handler stores the compact network summary for the affordability display.
+      necesse.engine.registries.PacketRegistry.registerPacket(
+            arcanestorage.patch.PacketBuildMenuNetworkSummary.class);
+
       // Registered with the plain variant on purpose. Every typed variant resolves the level as the player's own
       // (registerLevelContainer: client.getLevel() / world.getLevel(client)), which is the one assumption a
       // wireless terminal breaks -- so this one carries its level in the content packet and resolves it itself.

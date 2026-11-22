@@ -3,6 +3,7 @@ package arcanestorage.patch;
 import java.lang.instrument.Instrumentation;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -22,63 +23,103 @@ import net.bytebuddy.agent.ByteBuddyAgent;
 import net.bytebuddy.agent.builder.AgentBuilder;
 import net.bytebuddy.asm.Advice;
 import static net.bytebuddy.matcher.ElementMatchers.named;
-import static net.bytebuddy.matcher.ElementMatchers.returns;
 import static net.bytebuddy.matcher.ElementMatchers.takesArguments;
 
 /**
- * Lets Build Menu place from a storage network, by appending the network's inventories to the one
- * list that decides what a placement may take.
+ * Lets Build Menu build from a storage network, both server and client, as a soft patch of the few
+ * methods that decide what a placement may take.
  *
- * <p><b>This is a soft patch of another mod's one choke point, and the shape follows from how the
- * game loads mods.</b> Build Menu's {@code buildAvailabilityRanges(Level, PlayerMob, int, int)}
- * builds the single {@code List<InventoryRange>} that every place, paste and craft path hands to
- * the engine's {@code Recipe.canCraftRange} / {@code craftRange}. Its author declined to add
- * support here, so this mod appends the network's inventories to that list when the player is
- * network-connected, and the engine does the counting and consuming.
+ * <p><b>Server.</b> Build Menu's {@code buildAvailabilityRanges(Level, PlayerMob, int, int)} builds
+ * the single {@code List<InventoryRange>} that every place, paste and craft path hands to the
+ * engine's {@code Recipe.canCraftRange} / {@code craftRange}. This mod appends the network's
+ * inventories to that list when the player is connected, and the engine does the counting and
+ * consuming.
+ *
+ * <p><b>Client.</b> Build Menu refuses a placement on the client before any packet reaches the
+ * server, counting from the player's bag and cloud plus a list its own three
+ * {@code onStorageSnapshot(List<InventoryRange>)} methods assign. Those are only ever fed by
+ * settlement storage. This mod sends a compact network summary (see {@link PacketBuildMenuNetworkSummary}
+ * and {@link BuildMenuSummary}), and the advice here appends that summary's range to whatever list
+ * each {@code onStorageSnapshot} is given -- so the client's "can afford" view includes the network
+ * in and outside a settlement. The client only counts from the summary; consumption stays on the
+ * server against the real units.
  *
  * <p><b>Why not the usual patch annotation.</b> {@code @ModMethodPatch} and its siblings take a
- * {@code Class} literal, and Build Menu is deliberately not on this mod's compile classpath (it is a
- * soft dependency). A name string is the only thing this mod may hold, so the advice is installed
- * here, through ByteBuddy's own agent builder matched by class name, on the instrumentation the game
- * already installed to load mods at all.
+ * {@code Class} literal, and Build Menu is deliberately not on this mod's compile classpath. A name
+ * string is the only thing this mod may hold, so the advice is installed here, through ByteBuddy's
+ * own agent builder matched by class name, on the instrumentation the game already installed.
  *
- * <p><b>The one Build Menu type named anywhere in this mod.</b> The class and method below are the
- * only identifiers that mention Build Menu, and they are strings rather than types so that their
- * absence is a normal case. Nothing else in the mod refers to Build Menu.
+ * <p><b>The only Build Menu types named anywhere in this mod.</b> The class and method names below
+ * are the only identifiers that mention Build Menu, and they are strings so their absence is a
+ * normal case.
  *
- * <p><b>The connected rule.</b> The player is connected when they carry a wireless terminal paired
- * to a transceiver that still resolves, server-side. The resolution is {@link RemoteTerminal}'s, the
- * same one the wireless terminal itself uses, so "connected for building" and "can open this
- * network" cannot disagree. Nothing from the client is trusted: this runs only on the server, reads
- * the player's real inventory, and resolves against the server's own world.
+ * <p><b>The connected rule.</b> A player is connected when they carry a wireless terminal paired to
+ * a transceiver that still resolves, server-side. Resolution is {@link RemoteTerminal}'s, the same
+ * one the wireless terminal itself uses. Nothing from the client is trusted.
  *
- * <p><b>The signature is checked, not assumed.</b> A name-based patch binds to an exact signature,
- * so a Build Menu update that renames or retypes the method would otherwise fail silently — a player
- * could place a blueprint and find the network ignored, with nothing in any log. The method name,
- * parameter types and return type are read by reflection before the advice is installed; on a
- * mismatch one line is logged and the compat turns itself off.
+ * <p><b>The signatures are checked together, not assumed.</b> All four targets are verified by
+ * reflection before any advice is installed; a mismatch on any one turns the whole compat off with
+ * one log line. A half-woven state -- the server counting a network the client refuses, or the
+ * reverse -- is worse than none. {@code Class.forName(name, false, loader)} is used so the check
+ * never runs Build Menu's static initialisers early.
  */
 public final class BuildMenuCompat {
 
    private BuildMenuCompat() {
    }
 
-   /** The Build Menu class whose one method this mod appends to. Named by string: soft dependency. */
+   /** The Build Menu classes and methods this mod appends to, named by string: soft dependency. */
    private static final String BUILD_MENU_UTIL = "BuildMenu.modclass.util.BuildMenuInventoryUtil";
+   private static final String BUILDING_MENU_FORM = "BuildMenu.modclass.ui.BuildingMenuForm";
+   private static final String PASTE_TOOL = "BuildMenu.modclass.tool.BuildMenuPasteGameTool";
+   private static final String PLACE_TOOL = "BuildMenu.modclass.tool.BuildMenuPlaceGameTool";
 
-   /** The one method on that class. */
    private static final String BUILD_MENU_METHOD = "buildAvailabilityRanges";
+   private static final String SNAPSHOT_METHOD = "onStorageSnapshot";
+
+   /** A class and method to patch, plus the advice to weave in. {@code returnType == null} means void. */
+   private static final class PatchTarget {
+      final String className;
+      final String methodName;
+      final Class<?>[] argumentTypes;
+      final Class<?> returnType;
+      final Class<?> adviceClass;
+      final boolean snapshot;
+
+      PatchTarget(String className, String methodName, Class<?>[] argumentTypes, Class<?> returnType,
+            Class<?> adviceClass, boolean snapshot) {
+         this.className = className;
+         this.methodName = methodName;
+         this.argumentTypes = argumentTypes;
+         this.returnType = returnType;
+         this.adviceClass = adviceClass;
+         this.snapshot = snapshot;
+      }
+   }
+
+   /** All four targets, checked and woven together. */
+   private static final PatchTarget[] TARGETS = {
+      new PatchTarget(BUILD_MENU_UTIL, BUILD_MENU_METHOD,
+            new Class<?>[]{Level.class, PlayerMob.class, int.class, int.class}, List.class,
+            BuildMenuAvailabilityAdvice.class, false),
+      new PatchTarget(BUILDING_MENU_FORM, SNAPSHOT_METHOD, new Class<?>[]{List.class}, null,
+            SnapshotAdvice.class, true),
+      new PatchTarget(PASTE_TOOL, SNAPSHOT_METHOD, new Class<?>[]{List.class}, null,
+            SnapshotAdvice.class, true),
+      new PatchTarget(PLACE_TOOL, SNAPSHOT_METHOD, new Class<?>[]{List.class}, null,
+            SnapshotAdvice.class, true)
+   };
 
    /** Set once at load from the config. Read by the advice, so it cannot be changed at runtime. */
    private static volatile boolean enabled;
 
-   /** Whether the advice was actually installed this launch. */
+   /** Whether every target was actually transformed this launch. */
    private static volatile boolean active;
 
-   /** How many times the advice appended at least one network range. Diagnostic, and the proof it ran. */
+   /** How many times the server advice appended at least one network range. Diagnostic. */
    private static volatile long appended;
 
-   /** How many ranges the advice appended in total, across every call. Diagnostic. */
+   /** How many ranges the server advice appended in total. Diagnostic. */
    private static volatile long appendedRanges;
 
    /** Whether a signature problem has been logged, so it is logged once rather than per placement. */
@@ -87,37 +128,42 @@ public final class BuildMenuCompat {
    /** How many times a mismatch was reported, kept so the "once" behaviour is testable. */
    private static volatile int mismatchReports;
 
-   /** For tests and diagnosis: whether the compat is meant to be on this launch. */
+   /** The cached network summary range, client-side. Null while no summary has arrived. */
+   private static volatile InventoryRange networkSummaryRange;
+
+   /** The last list Build Menu handed to {@code onStorageSnapshot}, remembered so a refresh reuses it. */
+   private static volatile List<InventoryRange> lastBuildMenuSnapshot;
+
    public static boolean isEnabled() {
       return enabled;
    }
 
-   /** For tests and diagnosis: whether the advice is actually woven into Build Menu this launch. */
    public static boolean isActive() {
       return active;
    }
 
-   /** How many times the advice appended network ranges. Read by {@code query buildmenu}. */
    public static long appendedCount() {
       return appended;
    }
 
-   /** How many ranges the advice appended in total. Read by {@code query buildmenu}. */
    public static long appendedRangeCount() {
       return appendedRanges;
    }
 
-   /** How many signature mismatches were reported. Read by the unit tests for the log-once rule. */
    public static int mismatchReports() {
       return mismatchReports;
    }
 
+   /** The cached client summary range, or null. For the unit tests of the client view. */
+   public static InventoryRange networkSummaryRange() {
+      return networkSummaryRange;
+   }
+
    /**
-    * Installs the advice, after checking the signature. Called once from {@code postInit}.
+    * Installs every advice, after checking every signature. Called once from {@code postInit}.
     *
-    * <p>Every early return here is a normal state, not an error: the toggle is off, Build Menu is
-    * absent, or Build Menu changed shape. The first two log nothing, so a player without Build Menu
-    * never hears about it.
+    * <p>Every early return is a normal state: the toggle is off, Build Menu is absent, or Build Menu
+    * changed shape. The first two log nothing, so a player without Build Menu never hears about it.
     */
    public static void install() {
       enabled = ArcaneStorage.SETTINGS.buildMenuCompat;
@@ -125,47 +171,52 @@ public final class BuildMenuCompat {
          return;
       }
 
-      Class<?> util;
-      try {
-         util = Class.forName(BUILD_MENU_UTIL);
-      } catch (ClassNotFoundException absent) {
-         return; // Build Menu is not installed. Soft dependency: nothing happens.
-      }
+      // All-or-nothing: resolve and check every target before weaving any.
+      for (PatchTarget target : TARGETS) {
+         Class<?> cls = resolveClass(target.className);
+         if (cls == null) {
+            return; // Build Menu is not installed. Soft dependency: nothing happens.
+         }
 
-      String problem = signatureProblem(util);
-      if (problem != null) {
-         logMismatch(problem);
-         return;
+         String problem = signatureProblem(cls, target.methodName, target.argumentTypes, target.returnType);
+         if (problem != null) {
+            logMismatch(problem + " (" + target.className + ")");
+            return;
+         }
       }
 
       try {
          Instrumentation instrumentation = ByteBuddyAgent.install();
          AtomicInteger completed = new AtomicInteger();
-         new AgentBuilder.Default().disableClassFormatChanges().with(AgentBuilder.RedefinitionStrategy.RETRANSFORMATION)
-               .with(new AgentBuilder.RedefinitionStrategy.Listener() {
-                  @Override
-                  public void onBatch(int index, List<Class<?>> batch, List<Class<?>> types) {
-                  }
+         AgentBuilder.RedefinitionStrategy.Listener listener = new AgentBuilder.RedefinitionStrategy.Listener() {
+            @Override
+            public void onBatch(int index, List<Class<?>> batch, List<Class<?>> types) {
+            }
 
-                  @Override
-                  public Iterable<? extends List<Class<?>>> onError(int index, List<Class<?>> batch,
-                        Throwable throwable, List<Class<?>> types) {
-                     return null;
-                  }
+            @Override
+            public Iterable<? extends List<Class<?>>> onError(int index, List<Class<?>> batch,
+                  Throwable throwable, List<Class<?>> types) {
+               return null;
+            }
 
-                  @Override
-                  public void onComplete(int amount, List<Class<?>> types,
-                        java.util.Map<List<Class<?>>, Throwable> failures) {
-                     completed.addAndGet(amount);
-                  }
-               }).type(named(BUILD_MENU_UTIL))
-               .transform((builder, type, classLoader, module) -> builder.visit(Advice.to(BuildMenuAvailabilityAdvice.class)
-                     .on(named(BUILD_MENU_METHOD).and(takesArguments(Level.class, PlayerMob.class, int.class, int.class))
-                           .and(returns(List.class)))))
-               .installOn(instrumentation);
-         active = completed.get() > 0;
+            @Override
+            public void onComplete(int amount, List<Class<?>> types,
+                  java.util.Map<List<Class<?>>, Throwable> failures) {
+               completed.addAndGet(amount);
+            }
+         };
+
+         for (PatchTarget target : TARGETS) {
+            new AgentBuilder.Default().disableClassFormatChanges().with(AgentBuilder.RedefinitionStrategy.RETRANSFORMATION)
+                  .with(listener).type(named(target.className))
+                  .transform((builder, type, classLoader, module) -> builder.visit(Advice.to(target.adviceClass)
+                        .on(named(target.methodName).and(takesArguments(target.argumentTypes)))))
+                  .installOn(instrumentation);
+         }
+
+         active = completed.get() >= TARGETS.length;
          if (!active) {
-            logMismatch("the method was not transformed (the advice did not match)");
+            logMismatch("not every target was transformed (the advice did not match)");
          }
       } catch (Throwable t) {
          active = false;
@@ -173,28 +224,43 @@ public final class BuildMenuCompat {
       }
    }
 
+   private static Class<?> resolveClass(String name) {
+      try {
+         // Non-initialising: the check must not run Build Menu's static initialisers early.
+         return Class.forName(name, false, BuildMenuCompat.class.getClassLoader());
+      } catch (ClassNotFoundException absent) {
+         return null;
+      }
+   }
+
    /**
-    * Why the patch cannot target the given class, or null when it can. Extracted and made testable
-    * so a changed signature is a unit test rather than a mystery at load.
+    * Why a method on the given class does not match the expected shape, or null when it does.
+    * Extracted and made testable so a changed signature is a unit test rather than a mystery at load.
     */
-   public static String signatureProblem(Class<?> util) {
-      if (util == null) {
+   public static String signatureProblem(Class<?> targetClass, String methodName, Class<?>[] argumentTypes,
+         Class<?> returnType) {
+      if (targetClass == null) {
          return "no such class";
       }
 
       Method method;
       try {
-         method = util.getMethod(BUILD_MENU_METHOD, Level.class, PlayerMob.class, int.class, int.class);
+         method = targetClass.getMethod(methodName, argumentTypes);
       } catch (NoSuchMethodException changed) {
-         return "no buildAvailabilityRanges(Level, PlayerMob, int, int) method";
+         return "no " + methodName + " method with the expected arguments";
       }
 
       if (!Modifier.isStatic(method.getModifiers())) {
-         return "buildAvailabilityRanges is not static";
+         return methodName + " is not static";
       }
 
-      if (!List.class.isAssignableFrom(method.getReturnType())) {
-         return "buildAvailabilityRanges returns " + method.getReturnType().getName() + ", not a List";
+      Class<?> actualReturn = method.getReturnType();
+      if (returnType == null) {
+         if (actualReturn != void.class && actualReturn != Void.class) {
+            return methodName + " returns " + actualReturn.getName() + ", not void";
+         }
+      } else if (!returnType.isAssignableFrom(actualReturn)) {
+         return methodName + " returns " + actualReturn.getName() + ", not " + returnType.getSimpleName();
       }
 
       return null;
@@ -219,7 +285,7 @@ public final class BuildMenuCompat {
    }
 
    /**
-    * The patched method's ranges, or null when the patch is not active. For tests and diagnosis.
+    * The patched server method's ranges, or null when the patch is not active. For tests and diagnosis.
     */
    @SuppressWarnings("unchecked")
    public static List<InventoryRange> availabilityRanges(Level level, PlayerMob player, int tileX, int tileY) {
@@ -228,7 +294,7 @@ public final class BuildMenuCompat {
       }
 
       try {
-         Class<?> util = Class.forName(BUILD_MENU_UTIL);
+         Class<?> util = resolveClass(BUILD_MENU_UTIL);
          Method method = util.getMethod(BUILD_MENU_METHOD, Level.class, PlayerMob.class, int.class, int.class);
          return (List<InventoryRange>)method.invoke(null, level, player, tileX, tileY);
       } catch (Throwable t) {
@@ -238,8 +304,8 @@ public final class BuildMenuCompat {
 
    /**
     * Appends the network's inventories to the list, when the connected rule holds. Called from the
-    * advice, so it is inlined into Build Menu's own method — it must stay public and cheap, and any
-    * failure here must not escape into a placement.
+    * server advice, so it is inlined into Build Menu's own method — it must stay public and cheap,
+    * and any failure here must not escape into a placement.
     */
    public static void appendNetworkRanges(Level level, PlayerMob player, List<InventoryRange> ranges) {
       if (!enabled) {
@@ -261,12 +327,7 @@ public final class BuildMenuCompat {
          return;
       }
 
-      RemoteBinding binding = findPairedBinding(player);
-      if (binding == null) {
-         return;
-      }
-
-      RemoteTerminal.Resolved resolved = RemoteTerminal.resolve(client, binding);
+      RemoteTerminal.Resolved resolved = RemoteTerminal.resolve(client, findPairedBinding(player));
       if (!resolved.ok()) {
          return;
       }
@@ -301,10 +362,21 @@ public final class BuildMenuCompat {
       }
    }
 
+   /** Reports a failure from the client display or the sweep, rate-limited hard. */
+   public static void snapshotFailed(Throwable cause) {
+      snapshotFailures++;
+      if (snapshotFailures <= 3L) {
+         GameLog.warn.println("Arcane Storage: Build Menu's client display could not be refreshed (" + cause + ")."
+               + (snapshotFailures == 3L ? " Further occurrences will not be logged." : ""));
+         cause.printStackTrace();
+      }
+   }
+
    private static volatile long appendedFailures;
+   private static volatile long snapshotFailures;
 
    /** The first paired wireless terminal in the player's bag, as the binding it carries, or null. */
-   private static RemoteBinding findPairedBinding(PlayerMob player) {
+   static RemoteBinding findPairedBinding(PlayerMob player) {
       if (player.getInv() == null || player.getInv().main == null) {
          return null;
       }
@@ -323,7 +395,62 @@ public final class BuildMenuCompat {
       return null;
    }
 
-   /** The advice inlined into Build Menu's method. Kept here so the Build Menu name stays in one file. */
+   /** Stores a received summary and asks Build Menu's three snapshots to carry it. Client-side. */
+   public static void applyNetworkSummary(Inventory summary) {
+      networkSummaryRange = (summary == null || summary.getSize() == 0) ? null : new InventoryRange(summary);
+      refreshClientSnapshots();
+   }
+
+   /**
+    * Returns Build Menu's own list with the cached network summary appended, remembering the former
+    * for a later refresh. The argument is replaced, never mutated, so a stale range cannot accumulate.
+    */
+   static List<InventoryRange> withNetworkSummary(List<InventoryRange> storageRanges) {
+      lastBuildMenuSnapshot = storageRanges;
+      InventoryRange network = networkSummaryRange;
+      if (network == null) {
+         return storageRanges;
+      }
+
+      List<InventoryRange> combined = new ArrayList<>((storageRanges == null ? 0 : storageRanges.size()) + 1);
+      if (storageRanges != null) {
+         combined.addAll(storageRanges);
+      }
+
+      combined.add(network);
+      return combined;
+   }
+
+   /**
+    * Re-invokes Build Menu's three {@code onStorageSnapshot} methods with the last list they were
+    * given, so a change to the network alone refreshes their view without a settlement snapshot.
+    */
+   private static void refreshClientSnapshots() {
+      if (!active) {
+         return;
+      }
+
+      List<InventoryRange> current = lastBuildMenuSnapshot;
+      if (current == null) {
+         current = new ArrayList<>();
+      }
+
+      for (PatchTarget target : TARGETS) {
+         if (!target.snapshot) {
+            continue;
+         }
+
+         try {
+            Class<?> cls = resolveClass(target.className);
+            Method method = cls.getMethod(target.methodName, target.argumentTypes);
+            method.invoke(null, current);
+         } catch (Throwable t) {
+            snapshotFailed(t);
+         }
+      }
+   }
+
+   /** The advice inlined into Build Menu's server method. */
    public static final class BuildMenuAvailabilityAdvice {
 
       private BuildMenuAvailabilityAdvice() {
@@ -338,6 +465,22 @@ public final class BuildMenuCompat {
             BuildMenuCompat.appendNetworkRanges(level, player, ranges);
          } catch (Throwable t) {
             BuildMenuCompat.appendFailed(t);
+         }
+      }
+   }
+
+   /** The advice inlined into Build Menu's three client snapshot methods. */
+   public static final class SnapshotAdvice {
+
+      private SnapshotAdvice() {
+      }
+
+      @Advice.OnMethodEnter
+      static void onEnter(@Advice.Argument(value = 0, readOnly = false) List<InventoryRange> storageRanges) {
+         try {
+            storageRanges = BuildMenuCompat.withNetworkSummary(storageRanges);
+         } catch (Throwable t) {
+            BuildMenuCompat.snapshotFailed(t);
          }
       }
    }
