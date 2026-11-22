@@ -5,6 +5,18 @@ the GitHub release notes are both taken from here, so they cannot disagree.
 
 Dates are release dates. Anything still unreleased sits under Unreleased until it ships.
 
+## Unreleased
+
+**A refused crafting station now says why.** Dropping something a socket will not take -- a forge, a cooking
+station, a lump of stone -- used to leave the slot empty with nothing said, which read as a broken slot. A line
+now appears where you dropped it, saying what a socket takes: a crafting station that works from any tile.
+Forges and cooking stations are declined on purpose, because they burn fuel over time and that cannot be
+honoured from a socket.
+
+**The item list keeps its place.** A settler depositing, a bus moving a stack, or your own withdrawal no longer
+throws the storage list back to the top. It still starts at the top after a search or a filter change, where a
+narrower list is what you asked for.
+
 ## 1.2.0
 
 **Buses can count in their chest instead of the network.** A new *Count in* choice under the number on both
