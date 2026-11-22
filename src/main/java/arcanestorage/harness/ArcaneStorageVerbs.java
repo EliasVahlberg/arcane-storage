@@ -165,6 +165,7 @@ public final class ArcaneStorageVerbs {
       Harness.registerVerb(new BuildMenuCraftVerb());
       Harness.registerExpectation(new BuildMenuCostQuery());
       Harness.registerExpectation(new BuildMenuSummaryQuery());
+      Harness.registerExpectation(new BuildMenuClientQuery());
       Harness.registerExpectation(new BuildMenuPacketSizeQuery());
       Harness.registerVerb(new BuildMenuSweepVerb());
       Harness.registerVerb(new BuildMenuToggleVerb());
@@ -3831,5 +3832,128 @@ public final class ArcaneStorageVerbs {
       }
 
       return data;
+   }
+
+   // ===============================================================================================================
+   // The client half of the Build Menu compat, driven headlessly. Appended at the end with everything above for the
+   // same reason: concurrent work elsewhere in this file merges without touching it.
+   // ===============================================================================================================
+
+   /**
+    * {@code query buildmenuclient <itemStringID>} -> the client path, end to end, with no window.
+    *
+    * <p><b>What this proves that nothing else did.</b> The compat sends a compact summary to connected clients and
+    * Build Menu's own tools read the client-side copy. Everything on that path used to be tested in pieces: the
+    * packet's own serialisation, and the statics behind the accessor. What was never exercised together is the
+    * sequence a player's game actually performs -- a real {@code Client}, a real packet through
+    * {@code processClient}, the client-side statics, and the per-tick re-apply the patch is supposed to drive.
+    *
+    * <p><b>How a client exists here at all.</b> {@code Client} ships in the same jar as the server, and its
+    * singleplayer constructor touches only settings, the DLC provider, loading, chat, commands and the packet
+    * manager -- no window, no graphics. Its frame drain runs before the loading gate, so a client that never
+    * connected can still process a packet, and the tick is survivable on a never-started client as long as nothing
+    * provokes an error path, which would construct the main menu. So this is not a client harness: it is one packet,
+    * one frame, a few ticks, and then the client is retired.
+    *
+    * <p><b>Retiring it matters, because the harness server is one JVM for the whole suite.</b> The constructor adds
+    * three change listeners to the game's own settings, kept alive by {@code isDisconnected()}; nothing else it
+    * allocates survives -- the socket executor creates its thread only when a packet is sent, and no world or level
+    * is ever attached. Marking it disconnected retires those listeners, so a later settings change cannot call into
+    * a probe that is finished with. That is done last, because a disconnected client stops draining packets.
+    *
+    * <p>{@code ticks} is the assertion with no other witness: how many times the client-tick advice ran. A weave that
+    * silently failed and a tick with nothing cached look identical from everywhere else.
+    */
+   private static final class BuildMenuClientQuery implements TestVerb, TestQuery {
+      public String name() {
+         return "buildmenuclient";
+      }
+
+      public String usage() {
+         return "query buildmenuclient <itemStringID>";
+      }
+
+      public boolean needsPlayer() {
+         return true;
+      }
+
+      public boolean run(TestContext context) {
+         return true;
+      }
+
+      public void query(TestContext context, Json.Writer out) {
+         Inventory sent = arcanestorage.patch.BuildMenuSummary.summaryFor(context.client, context.client.playerMob);
+         out.bool("available", sent != null);
+         if (sent == null) {
+            // No paired terminal, so there is nothing for the compat to offer. Reported rather than failed: what that
+            // means is the calling test's business.
+            return;
+         }
+
+         out.bool("active", arcanestorage.patch.BuildMenuCompat.isActive());
+         out.num("sent", countOf(sent, context.arg(2)));
+
+         necesse.engine.gameLoop.tickManager.TickManager ticks =
+               new necesse.engine.gameLoop.tickManager.TickManager("arcanestorage-client-probe", 60);
+         necesse.engine.network.client.Client probe =
+               new necesse.engine.network.client.Client(ticks, context.server, true);
+         try {
+            long before = arcanestorage.patch.BuildMenuCompat.clientTickCount();
+            long failuresBefore = arcanestorage.patch.BuildMenuCompat.snapshotFailureCount();
+            deliver(probe, ticks, new arcanestorage.patch.PacketBuildMenuNetworkSummary(sent));
+
+            InventoryRange received = arcanestorage.patch.BuildMenuCompat.networkSummaryRange();
+            out.num("distinct", received == null ? -1 : occupied(received.inventory));
+            out.num("amount", received == null ? -1 : countOf(received.inventory, context.arg(2)));
+
+            for (int i = 0; i < 3; i++) {
+               probe.tick();
+            }
+
+            out.num("ticks", arcanestorage.patch.BuildMenuCompat.clientTickCount() - before);
+
+            // A summary with nothing in it is how the server says a player stopped being connected, and it has to
+            // clear what is cached rather than leave the last one standing.
+            deliver(probe, ticks, new arcanestorage.patch.PacketBuildMenuNetworkSummary(new Inventory(0)));
+            out.bool("cleared", arcanestorage.patch.BuildMenuCompat.networkSummaryRange() == null);
+
+            // Both halves of the client path catch their own failures and log them, so a broken one looks exactly
+            // like a working one with nothing to do. This is the count that tells the two apart.
+            out.num("failures", arcanestorage.patch.BuildMenuCompat.snapshotFailureCount() - failuresBefore);
+         } finally {
+            probe.disconnect("arcanestorage client probe finished");
+         }
+      }
+
+      /** Puts a packet in the client's inbound queue and runs one frame, which is what drains it. */
+      private static void deliver(necesse.engine.network.client.Client client,
+            necesse.engine.gameLoop.tickManager.TickManager ticks,
+            arcanestorage.patch.PacketBuildMenuNetworkSummary packet) {
+         client.packetManager.submitInPacket(new necesse.engine.network.NetworkPacket(packet, null));
+         client.frameTick(ticks);
+      }
+
+      private static int occupied(Inventory inventory) {
+         int count = 0;
+         for (int slot = 0; slot < inventory.getSize(); slot++) {
+            if (inventory.getItem(slot) != null) {
+               count++;
+            }
+         }
+
+         return count;
+      }
+
+      private static int countOf(Inventory inventory, String itemID) {
+         int total = 0;
+         for (int slot = 0; slot < inventory.getSize(); slot++) {
+            InventoryItem item = inventory.getItem(slot);
+            if (item != null && item.item.getStringID().equals(itemID)) {
+               total += item.getAmount();
+            }
+         }
+
+         return total;
+      }
    }
 }
