@@ -8,6 +8,28 @@ Restructured 11 Aug 2026 because it had grown into a diary and he was right that
 Revised again the same evening: the bash scenario suite it kept citing no longer exists, so every
 reference now points at the pytest file that owns the assertion. See `docs/TESTING.md`.
 
+## Needs eyes — Build Menu compat (Nov 2026)
+
+**0j. Building from the network, in a window.** *Compiled and unit tested, not run in a window. The
+server half is proven headless (`tests/python/test_build_menu.py` consumes from the network with the
+exact remaining count), and the client view and summary are unit tested — but the whole client path,
+Build Menu's greyed-out display and its refusal message included, has never been seen, because nothing
+headless draws a client at all.*
+
+Worth doing because this is the one place the two mods meet in a UI, and a wrong "can afford" on the
+client would refuse a placement the server would happily honour.
+
+1. Place a Storage Terminal, a couple of Storage Units and a Wireless Transceiver; put the materials
+   for a cheap blueprint or placeable into the units and nothing into the player's pockets. Carry a
+   Wireless Terminal paired to that transceiver.
+2. Open Build Menu and pick the item whose materials live only in the network. **It should be shown
+   as buildable, with the owned count reading what the network holds.**
+3. Place it. **The placement should succeed, and the network's remaining count should drop by the cost.**
+4. Put the Wireless Terminal away (into a chest, not the bag). **The item should grey out again** as
+   the network is no longer offered, then return once the terminal is picked back up.
+5. Repeat while standing inside a settlement with a settlement chest nearby, so both the settlement
+   chests and the network are on the list, and the player's own pockets drain before the network.
+
 ## Needs eyes — the storage tab's item list (Nov 2026)
 
 **0i. The list keeps its place across a content change.** *Compiled and covered by reasoning, not seen: the

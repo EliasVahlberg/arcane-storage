@@ -218,15 +218,30 @@ rather than inherited.
 Build Menu places blueprints and takes their materials from the player's inventory, cloud storage and
 settlement chests. Its author declined to add support here, so this mod does it on our side.
 
-**What is patched.** Build Menu's `BuildMenuInventoryUtil.buildAvailabilityRanges(Level, PlayerMob,
-int, int)` builds the single list of `InventoryRange`s that every place, paste and craft path hands to
-the engine's `Recipe.canCraftRange` and `craftRange`. This mod appends the network's inventories to
-that list, so the engine — which already sums across ranges — does the counting and consuming. Nothing
-here re-implements item consumption, which is where duplication bugs live.
+**What is patched, and why four methods.** Build Menu checks affordability on the client *before* any
+packet reaches the server, from the player's bag, cloud and a list its own three
+`onStorageSnapshot(List<InventoryRange>)` methods assign — a list only ever fed by settlement storage.
+So the server patch alone is not enough: a player whose materials are in the network would be refused
+on the client first. Four methods are therefore patched together, all-or-nothing:
+
+- `BuildMenuInventoryUtil.buildAvailabilityRanges(Level, PlayerMob, int, int)` — the server side. The
+  network's inventories are appended to the list, and the engine's `Recipe.canCraftRange` and
+  `craftRange` do the counting and consuming. Nothing here re-implements item consumption, which is
+  where duplication bugs live.
+- the three `onStorageSnapshot` methods — the client side. The advice appends a compact network
+  summary to whatever list each is given, in and outside a settlement, so the client's "can afford"
+  view includes the network. The client only counts from the summary; consumption stays on the server
+  against the real units.
+
+The summary is sent on a mod-registered packet, one stack per distinct item (distinct by item and
+saved data, so variants stay apart) with the summed count, throttled to Build Menu's own 500 ms
+cadence and only to a connected player. It is a compact summary, never the raw unit contents. An empty
+summary clears the client's view when the player stops being connected.
 
 Because Build Menu is deliberately not on this mod's compile classpath, the advice is installed by
 class name through ByteBuddy rather than through the usual patch annotation, which takes a class
-literal. The class and method above are the only Build Menu identifiers named anywhere in this mod.
+literal. The class and method names above are the only Build Menu identifiers named anywhere in this
+mod.
 
 **The connected rule.** The player is connected when they carry a wireless terminal paired to a
 transceiver. Resolution is the wireless terminal's own, server-side: the player's real inventory is
@@ -237,9 +252,10 @@ chests drain before it.
 **The toggle.** `buildMenuCompat` in the config file, on by default, turns the link off without
 otherwise changing what Build Menu does.
 
-**How a Build Menu update is caught.** The method's signature — name, parameter types and return type
-— is checked by reflection at load, not by a version string. If Build Menu changes it, one line is
-logged and the compat turns itself off for that launch; everything else works as before. The headless
-suite runs the integration test against the Workshop copy and skips, rather than fails, when that copy
-is absent.
+**How a Build Menu update is caught.** Every target's signature — name, parameter types and return
+type — is checked by reflection at load, not by a version string, and the classes are resolved without
+initialising them. If Build Menu changes any one, one line is logged and the whole compat turns itself
+off for that launch; a half-woven state is worse than none. Everything else works as before. The
+headless suite runs the integration test against the Workshop copy and skips, rather than fails, when
+that copy is absent.
 
