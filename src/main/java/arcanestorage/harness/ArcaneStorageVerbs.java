@@ -187,6 +187,16 @@ public final class ArcaneStorageVerbs {
       Harness.registerVerb(new PairVerb());
       Harness.registerVerb(new OpenRemoteVerb());
       Harness.registerExpectation(new BindingQuery());
+
+      // Settler order counting. Registered last, and the block that follows allUnits at the end of this file, so
+      // work landing elsewhere in here merges without touching either side.
+      Harness.registerVerb(new OrderFoundVerb());
+      Harness.registerVerb(new OrderAssignVerb());
+      Harness.registerVerb(new OrderSettlerVerb());
+      Harness.registerVerb(new OrderDisbandVerb());
+      Harness.registerVerb(new OrderConfigVerb());
+      Harness.registerExpectation(new OrderHaveQuery());
+      Harness.registerExpectation(new OrderCountQuery());
    }
 
    // ---------------------------------------------------------------------------------------
@@ -3465,5 +3475,361 @@ public final class ArcaneStorageVerbs {
          context.info("Build Menu compat " + value);
          return true;
       }
+   }
+   // ===============================================================================================================
+   // Settler "craft until N" orders. Owned separately from everything above, appended at the end on purpose so
+   // concurrent work elsewhere in this file merges without touching it. Fully-qualified types below rather than
+   // imports at the top of the file, for the same reason. Nothing above this line uses any of it.
+   // ===============================================================================================================
+
+   /**
+    * {@code orderfound <dx> <dy>} -- founds a settlement with a flag on that tile, owned by the test player.
+    *
+    * <p>The engine's own path, in the order the in-game flow drives it: the flag tile, the world-data update, and then
+    * an owner. Verification needs a live settlement because the behaviour under test is about what a settlement counts,
+     * and the harness ships no settler or order vocabulary at all -- both live in the game's settlement subsystem,
+    * which the harness deliberately knows nothing about.
+    */
+   private static final class OrderFoundVerb implements TestVerb {
+      public String name() {
+         return "orderfound";
+      }
+
+      public String usage() {
+         return "orderfound <dx> <dy>";
+      }
+
+      public int coordinateArgIndex() {
+         return 1;
+      }
+
+      public boolean needsPlayer() {
+         return true;
+      }
+
+      public boolean run(TestContext context) {
+         int x = context.tileX(context.intArg(1));
+         int y = context.tileY(context.intArg(2));
+         necesse.engine.world.worldData.SettlementsWorldData worldData =
+               necesse.engine.world.worldData.SettlementsWorldData.getSettlementsData(context.level.getWorldEntity());
+
+         necesse.level.maps.levelData.settlementData.ServerSettlementData data =
+               worldData.getOrCreateServerData(context.level, x, y);
+         data.networkData.setFlagTile(x, y);
+         worldData.updateSettlement(data);
+         data.networkData.setOwner(context.client);
+         data.networkData.markPreventDisbanding();
+
+         return context.check(data.networkData.hasOwner(), "settlement founded at " + x + "," + y, "");
+      }
+   }
+
+   /**
+    * {@code orderassign <dx> <dy>} -- assigns the container on that tile as settlement storage.
+    *
+    * <p>What the reported loop needs to exist: the engine counts only assigned storage, so a chest the player assigned
+    * is counted and the Storage Units beside it are not.
+    */
+   private static final class OrderAssignVerb implements TestVerb {
+      public String name() {
+         return "orderassign";
+      }
+
+      public String usage() {
+         return "orderassign <dx> <dy>";
+      }
+
+      public int coordinateArgIndex() {
+         return 1;
+      }
+
+      public boolean run(TestContext context) {
+         int x = context.tileX(context.intArg(1));
+         int y = context.tileY(context.intArg(2));
+         necesse.level.maps.levelData.settlementData.ServerSettlementData data = settlementAt(context, x, y);
+         if (data == null) {
+            return false;
+         }
+
+         if (data.storageManager.assignStorage(x, y, false) == null) {
+            return context.fail("the settlement refused " + x + "," + y
+                  + " as storage: no inventory there, outside its bounds, or the container offers settlers nothing");
+         }
+
+         return context.check(true, "container at " + x + "," + y + " assigned as settlement storage", "");
+      }
+   }
+
+   /**
+    * {@code ordersettler <dx> <dy>} -- moves a farmer into the settlement covering that tile.
+    *
+    * <p>A worker is required rather than incidental: the count only applies to a settler that is inside its own
+    * settlement, because that is the only case the engine asks the question for.
+    */
+   private static final class OrderSettlerVerb implements TestVerb {
+      public String name() {
+         return "ordersettler";
+      }
+
+      public String usage() {
+         return "ordersettler <dx> <dy>";
+      }
+
+      public int coordinateArgIndex() {
+         return 1;
+      }
+
+      public boolean run(TestContext context) {
+         int x = context.tileX(context.intArg(1));
+         int y = context.tileY(context.intArg(2));
+         necesse.level.maps.levelData.settlementData.ServerSettlementData data = settlementAt(context, x, y);
+         if (data == null) {
+            return false;
+         }
+
+         necesse.level.maps.levelData.settlementData.settler.SettlerMob mob =
+               necesse.engine.registries.SettlerRegistry.getSettler("farmer").getNewSettlerMob(data);
+         if (mob == null) {
+            return context.fail("the settlement found no tile for a new settler; clear the area around " + x + "," + y);
+         }
+
+         mob.setSettlerSeed(necesse.engine.util.GameRandom.globalRandom.nextInt(), false);
+         context.level.entityManager.mobs.add(mob.getMob());
+         data.moveIn(new necesse.level.maps.levelData.settlementData.LevelSettler(data, mob));
+
+         // The spawn search may place a new settler outside the bounds -- the ones this settlement's flag
+         // covers are five regions wide, so "outside" is a long walk -- and every question this file asks is
+         // about a settler standing inside its own settlement. Put it on the flag tile, which is inside by
+         // definition, rather than waiting for it to wander in.
+         mob.getMob().setPos(x * 32 + 16, y * 32 + 16, true);
+
+         return context.check(data.countTotalSettlers() >= 1, "farmer moved in", "");
+      }
+   }
+
+   /**
+    * {@code orderdisband <dx> <dy>} -- removes the settlement covering that tile, the way the world does when its
+    * flag is gone.
+    *
+    * <p>Cleanup rather than a step in any scenario, and not optional for a suite that shares one server: a settlement
+    * that exists with an owner holds its level's unload buffer at zero, so every later test about regions being
+    * unloaded fails for a reason that has nothing to do with what it is checking. The engine takes it from here on
+    * its next tick.
+    */
+   private static final class OrderDisbandVerb implements TestVerb {
+      public String name() {
+         return "orderdisband";
+      }
+
+      public String usage() {
+         return "orderdisband <dx> <dy>";
+      }
+
+      public int coordinateArgIndex() {
+         return 1;
+      }
+
+      public boolean run(TestContext context) {
+         int x = context.tileX(context.intArg(1));
+         int y = context.tileY(context.intArg(2));
+         necesse.level.maps.levelData.settlementData.ServerSettlementData data = settlementAt(context, x, y);
+         if (data == null) {
+            return false;
+         }
+
+         data.networkData.disband();
+         return context.check(true, "settlement at " + x + "," + y + " disbanded", "");
+      }
+   }
+
+   /**
+    * {@code query orderhave <dx> <dy> <itemStringID> <max>} -> {@code {settlers, vanilla, count}}.
+    *
+    * <p><b>This is the feature's decision, asked directly.</b> It calls the engine's own
+    * {@code HasStorageLevelJob.getItemCount} -- the one method a settler's "craft until N" order is answered with,
+    * reached with a real worker, a real settlement and the real filter the order builds. So the patch is exercised
+    * rather than imitated: if the advice were not woven, {@code count} would equal {@code vanilla}.
+    *
+    * <p>{@code vanilla} is read by running the same call with the setting off, which is also the thing that proves the
+    * setting restores the old behaviour exactly. Both numbers are reported because "the patch ran and found nothing"
+    * and "the patch did not run" are different faults with the same symptom.
+    */
+   private static final class OrderHaveQuery implements TestVerb, TestQuery {
+      public String name() {
+         return "orderhave";
+      }
+
+      public String usage() {
+         return "query orderhave <dx> <dy> <itemStringID> <max>";
+      }
+
+      public int coordinateArgIndex() {
+         return 2;
+      }
+
+      public boolean needsPlayer() {
+         return true;
+      }
+
+      public boolean run(TestContext context) {
+         return true;
+      }
+
+      public void query(TestContext context, Json.Writer out) {
+         int x = context.tileX(context.intArg(2));
+         int y = context.tileY(context.intArg(3));
+         necesse.level.maps.levelData.settlementData.ServerSettlementData data = settlementAt(context, x, y);
+         necesse.entity.mobs.friendly.human.HumanMob worker = data == null ? null : settlerOf(data);
+
+         out.num("settlers", data == null ? 0 : data.countTotalSettlers());
+         if (data != null) {
+            // Where the settlement thinks it is, so a test that sees zero can tell "not in bounds" from "no settler".
+            out.num("flagx", data.networkData.getTileX()).num("flagy", data.networkData.getTileY());
+            out.num("tier", data.getFlagTier());
+         }
+
+         if (worker == null) {
+            context.fail("no settler in the settlement at " + x + "," + y + "; run 'ordersettler' first");
+            out.num("vanilla", 0).num("count", 0).bool("inbounds", false);
+            out.str("mob", firstSettlerClass(data));
+            return;
+         }
+
+         out.num("settlerx", worker.getTileX()).num("sety", worker.getTileY());
+
+         int max = context.intArg(5);
+         InventoryItem wanted = new InventoryItem(context.arg(4), 1);
+         java.util.function.Predicate<InventoryItem> matches =
+               item -> item.equals(context.level, wanted, true, true, "equals");
+
+         boolean was = ArcaneStorage.SETTINGS.settlerOrderCountsUnits;
+         int vanilla;
+         try {
+            ArcaneStorage.SETTINGS.settlerOrderCountsUnits = false;
+            vanilla = necesse.level.maps.levelData.jobs.HasStorageLevelJob
+                  .getItemCount(worker, matches, max, true, true);
+         } finally {
+            ArcaneStorage.SETTINGS.settlerOrderCountsUnits = was;
+         }
+
+         int count = necesse.level.maps.levelData.jobs.HasStorageLevelJob
+               .getItemCount(worker, matches, max, true, true);
+
+         // How many units were gathered, separately from the total they add up to: a unit wrongly included and a unit
+         // wrongly excluded can leave the same total when their contents differ, so the set is worth reading too.
+         out.num("units", arcanestorage.settlement.SettlerOrderCount.unitsFor(worker).size());
+         out.num("vanilla", vanilla).num("count", count).bool("inbounds", worker.isSettlerWithinSettlement());
+      }
+
+      /**
+       * A settler of the settlement that could take a job, preferring one inside the bounds.
+       *
+       * <p>The preference matters in a suite: every test here moves a settler in, so after the first few there are
+       * several, and a settler that has wandered past its settlement's edge is not the worker an order's count is
+       * asked for. The fallback keeps the reason legible rather than reporting "no settler at all".
+       */
+      private static necesse.entity.mobs.friendly.human.HumanMob settlerOf(
+            necesse.level.maps.levelData.settlementData.ServerSettlementData data) {
+         necesse.entity.mobs.friendly.human.HumanMob any = null;
+
+         for (necesse.level.maps.levelData.settlementData.LevelSettler settler : data.getSettlers()) {
+            if (!(settler.getMob() instanceof necesse.entity.mobs.friendly.human.HumanMob)) {
+               continue;
+            }
+
+            necesse.entity.mobs.friendly.human.HumanMob human =
+                  (necesse.entity.mobs.friendly.human.HumanMob)settler.getMob();
+            if (human.isSettlerWithinSettlement()) {
+               return human;
+            }
+
+            if (any == null) {
+               any = human;
+            }
+         }
+
+         return any;
+      }
+
+      /** Diagnostic for a settlement whose settler cannot be found: what the entry actually resolves to. */
+      private static String firstSettlerClass(necesse.level.maps.levelData.settlementData.ServerSettlementData data) {
+         if (data == null) {
+            return "no settlement";
+         }
+
+         for (necesse.level.maps.levelData.settlementData.LevelSettler settler : data.getSettlers()) {
+            Object mob = settler.getMob();
+            return mob == null ? "null mob, uniqueID " + settler.mobUniqueID : mob.getClass().getName();
+         }
+
+         return "no settler entries";
+      }
+   }
+
+   /**
+    * {@code orderconfig <on|off>} -- flips the setting for the rest of the run.
+    *
+    * <p>A verb rather than a config file edit because the suite must prove the off path returns vanilla, and a config
+    * file is read once at boot.
+    */
+   private static final class OrderConfigVerb implements TestVerb {
+      public String name() {
+         return "orderconfig";
+      }
+
+      public String usage() {
+         return "orderconfig <on|off>";
+      }
+
+      public boolean run(TestContext context) {
+         String value = context.arg(1);
+         if (!"on".equalsIgnoreCase(value) && !"off".equalsIgnoreCase(value)) {
+            return context.fail("orderconfig takes 'on' or 'off', not '" + value + "'");
+         }
+
+         ArcaneStorage.SETTINGS.settlerOrderCountsUnits = "on".equalsIgnoreCase(value);
+         return context.check(true, "settler order counting " + (ArcaneStorage.SETTINGS.settlerOrderCountsUnits ? "on" : "off"), "");
+      }
+   }
+
+   /**
+    * {@code query ordercount} -> {@code {applied, calls, failures, enabled}}.
+    *
+    * <p>{@code applied} is the answer to "was the engine method actually edited", asked by running it and watching
+    * this mod be consulted. A patch that silently fails to weave leaves the bug in place while every other test here
+    * still passes, so this is the one assertion that has to be made rather than assumed.
+    */
+   private static final class OrderCountQuery implements TestVerb, TestQuery {
+      public String name() {
+         return "ordercount";
+      }
+
+      public String usage() {
+         return "query ordercount";
+      }
+
+      public boolean run(TestContext context) {
+         return true;
+      }
+
+      public void query(TestContext context, Json.Writer out) {
+         out.bool("applied", arcanestorage.settlement.SettlerOrderCount.verify());
+         out.num("calls", arcanestorage.settlement.SettlerOrderCount.calls());
+         out.num("failures", arcanestorage.settlement.SettlerOrderCount.failures());
+         out.bool("enabled", arcanestorage.settlement.SettlerOrderCount.enabled());
+      }
+   }
+
+   /** The settlement covering a tile, or null after reporting why there is none. */
+   private static necesse.level.maps.levelData.settlementData.ServerSettlementData settlementAt(
+         TestContext context, int x, int y) {
+      necesse.level.maps.levelData.settlementData.ServerSettlementData data =
+            necesse.engine.world.worldData.SettlementsWorldData.getSettlementsData(context.level.getWorldEntity())
+                  .getServerDataAtTile(context.level.getIdentifier(), x, y);
+      if (data == null) {
+         context.fail("no settlement covers " + x + "," + y + "; run 'orderfound' first");
+      }
+
+      return data;
    }
 }
