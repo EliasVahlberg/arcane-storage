@@ -29,6 +29,37 @@ client would refuse a placement the server would happily honour.
    the network is no longer offered, then return once the terminal is picked back up.
 5. Repeat while standing inside a settlement with a settlement chest nearby, so both the settlement
    chests and the network are on the list, and the player's own pockets drain before the network.
+## Needs eyes — settler orders and the bus hint (Nov 2026)
+
+**0k. A settler really crafting a "craft until N" order, with the output moved into a unit.** *The count itself is
+covered headlessly, and so is the patch being woven — `tests/python/test_order_count.py` drives the engine's own
+`getItemCount` with a real settlement, a real settler and the mod's patch in place. What no test can reach is the step
+after it: a settler choosing the job, walking to the bench and crafting. Job selection runs on the engine's own
+executor, competing with eating, wandering and night, which is a schedule nothing headless can pin. So this one was
+not run in a window, and the arithmetic is what is proven.*
+
+1. **Build the setup the report had.** A settlement with a Workstation assigned as a workstation and a chest beside
+   it assigned as settlement storage. An Arcane Import or Export Bus on that chest so its contents move into a Storage
+   Unit placed **inside the settlement's bounds**. The unit itself must *not* be assigned to settlement storage --
+   that is what makes the case the reported one.
+2. **Give the bench an order:** open the Workstation, put something it can make (a Storage Box from logs is enough)
+   on "craft until 200", and let the settler go. Before this change the number never rose once the bus moved the
+   results out, so the settler crafted forever.
+3. **Watch the order reach its number and stop**, with a good part of the 200 sitting in the Storage Unit rather than
+   in the chest. That is the whole fix, seen.
+4. **Now break a Storage Unit's contents apart from this mod's view:** take the whole stack out of the unit by hand.
+   The order should go back to crafting, because the settlement no longer has the number.
+5. **Check the setting.** `settlerOrderCountsUnits = false` in the mod's config file, reload, and repeat step 3: the
+   order should behave exactly as it did before this change -- that is, keep crafting -- which is the proof that "off"
+   is vanilla rather than "off is broken".
+6. **Read the hint under Count in.** On either bus, choose *Container* under the number and confirm one faint line
+   appears under the dropdown saying settlers only see a chest assigned to settlement storage; choose *Network* and
+   confirm it goes away. Nothing headless draws it, and the row is a fixed 18px, so it is worth a glance for overlap
+   with the search box below it -- a warning is logged if the text does not fit, so a log line saying so is the
+   signal.
+
+Also worth knowing while doing this: the count a settler is given is a ceiling, so an order stopping a little earlier
+than a player expects is the safe direction and not a fault. Over-counting stops work; under-counting repeats it.
 
 ## Needs eyes — the storage tab's item list (Nov 2026)
 

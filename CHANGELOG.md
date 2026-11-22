@@ -7,6 +7,14 @@ Dates are release dates. Anything still unreleased sits under Unreleased until i
 
 ## Unreleased
 
+**A settler's "craft until N" order now counts stock kept in Storage Units inside the settlement.** Before this, an
+order was compared only against what the settlement's assigned storage held -- so a chest with an export bus beside
+it sent every result straight into a unit, the count never rose, and the order crafted forever. Anything in a Storage
+Unit standing inside the settlement now counts toward the number, and it is a ceiling: an order stops when the
+settlement has N of the item, wherever those N are kept. Ingredients are unchanged, because settlers cannot take items
+out of a unit and counting them there would leave jobs unfinished. `settlerOrderCountsUnits` in the mod's config file
+turns it off, and off counts exactly what the game counts on its own.
+
 **A refused crafting station now says why.** Dropping something a socket will not take -- a forge, a cooking
 station, a lump of stone -- used to leave the slot empty with nothing said, which read as a broken slot. A line
 now appears where you dropped it, saying what a socket takes: a crafting station that works from any tile.
