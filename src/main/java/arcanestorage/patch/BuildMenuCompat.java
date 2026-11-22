@@ -139,6 +139,20 @@ public final class BuildMenuCompat {
 
    private static volatile long lastReapplyMs;
 
+   /** How many times the client tick advice has run, whatever it then decided to do. Diagnostic. */
+   private static volatile long clientTicks;
+
+   /**
+    * The cached-summary re-apply's own tick count.
+    *
+    * <p>Read by the harness, which drives a real {@code Client} headlessly. A weave that silently failed and
+    * a tick with nothing cached both leave no trace anywhere else, and the first means the whole client half
+    * of this feature is doing nothing in players' games.
+    */
+   public static long clientTickCount() {
+      return clientTicks;
+   }
+
    public static boolean isEnabled() {
       return enabled;
    }
@@ -391,6 +405,16 @@ public final class BuildMenuCompat {
       }
    }
 
+   /**
+    * How many client-display refreshes have failed, counted even once logging stops.
+    *
+    * <p>Read by the harness: a failure here is caught and logged rather than thrown, so a broken client path
+    * presents as "installed and doing nothing" unless something counts the failures.
+    */
+   public static long snapshotFailureCount() {
+      return snapshotFailures;
+   }
+
    private static volatile long appendedFailures;
    private static volatile long snapshotFailures;
 
@@ -423,8 +447,15 @@ public final class BuildMenuCompat {
    /**
     * Returns Build Menu's own list with the cached network summary appended, remembering the former
     * for a later refresh. The argument is replaced, never mutated, so a stale range cannot accumulate.
+    *
+    * <p><b>Public for a runtime reason, not an API one.</b> ByteBuddy inlines the calling advice into
+    * Build Menu's own classes, which are in a different package, so a package-private method is not
+    * reachable from the inlined call site and every invocation fails with {@code IllegalAccessError}.
+    * That is invisible to the unit tests -- they call this from the same package -- and the advice's
+    * own catch turns it into a logged warning and a list with no network on it, so the symptom is a
+    * compat that appears to be installed and offers nothing.
     */
-   static List<InventoryRange> withNetworkSummary(List<InventoryRange> storageRanges) {
+   public static List<InventoryRange> withNetworkSummary(List<InventoryRange> storageRanges) {
       lastBuildMenuSnapshot = storageRanges;
       InventoryRange network = networkSummaryRange;
       if (network == null) {
@@ -448,8 +479,20 @@ public final class BuildMenuCompat {
     * until the next content change. This re-applies the cached summary on the client's own tick, at
     * most twice a second, while a non-empty summary is cached and the compat is active. Idempotent:
     * it passes the same list again, with no packet.
+    *
+    * <p>The tick is counted before any of those guards, because the guards are what make a missing
+    * invocation invisible: with nothing cached this returns immediately having done nothing, which is
+    * indistinguishable from advice that was never woven in. {@link #clientTickCount()} is the difference
+    * between the two, and it is the only way a headless test can tell them apart.
+    *
+    * <p>Public for the same reason as {@link #withNetworkSummary}: the advice is inlined into
+    * {@code Client.tick()}, in the game's own package, and a package-private method there fails with
+    * {@code IllegalAccessError} -- on every client tick, swallowed by the advice's guard, leaving the
+    * re-apply doing nothing in a player's game while every test still passed.
     */
-   static void clientTickReapply() {
+   public static void clientTickReapply() {
+      clientTicks++;
+
       if (!active || networkSummaryRange == null) {
          return;
       }

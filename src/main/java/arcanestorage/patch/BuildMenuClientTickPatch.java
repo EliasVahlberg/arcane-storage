@@ -12,6 +12,10 @@ import net.bytebuddy.asm.Advice;
  * per-tick cost is one boolean read on a client that never receives a summary. On a dedicated server
  * the client tick never runs, so this is dormant there. The body is guarded so a failure cannot
  * interrupt the client tick it rides on.
+ *
+ * <p>{@code clientTickReapply} counts the tick before it decides anything, which is what lets a test
+ * tell "the advice is not woven" from "the advice ran and had nothing to do": both are silent
+ * otherwise, and the first would leave the client half of this feature doing nothing at all.
  */
 @ModMethodPatch(target = Client.class, name = "tick", arguments = {})
 public class BuildMenuClientTickPatch {
