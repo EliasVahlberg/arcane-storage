@@ -165,4 +165,25 @@ public class BuildMenuCompatTest {
       assertSame("Build Menu's own list stays first", buildMenus, result.get(0));
       assertSame("the network is the last resort", BuildMenuCompat.networkSummaryRange(), result.get(1));
    }
+
+   @Test
+   public void a_reapply_is_due_only_after_its_cadence() {
+      assertTrue("a large elapsed time since reset", BuildMenuCompat.shouldReapply(1_000_000, 0));
+      assertTrue("at exactly the cadence", BuildMenuCompat.shouldReapply(500, 0));
+      assertFalse("just under the cadence", BuildMenuCompat.shouldReapply(499, 0));
+      assertFalse("no time elapsed", BuildMenuCompat.shouldReapply(0, 0));
+   }
+
+   @Test
+   public void reapplying_the_same_list_does_not_accumulate() {
+      BuildMenuCompat.applyNetworkSummary(new Inventory(1));
+      List<InventoryRange> base = new ArrayList<InventoryRange>();
+
+      List<InventoryRange> once = BuildMenuCompat.withNetworkSummary(base);
+      List<InventoryRange> twice = BuildMenuCompat.withNetworkSummary(base);
+
+      assertEquals("one summary appended", 1, once.size());
+      assertEquals("and still one on the next pass, not two", 1, twice.size());
+      assertEquals("Build Menu's own list is never mutated", 0, base.size());
+   }
 }

@@ -236,3 +236,23 @@ def test_the_summary_send_is_deduplicated(storage):
     third = storage.query("buildmenu")["summaryPackets"]
     print(f"\npackets sent: {first} -> {second} -> {third}")
     assert third == first + 1, "a burst of changes sends one update, not one per change"
+
+
+def test_the_sweep_is_gated_on_the_compat(storage):
+    """With the compat flipped off, forced sweeps send nothing; on again, they do."""
+    storage.place("transceiver", 0, 0)
+    storage.place("unit", 1, 0)
+    storage.do("pair", 0, 0)
+
+    storage.do("buildmenusweep")
+    assert storage.query("buildmenu")["summaryPackets"] == 1, "active: one send"
+
+    storage.do("buildmenutoggle", "off")
+    for _ in range(3):
+        storage.do("buildmenusweep")
+    # Toggling off forgets the sweep state; the gate must keep the count at zero.
+    assert storage.query("buildmenu")["summaryPackets"] == 0, "inactive: nothing sent over forced sweeps"
+
+    storage.do("buildmenutoggle", "on")
+    storage.do("buildmenusweep")
+    assert storage.query("buildmenu")["summaryPackets"] == 1, "re-enabled: one send, since state was cleared"

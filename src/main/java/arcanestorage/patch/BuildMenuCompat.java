@@ -134,12 +134,28 @@ public final class BuildMenuCompat {
    /** The last list Build Menu handed to {@code onStorageSnapshot}, remembered so a refresh reuses it. */
    private static volatile List<InventoryRange> lastBuildMenuSnapshot;
 
+   /** Re-apply the cached summary no more than twice a second, so an open tool is never stale for long. */
+   private static final long REAPPLY_INTERVAL_MS = 500L;
+
+   private static volatile long lastReapplyMs;
+
    public static boolean isEnabled() {
       return enabled;
    }
 
    public static boolean isActive() {
       return active;
+   }
+
+   /**
+    * For the harness only: flips the installed flag at runtime, so the sweep gate can be exercised
+    * without a second boot. Clearing also drops any per-client state the sweep had built.
+    */
+   public static void setActive(boolean nowActive) {
+      active = nowActive;
+      if (!nowActive) {
+         BuildMenuSummary.forget();
+      }
    }
 
    public static long appendedCount() {
@@ -168,6 +184,7 @@ public final class BuildMenuCompat {
    public static void install() {
       enabled = ArcaneStorage.SETTINGS.buildMenuCompat;
       if (!enabled) {
+         BuildMenuSummary.forget();
          return;
       }
 
@@ -175,12 +192,14 @@ public final class BuildMenuCompat {
       for (PatchTarget target : TARGETS) {
          Class<?> cls = resolveClass(target.className);
          if (cls == null) {
+            BuildMenuSummary.forget();
             return; // Build Menu is not installed. Soft dependency: nothing happens.
          }
 
          String problem = signatureProblem(cls, target.methodName, target.argumentTypes, target.returnType);
          if (problem != null) {
             logMismatch(problem + " (" + target.className + ")");
+            BuildMenuSummary.forget();
             return;
          }
       }
@@ -419,6 +438,34 @@ public final class BuildMenuCompat {
 
       combined.add(network);
       return combined;
+   }
+
+   /**
+    * Re-applies the cached summary to Build Menu's three snapshots at a bounded rate, client-side.
+    *
+    * <p>Build Menu's tools and form start with an empty list and reset it in
+    * {@code cancelStorageSubscription}, so a tool opened after the last packet would see no network
+    * until the next content change. This re-applies the cached summary on the client's own tick, at
+    * most twice a second, while a non-empty summary is cached and the compat is active. Idempotent:
+    * it passes the same list again, with no packet.
+    */
+   static void clientTickReapply() {
+      if (!active || networkSummaryRange == null) {
+         return;
+      }
+
+      long now = System.currentTimeMillis();
+      if (!shouldReapply(now, lastReapplyMs)) {
+         return;
+      }
+
+      lastReapplyMs = now;
+      refreshClientSnapshots();
+   }
+
+   /** Whether a re-apply is due. Extracted so the cadence is a unit test rather than a wait. */
+   static boolean shouldReapply(long now, long lastReapplyMs) {
+      return now - lastReapplyMs >= REAPPLY_INTERVAL_MS;
    }
 
    /**

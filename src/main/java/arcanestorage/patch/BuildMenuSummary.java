@@ -60,7 +60,7 @@ public final class BuildMenuSummary {
 
    /** Called every server tick; sweeps at most once per {@link #INTERVAL_MS}. */
    public static void tick(Server server) {
-      if (server == null) {
+      if (server == null || !BuildMenuCompat.isActive()) {
          return;
       }
 
@@ -84,6 +84,13 @@ public final class BuildMenuSummary {
    }
 
    private static void sweep(Server server) {
+      // The gate lives here as well as in tick, so a forced sweep (the harness's) is also inert
+      // when the compat is off: an absent jar, a toggled-off config or a signature mismatch.
+      if (!BuildMenuCompat.isActive()) {
+         LAST_SENT.clear();
+         return;
+      }
+
       for (ServerClient client : server.getClients()) {
          PlayerMob player = client.playerMob;
          if (player == null) {

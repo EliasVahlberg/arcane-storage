@@ -167,6 +167,7 @@ public final class ArcaneStorageVerbs {
       Harness.registerExpectation(new BuildMenuSummaryQuery());
       Harness.registerExpectation(new BuildMenuPacketSizeQuery());
       Harness.registerVerb(new BuildMenuSweepVerb());
+      Harness.registerVerb(new BuildMenuToggleVerb());
       Harness.registerVerb(new RuleGlobalVerb());
       Harness.registerVerb(new RuleCategoryVerb());
       Harness.registerExpectation(new BusOpenPacketQuery());
@@ -3433,6 +3434,35 @@ public final class ArcaneStorageVerbs {
       public boolean run(TestContext context) {
          arcanestorage.patch.BuildMenuSummary.sweepNow(context.server);
          context.info("swept Build Menu summaries");
+         return true;
+      }
+   }
+
+   /**
+    * {@code buildmenutoggle on|off} -- flips the compat's installed flag, so the sweep gate can be
+    * exercised without a second server boot.
+    */
+   private static final class BuildMenuToggleVerb implements TestVerb {
+      public String name() {
+         return "buildmenutoggle";
+      }
+
+      public String usage() {
+         return "buildmenutoggle on|off";
+      }
+
+      public boolean run(TestContext context) {
+         String value = context.arg(1);
+         if ("on".equals(value)) {
+            arcanestorage.patch.BuildMenuCompat.setActive(true);
+         } else if ("off".equals(value)) {
+            arcanestorage.patch.BuildMenuCompat.setActive(false);
+         } else {
+            context.fail("buildmenutoggle takes on or off");
+            return false;
+         }
+
+         context.info("Build Menu compat " + value);
          return true;
       }
    }
