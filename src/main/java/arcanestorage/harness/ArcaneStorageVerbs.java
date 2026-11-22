@@ -27,6 +27,7 @@ import arcanestorage.network.NetworkIndexes;
 import arcanestorage.network.NetworkScheduler;
 import arcanestorage.network.NetworkStations;
 import arcanestorage.network.NetworkStorage;
+import arcanestorage.patch.BuildMenuCompat;
 import necesse.engine.network.Packet;
 import necesse.engine.network.PacketReader;
 import necesse.engine.network.packet.PacketOpenContainer;
@@ -43,6 +44,12 @@ import necesse.inventory.item.miscItem.InternalInventoryItemInterface;
 import necesse.inventory.item.miscItem.PouchItem;
 import necesse.inventory.Inventory;
 import necesse.inventory.InventoryItem;
+import necesse.inventory.InventoryRange;
+import necesse.inventory.recipe.CanCraft;
+import necesse.inventory.recipe.Ingredient;
+import necesse.inventory.recipe.Recipe;
+import necesse.inventory.recipe.Recipes;
+import necesse.entity.mobs.PlayerMob;
 import necesse.level.maps.Level;
 import necesse.level.maps.regionSystem.RegionManager;
 import necesseheadlessharness.Harness;
@@ -153,6 +160,9 @@ public final class ArcaneStorageVerbs {
       Harness.registerVerb(new StuffPouchVerb());
       Harness.registerExpectation(new PlayerSlotQuery());
       Harness.registerExpectation(new HookQuery());
+      Harness.registerExpectation(new BuildMenuQuery());
+      Harness.registerVerb(new BuildMenuCraftVerb());
+      Harness.registerExpectation(new BuildMenuCostQuery());
       Harness.registerVerb(new RuleGlobalVerb());
       Harness.registerVerb(new RuleCategoryVerb());
       Harness.registerExpectation(new BusOpenPacketQuery());
@@ -3176,5 +3186,125 @@ public final class ArcaneStorageVerbs {
       }
 
       return units;
+   }
+
+   /**
+    * {@code query buildmenu} -- the state of the Build Menu compat: whether it is on, woven in, and
+    * how much it has appended. A patch that silently failed to apply leaves no other trace.
+    */
+   private static final class BuildMenuQuery implements TestVerb, TestQuery {
+      public String name() {
+         return "buildmenu";
+      }
+
+      public String usage() {
+         return "query buildmenu";
+      }
+
+      public boolean run(TestContext context) {
+         return true;
+      }
+
+      public void query(TestContext context, Json.Writer out) {
+         out.bool("enabled", BuildMenuCompat.isEnabled())
+            .bool("active", BuildMenuCompat.isActive())
+            .num("appended", BuildMenuCompat.appendedCount())
+            .num("appendedRanges", BuildMenuCompat.appendedRangeCount())
+            .num("mismatch", BuildMenuCompat.mismatchReports());
+      }
+   }
+
+   /**
+    * {@code buildmenucraft <itemStringID> [dx] [dy]} -- consume one unit of an item through Build
+    * Menu's own material list, as its placement does.
+    *
+    * <p>The tile is only where Build Menu looks for settlement chests, so it defaults to spawn. The
+    * part under test is the list itself: whether the network's ranges are on it, and in what order.
+    */
+   private static final class BuildMenuCraftVerb implements TestVerb {
+      public String name() {
+         return "buildmenucraft";
+      }
+
+      public String usage() {
+         return "buildmenucraft <itemStringID> [dx] [dy]";
+      }
+
+      public boolean needsPlayer() {
+         return true;
+      }
+
+      public boolean run(TestContext context) {
+         String itemID = context.arg(1);
+         int dx = context.argCount() > 2 ? context.intArg(2) : 0;
+         int dy = context.argCount() > 3 ? context.intArg(3) : 0;
+
+         List<InventoryRange> ranges = BuildMenuCompat.availabilityRanges(
+               context.level, context.client.playerMob, context.tileX(dx), context.tileY(dy));
+         if (ranges == null) {
+            context.fail("Build Menu support is not active, so there is no material list to consume from");
+            return false;
+         }
+
+         // Build Menu's own direct-ingredient path, so this exercises its material half rather than a
+         // reimplementation of the whole mod. The engine does the counting and consuming.
+         Ingredient[] direct = Recipes.ingredientsFromScript("{{" + itemID + ", 1}}");
+         if (Recipe.canCraftRange(direct, context.level, context.client.playerMob, ranges, false, null).canCraft()) {
+            Recipe.craftRange(direct, context.level, context.client.playerMob, ranges, null);
+            context.info("consumed 1 " + itemID + " through Build Menu's " + ranges.size() + " ranges");
+            return true;
+         }
+
+         context.fail("cannot afford 1 " + itemID + " through Build Menu's " + ranges.size() + " ranges");
+         return false;
+      }
+   }
+
+   /**
+    * {@code query buildmenucost <dx> <dy> <itemStringID>} -- what a placement's material check costs
+    * on this network, split into building the range list and one engine count over it.
+    */
+   private static final class BuildMenuCostQuery implements TestVerb, TestQuery {
+      public String name() {
+         return "buildmenucost";
+      }
+
+      public String usage() {
+         return "query buildmenucost <dx> <dy> <itemStringID>";
+      }
+
+      public int coordinateArgIndex() {
+         return 2;
+      }
+
+      public boolean needsPlayer() {
+         return true;
+      }
+
+      public boolean run(TestContext context) {
+         return true;
+      }
+
+      public void query(TestContext context, Json.Writer out) {
+         int x = context.tileX(context.intArg(2));
+         int y = context.tileY(context.intArg(3));
+         String itemID = context.arg(4);
+
+         long start = System.nanoTime();
+         List<InventoryRange> ranges = BuildMenuCompat.availabilityRanges(
+               context.level, context.client.playerMob, x, y);
+         long buildNs = System.nanoTime() - start;
+
+         int rangeCount = ranges == null ? -1 : ranges.size();
+         long craftNs = -1L;
+         if (ranges != null) {
+            Ingredient[] direct = Recipes.ingredientsFromScript("{{" + itemID + ", 1}}");
+            start = System.nanoTime();
+            Recipe.canCraftRange(direct, context.level, context.client.playerMob, ranges, false, null);
+            craftNs = System.nanoTime() - start;
+         }
+
+         out.num("ranges", rangeCount).num("buildNs", buildNs).num("cancraftNs", craftNs);
+      }
    }
 }

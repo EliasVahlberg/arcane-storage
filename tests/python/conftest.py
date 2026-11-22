@@ -13,11 +13,15 @@ honouring that.
 
 from __future__ import annotations
 
+import os
+import shutil
 from pathlib import Path
 
 import pytest
 
 from necesse_harness import Harness, ServerConfig
+
+import buildmenu
 
 # CONTAMINATION -- why three tests carry @pytest.mark.realtime
 #
@@ -42,6 +46,26 @@ from necesse_harness import Harness, ServerConfig
 MOD_DIR = Path(__file__).resolve().parents[2]
 
 
+def seed_appdata(appdata: Path) -> None:
+    """Puts the harness (and, if present, Build Menu) into this checkout's own game-data directory.
+
+    A headless server loads mods from ``<appdata>/mods`` and writes its mod list and saves under the
+    same root, so pointing it at a per-checkout directory keeps a test run from reading or clobbering
+    the player's real mods. The harness jar is copied from the installed one rather than shipped here;
+    Build Menu's Workshop copy is picked up by :func:`buildmenu.install`.
+    """
+    mods = appdata / "mods"
+    mods.mkdir(parents=True, exist_ok=True)
+    installed = Path(os.environ.get("NECESSE_INSTALLED_APPDATA", Path.home() / ".config/Necesse")) / "mods"
+    harness_jars = list(installed.glob("NecesseHeadlessHarness-*.jar"))
+    if not harness_jars:
+        raise RuntimeError(
+            f"the harness is not installed in {installed}; run 'make install' in the harness repo")
+    for jar in harness_jars:
+        shutil.copy2(jar, mods / jar.name)
+    buildmenu.install(mods)
+
+
 @pytest.fixture(scope="session")
 def harness_config() -> ServerConfig:
     """Point the harness at this mod.
@@ -57,6 +81,9 @@ def harness_config() -> ServerConfig:
     config = ServerConfig()
     config.mod_under_test = MOD_DIR / "build/jar"
     config.world = "arcane_harness_py"
+    config.appdata = MOD_DIR / "build/necesse-appdata"
+    config.work_dir = MOD_DIR / "build/harness-out"
+    seed_appdata(config.appdata)
     return config
 
 
